@@ -2,13 +2,39 @@ import CoreGraphics
 import Foundation
 import ScreenCaptureKit
 
-struct WindowInfo: Sendable {
+struct WindowInfo: Sendable, Encodable {
     let windowID: CGWindowID
     let ownerName: String
     let windowTitle: String
     let pid: pid_t
     let frame: CGRect
     let isOnScreen: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case windowID, ownerName, windowTitle, pid, frame, isOnScreen
+    }
+
+    struct FrameJSON: Encodable {
+        let x: Int
+        let y: Int
+        let width: Int
+        let height: Int
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(windowID, forKey: .windowID)
+        try container.encode(ownerName, forKey: .ownerName)
+        try container.encode(windowTitle, forKey: .windowTitle)
+        try container.encode(pid, forKey: .pid)
+        try container.encode(FrameJSON(
+            x: Int(frame.origin.x),
+            y: Int(frame.origin.y),
+            width: Int(frame.width),
+            height: Int(frame.height)
+        ), forKey: .frame)
+        try container.encode(isOnScreen, forKey: .isOnScreen)
+    }
 }
 
 enum WindowManager {
@@ -94,6 +120,13 @@ enum WindowManager {
         }
 
         print("\n\(windows.count) window(s) found.")
+    }
+
+    static func printWindowListJSON(_ windows: [WindowInfo]) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        let data = try encoder.encode(windows)
+        print(String(data: data, encoding: .utf8)!)
     }
 
     private static func onScreenWindowIDs() -> Set<CGWindowID> {

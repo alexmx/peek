@@ -1,10 +1,40 @@
 import ApplicationServices
 import Foundation
 
+struct AXNode: Encodable {
+    let role: String
+    let title: String?
+    let value: String?
+    let description: String?
+    let frame: FrameInfo?
+    let children: [AXNode]
+
+    struct FrameInfo: Encodable {
+        let x: Int
+        let y: Int
+        let width: Int
+        let height: Int
+    }
+}
+
 enum AccessibilityTree {
     private static let maxDepth = 50
 
-    static func inspect(pid: pid_t, windowID: CGWindowID) throws {
+    static func inspect(pid: pid_t, windowID: CGWindowID, json: Bool) throws {
+        let window = try findWindow(pid: pid, windowID: windowID)
+        let tree = buildNode(from: window, depth: 0)
+
+        if json {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(tree)
+            print(String(data: data, encoding: .utf8)!)
+        } else {
+            printNode(tree, depth: 0)
+        }
+    }
+
+    static func findWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
         guard AXIsProcessTrusted() else {
             throw PeekError.accessibilityNotTrusted
         }
@@ -17,41 +47,59 @@ enum AccessibilityTree {
             throw PeekError.noWindows
         }
 
-        // Match by CGWindowID using the private API
-        let window = windows.first { win in
+        return windows.first { win in
             var id: CGWindowID = 0
             return _AXUIElementGetWindow(win, &id) == .success && id == windowID
         } ?? windows[0]
-
-        printElement(window, depth: 0)
     }
 
-    private static func printElement(_ element: AXUIElement, depth: Int) {
-        guard depth < maxDepth else { return }
-
-        let indent = String(repeating: "  ", count: depth)
+    private static func buildNode(from element: AXUIElement, depth: Int) -> AXNode {
         let role = attribute(of: element, key: kAXRoleAttribute) ?? "unknown"
         let title = attribute(of: element, key: kAXTitleAttribute)
         let value = attribute(of: element, key: kAXValueAttribute)
         let description = attribute(of: element, key: kAXDescriptionAttribute)
 
-        var line = "\(indent)\(role)"
-        if let title, !title.isEmpty { line += "  \"\(title)\"" }
-        if let value, !value.isEmpty { line += "  value=\"\(value)\"" }
-        if let description, !description.isEmpty { line += "  desc=\"\(description)\"" }
-
-        if let frame = frame(of: element) {
-            line += "  (\(Int(frame.origin.x)), \(Int(frame.origin.y))) \(Int(frame.size.width))x\(Int(frame.size.height))"
+        let frameInfo: AXNode.FrameInfo? = frame(of: element).map {
+            AXNode.FrameInfo(
+                x: Int($0.origin.x),
+                y: Int($0.origin.y),
+                width: Int($0.size.width),
+                height: Int($0.size.height)
+            )
         }
 
+        var childNodes: [AXNode] = []
+        if depth < maxDepth {
+            var childrenRef: CFTypeRef?
+            let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
+            if result == .success, let children = childrenRef as? [AXUIElement] {
+                childNodes = children.map { buildNode(from: $0, depth: depth + 1) }
+            }
+        }
+
+        return AXNode(
+            role: role,
+            title: title,
+            value: value,
+            description: description,
+            frame: frameInfo,
+            children: childNodes
+        )
+    }
+
+    private static func printNode(_ node: AXNode, depth: Int) {
+        let indent = String(repeating: "  ", count: depth)
+        var line = "\(indent)\(node.role)"
+        if let title = node.title, !title.isEmpty { line += "  \"\(title)\"" }
+        if let value = node.value, !value.isEmpty { line += "  value=\"\(value)\"" }
+        if let desc = node.description, !desc.isEmpty { line += "  desc=\"\(desc)\"" }
+        if let f = node.frame {
+            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
+        }
         print(line)
 
-        var childrenRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
-        if result == .success, let children = childrenRef as? [AXUIElement] {
-            for child in children {
-                printElement(child, depth: depth + 1)
-            }
+        for child in node.children {
+            printNode(child, depth: depth + 1)
         }
     }
 

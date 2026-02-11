@@ -4,7 +4,13 @@ import ImageIO
 import UniformTypeIdentifiers
 
 enum ScreenCapture {
-    static func capture(windowID: CGWindowID, outputPath: String) throws {
+    struct CaptureResult: Encodable {
+        let path: String
+        let width: Int
+        let height: Int
+    }
+
+    static func capture(windowID: CGWindowID, outputPath: String, json: Bool) throws {
         guard let image = CGWindowListCreateImage(
             .null,
             .optionIncludingWindow,
@@ -30,7 +36,15 @@ enum ScreenCapture {
             throw PeekError.failedToWrite(outputPath)
         }
 
-        print("Saved screenshot to \(outputPath)")
-        print("Size: \(image.width)x\(image.height) pixels")
+        if json {
+            let result = CaptureResult(path: outputPath, width: image.width, height: image.height)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(result)
+            print(String(data: data, encoding: .utf8)!)
+        } else {
+            print("Saved screenshot to \(outputPath)")
+            print("Size: \(image.width)x\(image.height) pixels")
+        }
     }
 }

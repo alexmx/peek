@@ -14,9 +14,16 @@ struct List: AsyncParsableCommand {
         abstract: "List all open windows"
     )
 
+    @Flag(name: .long, help: "Output as JSON")
+    var json = false
+
     func run() async throws {
         let windows = try await WindowManager.listWindows()
-        WindowManager.printWindowList(windows)
+        if json {
+            try WindowManager.printWindowListJSON(windows)
+        } else {
+            WindowManager.printWindowList(windows)
+        }
     }
 }
 
@@ -31,9 +38,12 @@ struct Capture: ParsableCommand {
     @Option(name: .shortAndLong, help: "Output file path (default: window_<id>.png)")
     var output: String?
 
+    @Flag(name: .long, help: "Output as JSON")
+    var json = false
+
     func run() throws {
         let path = output ?? "window_\(windowID).png"
-        try ScreenCapture.capture(windowID: windowID, outputPath: path)
+        try ScreenCapture.capture(windowID: windowID, outputPath: path, json: json)
     }
 }
 
@@ -45,10 +55,13 @@ struct Inspect: ParsableCommand {
     @Argument(help: "The window ID to inspect")
     var windowID: UInt32
 
+    @Flag(name: .long, help: "Output as JSON")
+    var json = false
+
     func run() throws {
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
-        try AccessibilityTree.inspect(pid: pid, windowID: windowID)
+        try AccessibilityTree.inspect(pid: pid, windowID: windowID, json: json)
     }
 }
