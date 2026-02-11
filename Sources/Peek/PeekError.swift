@@ -1,3 +1,4 @@
+import ApplicationServices
 import CoreGraphics
 import Foundation
 
@@ -6,6 +7,8 @@ enum PeekError: LocalizedError {
     case accessibilityNotTrusted
     case noWindows
     case failedToWrite(String)
+    case elementNotFound
+    case actionFailed(String, AXError)
 
     var errorDescription: String? {
         switch self {
@@ -17,6 +20,10 @@ enum PeekError: LocalizedError {
             return "No accessible windows found for this application."
         case .failedToWrite(let path):
             return "Failed to write to \(path)"
+        case .elementNotFound:
+            return "No matching element found."
+        case .actionFailed(let action, let error):
+            return "Action '\(action)' failed with error code \(error.rawValue)."
         }
     }
 }
