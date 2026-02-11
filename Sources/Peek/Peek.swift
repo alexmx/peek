@@ -1,11 +1,12 @@
 import ArgumentParser
 import CoreGraphics
+import Foundation
 
 @main
 struct Peek: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "macOS Window Inspector",
-        subcommands: [List.self, Capture.self, Inspect.self]
+        subcommands: [List.self, Capture.self, Inspect.self, Find.self, ElementAt.self]
     )
 }
 
@@ -63,5 +64,124 @@ struct Inspect: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
         try AccessibilityTree.inspect(pid: pid, windowID: windowID, json: json)
+    }
+}
+
+struct Find: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Search for UI elements in a window"
+    )
+
+    @Argument(help: "The window ID to search")
+    var windowID: UInt32
+
+    @Option(name: .long, help: "Filter by role (e.g. AXButton, AXStaticText)")
+    var role: String?
+
+    @Option(name: .long, help: "Filter by title (case-insensitive substring)")
+    var title: String?
+
+    @Option(name: .long, help: "Filter by value (case-insensitive substring)")
+    var value: String?
+
+    @Option(name: .long, help: "Filter by description (case-insensitive substring)")
+    var desc: String?
+
+    @Flag(name: .long, help: "Output as JSON")
+    var json = false
+
+    func validate() throws {
+        if role == nil && title == nil && value == nil && desc == nil {
+            throw ValidationError("At least one filter is required: --role, --title, --value, or --desc")
+        }
+    }
+
+    func run() throws {
+        guard let pid = WindowManager.pid(forWindowID: windowID) else {
+            throw PeekError.windowNotFound(windowID)
+        }
+
+        let results = try AccessibilityTree.find(
+            pid: pid,
+            windowID: windowID,
+            role: role,
+            title: title,
+            value: value,
+            description: desc
+        )
+
+        if json {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(results)
+            print(String(data: data, encoding: .utf8)!)
+        } else {
+            if results.isEmpty {
+                print("No matching elements found.")
+            } else {
+                for node in results {
+                    var line = node.role
+                    if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
+                    if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
+                    if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
+                    if let f = node.frame {
+                        line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
+                    }
+                    print(line)
+                }
+                print("\n\(results.count) element(s) found.")
+            }
+        }
+    }
+}
+
+struct ElementAt: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "element-at",
+        abstract: "Find the UI element at a screen coordinate"
+    )
+
+    @Argument(help: "The window ID to query")
+    var windowID: UInt32
+
+    @Argument(help: "X coordinate")
+    var x: Int
+
+    @Argument(help: "Y coordinate")
+    var y: Int
+
+    @Flag(name: .long, help: "Output as JSON")
+    var json = false
+
+    func run() throws {
+        guard let pid = WindowManager.pid(forWindowID: windowID) else {
+            throw PeekError.windowNotFound(windowID)
+        }
+
+        guard let node = try AccessibilityTree.elementAt(
+            pid: pid,
+            windowID: windowID,
+            x: x,
+            y: y
+        ) else {
+            print("No element found at (\(x), \(y)).")
+            return
+        }
+
+        if json {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+            let data = try encoder.encode(node)
+            print(String(data: data, encoding: .utf8)!)
+        } else {
+            var line = node.role
+            if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
+            if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
+            if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
+            if let f = node.frame {
+                line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
+            }
+            print(line)
+        }
     }
 }

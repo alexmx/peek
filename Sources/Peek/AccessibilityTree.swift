@@ -87,6 +87,89 @@ enum AccessibilityTree {
         )
     }
 
+    /// Search the tree for nodes matching the given criteria.
+    static func find(
+        pid: pid_t,
+        windowID: CGWindowID,
+        role: String?,
+        title: String?,
+        value: String?,
+        description: String?
+    ) throws -> [AXNode] {
+        let window = try findWindow(pid: pid, windowID: windowID)
+        let tree = buildNode(from: window, depth: 0)
+        var results: [AXNode] = []
+        searchNode(tree, role: role, title: title, value: value, description: description, results: &results)
+        return results
+    }
+
+    private static func searchNode(
+        _ node: AXNode,
+        role: String?,
+        title: String?,
+        value: String?,
+        description: String?,
+        results: inout [AXNode]
+    ) {
+        var matches = true
+        if let role, node.role != role { matches = false }
+        if let title, node.title?.localizedCaseInsensitiveContains(title) != true { matches = false }
+        if let value, node.value?.localizedCaseInsensitiveContains(value) != true { matches = false }
+        if let description, node.description?.localizedCaseInsensitiveContains(description) != true { matches = false }
+
+        if matches {
+            // Return a leaf copy (no children) to keep results flat
+            results.append(AXNode(
+                role: node.role,
+                title: node.title,
+                value: node.value,
+                description: node.description,
+                frame: node.frame,
+                children: []
+            ))
+        }
+
+        for child in node.children {
+            searchNode(child, role: role, title: title, value: value, description: description, results: &results)
+        }
+    }
+
+    /// Find the deepest element at the given screen coordinates.
+    static func elementAt(
+        pid: pid_t,
+        windowID: CGWindowID,
+        x: Int,
+        y: Int
+    ) throws -> AXNode? {
+        let window = try findWindow(pid: pid, windowID: windowID)
+        let tree = buildNode(from: window, depth: 0)
+        return deepestNode(in: tree, x: x, y: y)
+    }
+
+    private static func deepestNode(in node: AXNode, x: Int, y: Int) -> AXNode? {
+        guard let f = node.frame,
+              x >= f.x, x < f.x + f.width,
+              y >= f.y, y < f.y + f.height
+        else { return nil }
+
+        // Try to find a deeper match in children
+        for child in node.children {
+            if let deeper = deepestNode(in: child, x: x, y: y) {
+                return deeper
+            }
+        }
+
+        // This node contains the point but no child does — it's the deepest
+        return AXNode(
+            role: node.role,
+            title: node.title,
+            value: node.value,
+            description: node.description,
+            frame: node.frame,
+            children: []
+        )
+    }
+
     private static func printNode(_ node: AXNode, depth: Int) {
         let indent = String(repeating: "  ", count: depth)
         var line = "\(indent)\(node.role)"
