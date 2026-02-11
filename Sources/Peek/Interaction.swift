@@ -1,4 +1,3 @@
-import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
@@ -44,12 +43,6 @@ enum Interaction {
     ) throws -> AXNode {
         guard AXIsProcessTrusted() else {
             throw PeekError.accessibilityNotTrusted
-        }
-
-        // Activate the app so AX actions can complete
-        if let app = NSRunningApplication(processIdentifier: pid) {
-            app.activate()
-            usleep(100_000) // 100ms for activation
         }
 
         let window = try AccessibilityTree.findWindow(pid: pid, windowID: windowID)

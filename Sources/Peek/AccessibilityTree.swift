@@ -1,7 +1,7 @@
 import ApplicationServices
 import Foundation
 
-struct AXNode: Encodable {
+struct AXNode: Encodable, Equatable {
     let role: String
     let title: String?
     let value: String?
@@ -9,11 +9,20 @@ struct AXNode: Encodable {
     let frame: FrameInfo?
     let children: [AXNode]
 
-    struct FrameInfo: Encodable {
+    struct FrameInfo: Encodable, Equatable {
         let x: Int
         let y: Int
         let width: Int
         let height: Int
+    }
+
+    /// A unique-ish identity for diffing: role + title + description + frame position.
+    var identity: String {
+        let parts = [role, title ?? "", description ?? ""]
+        if let f = frame {
+            return parts.joined(separator: "|") + "|\(f.x),\(f.y)"
+        }
+        return parts.joined(separator: "|")
     }
 }
 
@@ -53,7 +62,8 @@ enum AccessibilityTree {
         } ?? windows[0]
     }
 
-    private static func buildNode(from element: AXUIElement, depth: Int) -> AXNode {
+    /// Build an AXNode tree from an AXUIElement.
+    static func buildNode(from element: AXUIElement, depth: Int = 0) -> AXNode {
         let role = attribute(of: element, key: kAXRoleAttribute) ?? "unknown"
         let title = attribute(of: element, key: kAXTitleAttribute)
         let value = attribute(of: element, key: kAXValueAttribute)
