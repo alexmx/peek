@@ -21,7 +21,7 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 peek apps
 
 # 2. Inspect the UI tree of a window
-peek inspect <window-id>
+peek window <window-id>
 
 # 3. Search for a specific element
 peek find <window-id> --role AXButton --title "Submit"
@@ -42,7 +42,7 @@ peek action <window-id> AXPress --role AXButton --title "Submit"
 
 | Command | Description |
 |---------|-------------|
-| `peek inspect <window-id> [--json]` | Dump the full accessibility tree of a window |
+| `peek window <window-id> [--json]` | Dump the full accessibility tree of a window |
 | `peek find <window-id> [--json]` | Search for elements by `--role`, `--title`, `--value`, `--desc` (at least one required) |
 | `peek element-at <window-id> <x> <y> [--json]` | Hit-test: find the deepest (most specific) element at screen coordinates. Coordinates are absolute screen pixels. Use to identify what's at a known position — pair with `peek capture` to map visual locations to elements |
 | `peek menu <pid> [--json]` | Dump the menu bar structure with keyboard shortcuts |

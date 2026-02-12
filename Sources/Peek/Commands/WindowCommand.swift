@@ -2,9 +2,9 @@ import ArgumentParser
 import CoreGraphics
 import Foundation
 
-struct InspectCommand: ParsableCommand {
+struct WindowCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "inspect",
+        commandName: "window",
         abstract: "Inspect the accessibility tree of a window"
     )
 

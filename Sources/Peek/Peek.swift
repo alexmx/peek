@@ -7,7 +7,7 @@ struct Peek: AsyncParsableCommand {
         subcommands: [
             AppsCommand.self,
             CaptureCommand.self,
-            InspectCommand.self,
+            WindowCommand.self,
             FindCommand.self,
             ElementAtCommand.self,
             ClickCommand.self,
