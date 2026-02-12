@@ -3,6 +3,7 @@ import CoreGraphics
 import Foundation
 
 enum InteractionManager {
+    private static let maxDepth = 50
     /// Click at screen coordinates.
     static func click(x: Double, y: Double) {
         let point = CGPoint(x: x, y: y)
@@ -80,7 +81,7 @@ enum InteractionManager {
         description: String?,
         depth: Int
     ) -> ElementMatch? {
-        guard depth < 50 else { return nil }
+        guard depth < maxDepth else { return nil }
 
         let currentRole = axString(of: element, key: kAXRoleAttribute)
         let currentTitle = axString(of: element, key: kAXTitleAttribute)

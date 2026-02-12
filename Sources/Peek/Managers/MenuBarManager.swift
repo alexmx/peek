@@ -2,6 +2,7 @@ import ApplicationServices
 import Foundation
 
 enum MenuBarManager {
+    private static let maxDepth = 20
     static func menuBar(pid: pid_t) throws -> MenuNode {
         try PermissionManager.requireAccessibility()
 
@@ -17,7 +18,7 @@ enum MenuBarManager {
     }
 
     private static func buildMenuNode(from element: AXUIElement, depth: Int = 0) -> MenuNode {
-        guard depth < 20 else {
+        guard depth < maxDepth else {
             return MenuNode(title: "", role: "unknown", enabled: false, shortcut: nil, children: [])
         }
 
