@@ -11,7 +11,7 @@ enum Interaction {
         let mouseUp = CGEvent(mouseEventSource: nil, mouseType: .leftMouseUp, mouseCursorPosition: point, mouseButton: .left)
 
         mouseDown?.post(tap: .cghidEventTap)
-        usleep(50_000) // 50ms between down and up
+        usleep(50000) // 50ms between down and up
         mouseUp?.post(tap: .cghidEventTap)
     }
 
@@ -27,7 +27,7 @@ enum Interaction {
 
             keyDown?.post(tap: .cghidEventTap)
             keyUp?.post(tap: .cghidEventTap)
-            usleep(10_000) // 10ms between keystrokes
+            usleep(10000) // 10ms between keystrokes
         }
     }
 
@@ -62,7 +62,7 @@ enum Interaction {
         // because the element gets recreated during the state change.
         // Only fail on truly fatal errors.
         let toleratedErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
-        if result != .success && !toleratedErrors.contains(result) {
+        if result != .success, !toleratedErrors.contains(result) {
             throw PeekError.actionFailed(action, result)
         }
 
@@ -84,10 +84,10 @@ enum Interaction {
     ) -> ElementMatch? {
         guard depth < 50 else { return nil }
 
-        let currentRole = axAttribute(of: element, key: kAXRoleAttribute)
-        let currentTitle = axAttribute(of: element, key: kAXTitleAttribute)
-        let currentValue = axAttribute(of: element, key: kAXValueAttribute)
-        let currentDesc = axAttribute(of: element, key: kAXDescriptionAttribute)
+        let currentRole = axString(of: element, key: kAXRoleAttribute)
+        let currentTitle = axString(of: element, key: kAXTitleAttribute)
+        let currentValue = axString(of: element, key: kAXValueAttribute)
+        let currentDesc = axString(of: element, key: kAXDescriptionAttribute)
 
         var matches = true
         if let role, currentRole != role { matches = false }
@@ -96,26 +96,18 @@ enum Interaction {
         if let description, currentDesc?.localizedCaseInsensitiveContains(description) != true { matches = false }
 
         if matches {
-            let frame = axFrame(of: element)
             let node = AXNode(
                 role: currentRole ?? "unknown",
                 title: currentTitle,
                 value: currentValue,
                 description: currentDesc,
-                frame: frame.map { AXNode.FrameInfo(
-                    x: Int($0.origin.x),
-                    y: Int($0.origin.y),
-                    width: Int($0.size.width),
-                    height: Int($0.size.height)
-                )},
+                frame: axFrameInfo(of: element),
                 children: []
             )
             return ElementMatch(ref: element, node: node)
         }
 
-        var childrenRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
-        if result == .success, let children = childrenRef as? [AXUIElement] {
+        if let children = axChildren(of: element) {
             for child in children {
                 if let found = findFirstElement(
                     in: child,
@@ -131,34 +123,5 @@ enum Interaction {
         }
 
         return nil
-    }
-
-    private static func axAttribute(of element: AXUIElement, key: String) -> String? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
-              let value = ref else { return nil }
-        if let str = value as? String { return str }
-        if let num = value as? NSNumber { return num.stringValue }
-        return nil
-    }
-
-    private static func axFrame(of element: AXUIElement) -> CGRect? {
-        var posRef: CFTypeRef?
-        var sizeRef: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
-              CFGetTypeID(posRef!) == AXValueGetTypeID(),
-              CFGetTypeID(sizeRef!) == AXValueGetTypeID()
-        else { return nil }
-
-        var point = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(posRef as! AXValue, .cgPoint, &point),
-              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
-        else { return nil }
-
-        return CGRect(origin: point, size: size)
     }
 }

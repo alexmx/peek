@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 enum ScreenCapture {
@@ -10,15 +11,26 @@ enum ScreenCapture {
         let height: Int
     }
 
-    static func capture(windowID: CGWindowID, outputPath: String, json: Bool) throws {
-        guard let image = CGWindowListCreateImage(
-            .null,
-            .optionIncludingWindow,
-            windowID,
-            [.boundsIgnoreFraming, .bestResolution]
-        ) else {
+    static func capture(windowID: CGWindowID, outputPath: String, json: Bool) async throws {
+        // Get all available windows
+        let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+
+        // Find the window matching the CGWindowID
+        guard let window = content.windows.first(where: { $0.windowID == windowID }) else {
             throw PeekError.windowNotFound(windowID)
         }
+
+        // Create a content filter for this specific window
+        let filter = SCContentFilter(desktopIndependentWindow: window)
+
+        // Configure capture settings
+        let configuration = SCStreamConfiguration()
+        configuration.width = Int(window.frame.width)
+        configuration.height = Int(window.frame.height)
+        configuration.showsCursor = false
+
+        // Capture the image
+        let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: configuration)
 
         let url = URL(fileURLWithPath: outputPath)
         guard let destination = CGImageDestinationCreateWithURL(
@@ -37,11 +49,7 @@ enum ScreenCapture {
         }
 
         if json {
-            let result = CaptureResult(path: outputPath, width: image.width, height: image.height)
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(result)
-            print(String(data: data, encoding: .utf8)!)
+            try printJSON(CaptureResult(path: outputPath, width: image.width, height: image.height))
         } else {
             print("Saved screenshot to \(outputPath)")
             print("Size: \(image.width)x\(image.height) pixels")

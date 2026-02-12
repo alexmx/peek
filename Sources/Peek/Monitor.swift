@@ -55,11 +55,13 @@ enum Monitor {
 
 private class WatchContext {
     let json: Bool
-    init(json: Bool) { self.json = json }
+    init(json: Bool) {
+        self.json = json
+    }
 }
 
 private func watchCallback(
-    _ observer: AXObserver,
+    _: AXObserver,
     _ element: AXUIElement,
     _ notification: CFString,
     _ context: UnsafeMutableRawPointer?
@@ -67,10 +69,10 @@ private func watchCallback(
     guard let context else { return }
     let watchCtx = Unmanaged<WatchContext>.fromOpaque(context).takeUnretainedValue()
 
-    let role = axStringAttribute(of: element, key: kAXRoleAttribute) ?? "unknown"
-    let title = axStringAttribute(of: element, key: kAXTitleAttribute)
-    let value = axStringAttribute(of: element, key: kAXValueAttribute)
-    let description = axStringAttribute(of: element, key: kAXDescriptionAttribute)
+    let role = axString(of: element, key: kAXRoleAttribute) ?? "unknown"
+    let title = axString(of: element, key: kAXTitleAttribute)
+    let value = axString(of: element, key: kAXValueAttribute)
+    let description = axString(of: element, key: kAXDescriptionAttribute)
 
     if watchCtx.json {
         struct WatchEvent: Encodable {
@@ -93,7 +95,8 @@ private func watchCallback(
         )
 
         if let data = try? JSONEncoder().encode(event),
-           let str = String(data: data, encoding: .utf8) {
+           let str = String(data: data, encoding: .utf8)
+        {
             print(str)
             fflush(stdout)
         }
@@ -106,15 +109,6 @@ private func watchCallback(
         print(line)
         fflush(stdout)
     }
-}
-
-private func axStringAttribute(of element: AXUIElement, key: String) -> String? {
-    var ref: CFTypeRef?
-    guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
-          let value = ref else { return nil }
-    if let str = value as? String { return str }
-    if let num = value as? NSNumber { return num.stringValue }
-    return nil
 }
 
 // MARK: - Diff
@@ -185,14 +179,7 @@ extension Monitor {
     }
 
     private static func flattenNodes(_ node: AXNode) -> [AXNode] {
-        var result = [AXNode(
-            role: node.role,
-            title: node.title,
-            value: node.value,
-            description: node.description,
-            frame: node.frame,
-            children: []
-        )]
+        var result = [node.leaf]
         for child in node.children {
             result.append(contentsOf: flattenNodes(child))
         }

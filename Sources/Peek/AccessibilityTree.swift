@@ -16,6 +16,11 @@ struct AXNode: Encodable, Equatable {
         let height: Int
     }
 
+    /// Copy of this node without children (for flat result lists).
+    var leaf: AXNode {
+        AXNode(role: role, title: title, value: value, description: description, frame: frame, children: [])
+    }
+
     /// A unique-ish identity for diffing: role + title + description + frame position.
     var identity: String {
         let parts = [role, title ?? "", description ?? ""]
@@ -29,18 +34,9 @@ struct AXNode: Encodable, Equatable {
 enum AccessibilityTree {
     private static let maxDepth = 50
 
-    static func inspect(pid: pid_t, windowID: CGWindowID, json: Bool) throws {
+    static func inspect(pid: pid_t, windowID: CGWindowID) throws -> AXNode {
         let window = try findWindow(pid: pid, windowID: windowID)
-        let tree = buildNode(from: window, depth: 0)
-
-        if json {
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            let data = try encoder.encode(tree)
-            print(String(data: data, encoding: .utf8)!)
-        } else {
-            printNode(tree, depth: 0)
-        }
+        return buildNode(from: window, depth: 0)
     }
 
     static func findWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
@@ -64,27 +60,14 @@ enum AccessibilityTree {
 
     /// Build an AXNode tree from an AXUIElement.
     static func buildNode(from element: AXUIElement, depth: Int = 0) -> AXNode {
-        let role = attribute(of: element, key: kAXRoleAttribute) ?? "unknown"
-        let title = attribute(of: element, key: kAXTitleAttribute)
-        let value = attribute(of: element, key: kAXValueAttribute)
-        let description = attribute(of: element, key: kAXDescriptionAttribute)
-
-        let frameInfo: AXNode.FrameInfo? = frame(of: element).map {
-            AXNode.FrameInfo(
-                x: Int($0.origin.x),
-                y: Int($0.origin.y),
-                width: Int($0.size.width),
-                height: Int($0.size.height)
-            )
-        }
+        let role = axString(of: element, key: kAXRoleAttribute) ?? "unknown"
+        let title = axString(of: element, key: kAXTitleAttribute)
+        let value = axString(of: element, key: kAXValueAttribute)
+        let description = axString(of: element, key: kAXDescriptionAttribute)
 
         var childNodes: [AXNode] = []
-        if depth < maxDepth {
-            var childrenRef: CFTypeRef?
-            let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childrenRef)
-            if result == .success, let children = childrenRef as? [AXUIElement] {
-                childNodes = children.map { buildNode(from: $0, depth: depth + 1) }
-            }
+        if depth < maxDepth, let children = axChildren(of: element) {
+            childNodes = children.map { buildNode(from: $0, depth: depth + 1) }
         }
 
         return AXNode(
@@ -92,7 +75,7 @@ enum AccessibilityTree {
             title: title,
             value: value,
             description: description,
-            frame: frameInfo,
+            frame: axFrameInfo(of: element),
             children: childNodes
         )
     }
@@ -128,15 +111,7 @@ enum AccessibilityTree {
         if let description, node.description?.localizedCaseInsensitiveContains(description) != true { matches = false }
 
         if matches {
-            // Return a leaf copy (no children) to keep results flat
-            results.append(AXNode(
-                role: node.role,
-                title: node.title,
-                value: node.value,
-                description: node.description,
-                frame: node.frame,
-                children: []
-            ))
+            results.append(node.leaf)
         }
 
         for child in node.children {
@@ -170,62 +145,15 @@ enum AccessibilityTree {
         }
 
         // This node contains the point but no child does — it's the deepest
-        return AXNode(
-            role: node.role,
-            title: node.title,
-            value: node.value,
-            description: node.description,
-            frame: node.frame,
-            children: []
-        )
-    }
-
-    private static func printNode(_ node: AXNode, depth: Int) {
-        let indent = String(repeating: "  ", count: depth)
-        var line = "\(indent)\(node.role)"
-        if let title = node.title, !title.isEmpty { line += "  \"\(title)\"" }
-        if let value = node.value, !value.isEmpty { line += "  value=\"\(value)\"" }
-        if let desc = node.description, !desc.isEmpty { line += "  desc=\"\(desc)\"" }
-        if let f = node.frame {
-            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
-        }
-        print(line)
-
-        for child in node.children {
-            printNode(child, depth: depth + 1)
-        }
-    }
-
-    private static func attribute(of element: AXUIElement, key: String) -> String? {
-        var ref: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
-              let value = ref else { return nil }
-
-        if let str = value as? String { return str }
-        if let num = value as? NSNumber { return num.stringValue }
-        return nil
-    }
-
-    private static func frame(of element: AXUIElement) -> CGRect? {
-        var posRef: CFTypeRef?
-        var sizeRef: CFTypeRef?
-
-        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
-              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
-              CFGetTypeID(posRef!) == AXValueGetTypeID(),
-              CFGetTypeID(sizeRef!) == AXValueGetTypeID()
-        else { return nil }
-
-        var point = CGPoint.zero
-        var size = CGSize.zero
-
-        guard AXValueGetValue(posRef as! AXValue, .cgPoint, &point),
-              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
-        else { return nil }
-
-        return CGRect(origin: point, size: size)
+        return node.leaf
     }
 }
 
+/// Private API to extract a CGWindowID from an AXUIElement.
+/// Apple provides no public bridge between the Accessibility and CGWindow worlds,
+/// so this is the standard workaround used by tools like Hammerspoon and yabai.
 @_silgen_name("_AXUIElementGetWindow")
-func _AXUIElementGetWindow(_ element: AXUIElement, _ windowID: UnsafeMutablePointer<CGWindowID>) -> AXError
+func _AXUIElementGetWindow(
+    _ element: AXUIElement,
+    _ windowID: UnsafeMutablePointer<CGWindowID>
+) -> AXError
