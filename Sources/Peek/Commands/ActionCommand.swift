@@ -25,6 +25,9 @@ struct ActionCommand: ParsableCommand {
     @Option(name: .long, help: "Filter by description (case-insensitive substring)")
     var desc: String?
 
+    @Flag(name: .long, help: "Perform the action on all matching elements (default: first match only)")
+    var all: Bool = false
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -40,24 +43,49 @@ struct ActionCommand: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
 
-        let node = try InteractionManager.performAction(
-            pid: pid,
-            windowID: windowID,
-            action: action,
-            role: role,
-            title: title,
-            value: value,
-            description: desc
-        )
+        if all {
+            let nodes = try InteractionManager.performActionOnAll(
+                pid: pid,
+                windowID: windowID,
+                action: action,
+                role: role,
+                title: title,
+                value: value,
+                description: desc
+            )
 
-        if format == .json {
-            try printJSON(node)
+            if format == .json {
+                try printJSON(nodes)
+            } else {
+                for node in nodes {
+                    var line = "Performed '\(action)' on: \(node.role)"
+                    if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
+                    if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
+                    if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
+                    print(line)
+                }
+                print("\(nodes.count) element(s) affected.")
+            }
         } else {
-            var line = "Performed '\(action)' on: \(node.role)"
-            if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
-            if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
-            if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
-            print(line)
+            let node = try InteractionManager.performAction(
+                pid: pid,
+                windowID: windowID,
+                action: action,
+                role: role,
+                title: title,
+                value: value,
+                description: desc
+            )
+
+            if format == .json {
+                try printJSON(node)
+            } else {
+                var line = "Performed '\(action)' on: \(node.role)"
+                if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
+                if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
+                if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
+                print(line)
+            }
         }
     }
 }

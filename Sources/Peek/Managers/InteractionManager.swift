@@ -68,6 +68,45 @@ enum InteractionManager {
         return element.node
     }
 
+    /// Perform an AX action on all elements matching the given filters.
+    static func performActionOnAll(
+        pid: pid_t,
+        windowID: CGWindowID,
+        action: String,
+        role: String?,
+        title: String?,
+        value: String?,
+        description: String?
+    ) throws -> [AXNode] {
+        try PermissionManager.requireAccessibility()
+
+        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
+        var elements: [ElementMatch] = []
+        findAllElements(
+            in: window,
+            role: role,
+            title: title,
+            value: value,
+            description: description,
+            depth: 0,
+            results: &elements
+        )
+
+        guard !elements.isEmpty else {
+            throw PeekError.elementNotFound
+        }
+
+        let toleratedErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
+        for element in elements {
+            let result = AXUIElementPerformAction(element.ref, action as CFString)
+            if result != .success, !toleratedErrors.contains(result) {
+                throw PeekError.actionFailed(action, result)
+            }
+        }
+
+        return elements.map(\.node)
+    }
+
     private struct ElementMatch {
         let ref: AXUIElement
         let node: AXNode
@@ -122,5 +161,54 @@ enum InteractionManager {
         }
 
         return nil
+    }
+
+    private static func findAllElements(
+        in element: AXUIElement,
+        role: String?,
+        title: String?,
+        value: String?,
+        description: String?,
+        depth: Int,
+        results: inout [ElementMatch]
+    ) {
+        guard depth < maxDepth else { return }
+
+        let currentRole = axString(of: element, key: kAXRoleAttribute)
+        let currentTitle = axString(of: element, key: kAXTitleAttribute)
+        let currentValue = axString(of: element, key: kAXValueAttribute)
+        let currentDesc = axString(of: element, key: kAXDescriptionAttribute)
+
+        var matches = true
+        if let role, currentRole != role { matches = false }
+        if let title, currentTitle?.localizedCaseInsensitiveContains(title) != true { matches = false }
+        if let value, currentValue?.localizedCaseInsensitiveContains(value) != true { matches = false }
+        if let description, currentDesc?.localizedCaseInsensitiveContains(description) != true { matches = false }
+
+        if matches {
+            let node = AXNode(
+                role: currentRole ?? "unknown",
+                title: currentTitle,
+                value: currentValue,
+                description: currentDesc,
+                frame: axFrameInfo(of: element),
+                children: []
+            )
+            results.append(ElementMatch(ref: element, node: node))
+        }
+
+        if let children = axChildren(of: element) {
+            for child in children {
+                findAllElements(
+                    in: child,
+                    role: role,
+                    title: title,
+                    value: value,
+                    description: description,
+                    depth: depth + 1,
+                    results: &results
+                )
+            }
+        }
     }
 }
