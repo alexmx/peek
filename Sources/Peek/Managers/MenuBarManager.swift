@@ -17,6 +17,54 @@ enum MenuBarManager {
         return buildMenuNode(from: menuBar as! AXUIElement)
     }
 
+    /// Find and press a menu item by title (case-insensitive substring match).
+    static func clickMenuItem(pid: pid_t, title: String) throws -> String {
+        try PermissionManager.requireAccessibility()
+
+        let app = AXUIElementCreateApplication(pid)
+
+        var menuBarRef: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &menuBarRef)
+        guard result == .success, let menuBar = menuBarRef else {
+            throw PeekError.noMenuBar(pid)
+        }
+
+        guard let element = findMenuItem(in: menuBar as! AXUIElement, title: title, depth: 0) else {
+            throw PeekError.menuItemNotFound(title)
+        }
+
+        let pressResult = AXUIElementPerformAction(element, kAXPressAction as CFString)
+        let toleratedErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
+        if pressResult != .success, !toleratedErrors.contains(pressResult) {
+            throw PeekError.actionFailed("AXPress", pressResult)
+        }
+
+        return axString(of: element, key: kAXTitleAttribute) ?? title
+    }
+
+    private static func findMenuItem(in element: AXUIElement, title: String, depth: Int) -> AXUIElement? {
+        guard depth < maxDepth else { return nil }
+
+        let role = axString(of: element, key: kAXRoleAttribute) ?? ""
+        let itemTitle = axString(of: element, key: kAXTitleAttribute) ?? ""
+
+        if role == "AXMenuItem", !itemTitle.isEmpty,
+           itemTitle.localizedCaseInsensitiveContains(title),
+           axBool(of: element, key: kAXEnabledAttribute) != false {
+            return element
+        }
+
+        if let children = axChildren(of: element) {
+            for child in children {
+                if let found = findMenuItem(in: child, title: title, depth: depth + 1) {
+                    return found
+                }
+            }
+        }
+
+        return nil
+    }
+
     private static func buildMenuNode(from element: AXUIElement, depth: Int = 0) -> MenuNode {
         guard depth < maxDepth else {
             return MenuNode(title: "", role: "unknown", enabled: false, shortcut: nil, children: [])

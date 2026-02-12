@@ -10,10 +10,27 @@ struct MenuCommand: ParsableCommand {
     @Argument(help: "The PID of the application")
     var pid: Int32
 
+    @Option(name: .long, help: "Click a menu item by title (case-insensitive substring)")
+    var click: String?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
+    struct ClickResult: Encodable {
+        let title: String
+    }
+
     func run() throws {
+        if let click {
+            let title = try MenuBarManager.clickMenuItem(pid: pid, title: click)
+            if format == .json {
+                try printJSON(ClickResult(title: title))
+            } else {
+                print("Clicked menu item: \(title)")
+            }
+            return
+        }
+
         let tree = try MenuBarManager.menuBar(pid: pid)
 
         if format == .json {
