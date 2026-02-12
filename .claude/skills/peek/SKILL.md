@@ -13,6 +13,7 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 - macOS 15+
 - Accessibility permission must be granted in System Settings > Privacy & Security > Accessibility
 - Screen Recording permission for `peek capture`
+- Run `peek doctor` to check permissions, or `peek doctor --prompt` to trigger system dialogs
 
 ## Quick Workflow
 
@@ -331,6 +332,33 @@ $ peek diff --app Xcode --format json
   ],
   "removed" : []
 }
+```
+
+### `peek doctor` — Check permissions
+
+```bash
+$ peek doctor
+Accessibility:    granted
+Screen Recording: not granted
+
+Run 'peek doctor --prompt' to request missing permissions.
+```
+
+Use `--prompt` to trigger the system permission dialogs for any missing permissions.
+
+```bash
+$ peek doctor --prompt
+Accessibility:    granted
+Screen Recording: not granted
+
+Opening System Settings for missing permissions...
+```
+
+```bash
+$ peek doctor --format json
+```
+```json
+{ "accessibility" : true, "screenRecording" : false }
 ```
 
 ## Tips
