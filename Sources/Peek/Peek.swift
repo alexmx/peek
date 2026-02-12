@@ -16,6 +16,7 @@ struct Peek: AsyncParsableCommand {
             WatchCommand.self,
             DiffCommand.self,
             MenuCommand.self,
+            DoctorCommand.self,
         ]
     )
 }
