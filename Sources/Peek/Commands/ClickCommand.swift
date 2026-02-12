@@ -13,8 +13,21 @@ struct ClickCommand: ParsableCommand {
     @Argument(help: "Y coordinate")
     var y: Double
 
-    func run() {
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
+
+    struct ClickResult: Encodable {
+        let x: Int
+        let y: Int
+    }
+
+    func run() throws {
         InteractionManager.click(x: x, y: y)
-        print("Clicked at (\(Int(x)), \(Int(y)))")
+
+        if format == .json {
+            try printJSON(ClickResult(x: Int(x), y: Int(y)))
+        } else {
+            print("Clicked at (\(Int(x)), \(Int(y)))")
+        }
     }
 }

@@ -10,8 +10,20 @@ struct TypeCommand: ParsableCommand {
     @Argument(help: "The text to type")
     var text: String
 
-    func run() {
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
+
+    struct TypeResult: Encodable {
+        let characters: Int
+    }
+
+    func run() throws {
         InteractionManager.type(text: text)
-        print("Typed \(text.count) character(s)")
+
+        if format == .json {
+            try printJSON(TypeResult(characters: text.count))
+        } else {
+            print("Typed \(text.count) character(s)")
+        }
     }
 }
