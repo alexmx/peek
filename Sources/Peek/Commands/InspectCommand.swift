@@ -24,13 +24,14 @@ struct InspectCommand: ParsableCommand {
         if json {
             try printJSON(tree)
         } else {
-            printNode(tree, depth: 0)
+            printNode(tree)
         }
     }
 
-    private func printNode(_ node: AXNode, depth: Int) {
-        let indent = String(repeating: "  ", count: depth)
-        var line = "\(indent)\(node.role)"
+    private func printNode(_ node: AXNode, prefix: String = "", isLast: Bool = true, isRoot: Bool = true) {
+        let connector = isRoot ? "" : (isLast ? "└── " : "├── ")
+        let role = node.role.hasPrefix("AX") ? String(node.role.dropFirst(2)) : node.role
+        var line = "\(prefix)\(connector)\(role)"
         if let title = node.title, !title.isEmpty { line += "  \"\(title)\"" }
         if let value = node.value, !value.isEmpty { line += "  value=\"\(value)\"" }
         if let desc = node.description, !desc.isEmpty { line += "  desc=\"\(desc)\"" }
@@ -39,8 +40,9 @@ struct InspectCommand: ParsableCommand {
         }
         print(line)
 
-        for child in node.children {
-            printNode(child, depth: depth + 1)
+        let childPrefix = isRoot ? "" : (prefix + (isLast ? "    " : "│   "))
+        for (index, child) in node.children.enumerated() {
+            printNode(child, prefix: childPrefix, isLast: index == node.children.count - 1, isRoot: false)
         }
     }
 }
