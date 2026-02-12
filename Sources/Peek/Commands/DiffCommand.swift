@@ -69,7 +69,7 @@ struct DiffCommand: ParsableCommand {
                 }
                 if change.before.frame != change.after.frame {
                     if let bf = change.before.frame, let af = change.after.frame {
-                        print("    frame: (\(bf.x),\(bf.y)) \(bf.width)x\(bf.height) -> (\(af.x),\(af.y)) \(af.width)x\(af.height)")
+                        print("    frame: (\(bf.x), \(bf.y)) \(bf.width)x\(bf.height) -> (\(af.x), \(af.y)) \(af.width)x\(af.height)")
                     }
                 }
             }
@@ -80,11 +80,11 @@ struct DiffCommand: ParsableCommand {
 
     private func formatNode(_ node: AXNode) -> String {
         var line = node.role
-        if let t = node.title, !t.isEmpty { line += " \"\(t)\"" }
-        if let v = node.value, !v.isEmpty { line += " value=\"\(v)\"" }
-        if let d = node.description, !d.isEmpty { line += " desc=\"\(d)\"" }
+        if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
+        if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
+        if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
         if let f = node.frame {
-            line += " (\(f.x),\(f.y)) \(f.width)x\(f.height)"
+            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
         }
         return line
     }
