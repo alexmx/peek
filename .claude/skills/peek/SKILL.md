@@ -17,19 +17,16 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 ## Quick Workflow
 
 ```bash
-# 1. Find the target window
-peek list
-
-# 2. Get the PID for a window ID
+# 1. List apps and their windows to find window IDs and PIDs
 peek apps
 
-# 3. Inspect the UI tree
+# 2. Inspect the UI tree of a window
 peek inspect <window-id>
 
-# 4. Search for a specific element
+# 3. Search for a specific element
 peek find <window-id> --role AXButton --title "Submit"
 
-# 5. Interact with it
+# 4. Interact with it
 peek action <window-id> AXPress --role AXButton --title "Submit"
 ```
 
@@ -39,8 +36,7 @@ peek action <window-id> AXPress --role AXButton --title "Submit"
 
 | Command | Description |
 |---------|-------------|
-| `peek list [--json]` | List all open windows with IDs, PIDs, app names, and frames |
-| `peek apps [--json]` | List running apps with bundle IDs, PIDs, and active/hidden state |
+| `peek apps [--json]` | List running apps with bundle IDs, PIDs, active/hidden state, and their windows (IDs, titles, frames) |
 
 ### Inspection
 
@@ -81,5 +77,5 @@ Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncremen
 - `--role` is an exact match. Common roles: `AXButton`, `AXStaticText`, `AXTextField`, `AXCheckBox`, `AXRadioButton`, `AXPopUpButton`, `AXMenuItem`, `AXTable`, `AXRow`, `AXCell`.
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
 - `peek click` and `peek type` operate at the system level (not window-scoped).
-- Use `peek list` to get window IDs, then `peek apps` or the PID column from `peek list` to get PIDs for `peek menu`.
+- Use `peek apps` to get window IDs and PIDs. Use PIDs for `peek menu`.
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.

@@ -1,17 +1,20 @@
 import ArgumentParser
+import CoreGraphics
 import Foundation
 
-struct AppsCommand: ParsableCommand {
+struct AppsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "apps",
-        abstract: "List running applications with bundle IDs and PIDs"
+        abstract: "List running applications and their windows"
     )
 
     @Flag(name: .long, help: "Output as JSON")
     var json = false
 
-    func run() throws {
-        let apps = AppInfo.listApps()
+    func run() async throws {
+        let windows = try await WindowManager.listWindows()
+        let apps = AppInfo.listApps(windows: windows)
+
         if json {
             try printJSON(apps)
         } else {
@@ -25,23 +28,30 @@ struct AppsCommand: ParsableCommand {
             return
         }
 
-        let header = "PID".padding(toLength: 8, withPad: " ", startingAt: 0)
-            + "App".padding(toLength: 26, withPad: " ", startingAt: 0)
-            + "Bundle ID".padding(toLength: 40, withPad: " ", startingAt: 0)
-            + "State"
-        print(header)
-        print(String(repeating: "-", count: 90))
+        for (index, app) in apps.enumerated() {
+            var header = "\(app.name) (\(app.pid))"
+            if let bundle = app.bundleID { header += "  \(bundle)" }
+            if app.isActive { header += "  [active]" }
+            if app.isHidden { header += "  [hidden]" }
+            print(header)
 
-        for app in apps {
-            let pid = "\(app.pid)".padding(toLength: 8, withPad: " ", startingAt: 0)
-            let name = String(app.name.prefix(25)).padding(toLength: 26, withPad: " ", startingAt: 0)
-            let bundle = String((app.bundleID ?? "—").prefix(39)).padding(toLength: 40, withPad: " ", startingAt: 0)
-            var state = ""
-            if app.isActive { state += "[active]" }
-            if app.isHidden { state += "[hidden]" }
-            print("\(pid)\(name)\(bundle)\(state)")
+            if app.windows.isEmpty {
+                print("  (no windows)")
+            } else {
+                for w in app.windows {
+                    let title = w.title.isEmpty ? "(untitled)" : w.title
+                    let id = "\(w.windowID)".padding(toLength: 8, withPad: " ", startingAt: 0)
+                    let ttl = String(title.prefix(30)).padding(toLength: 31, withPad: " ", startingAt: 0)
+                    let frame = "(\(w.frame.x), \(w.frame.y)) \(w.frame.width)x\(w.frame.height)"
+                    let onScreen = w.isOnScreen ? "" : "  [offscreen]"
+                    print("  \(id)\(ttl)\(frame)\(onScreen)")
+                }
+            }
+
+            if index < apps.count - 1 { print("") }
         }
 
-        print("\n\(apps.count) application(s) found.")
+        let windowCount = apps.reduce(0) { $0 + $1.windows.count }
+        print("\n\(apps.count) app(s), \(windowCount) window(s).")
     }
 }
