@@ -10,7 +10,7 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 
 ## Prerequisites
 
-- macOS 14+
+- macOS 15+
 - Accessibility permission must be granted in System Settings > Privacy & Security > Accessibility
 - Screen Recording permission for `peek capture`
 
@@ -20,59 +20,323 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 # 1. List apps and their windows to find window IDs and PIDs
 peek apps
 
-# 2. Inspect the UI tree of a window
-peek window <window-id>
+# 2. Inspect the UI tree of a window (by ID or app name)
+peek window --app Xcode --depth 3
 
 # 3. Search for a specific element
-peek find <window-id> --role AXButton --title "Submit"
+peek find --app Xcode --role AXButton --desc "Run"
 
 # 4. Interact with it
-peek action <window-id> AXPress --role AXButton --title "Submit"
+peek action --app Xcode AXPress --role AXButton --desc "Run"
+
+# 5. Click a menu item
+peek menu 53051 --click "Paste"
 ```
+
+## Window Targeting
+
+Most commands accept a window target. You can specify it three ways:
+
+| Method | Example | Description |
+|--------|---------|-------------|
+| Window ID | `peek window 21121` | Direct window ID (from `peek apps`) |
+| `--app` | `peek window --app Xcode` | First window matching app name (case-insensitive substring) |
+| `--pid` | `peek window --pid 53051` | First window for the given process ID |
+
+Applies to: `window`, `find`, `element-at`, `action`, `capture`, `watch`, `diff`.
 
 ## Commands Reference
 
-### Discovery
+### `peek apps` — List running applications
 
-| Command | Description |
-|---------|-------------|
-| `peek apps [--format json]` | List running apps with bundle IDs, PIDs, active/hidden state, and their windows (IDs, titles, frames) |
+```bash
+$ peek apps
+Finder (21162)  com.apple.finder
+  (no windows)
 
-### Inspection
+Xcode (53051)  com.apple.dt.Xcode
+  21121   peek — MenuBarManager.swift    (0, 33) 1512x882
 
-| Command | Description |
-|---------|-------------|
-| `peek window <window-id> [--format json]` | Dump the full accessibility tree of a window |
-| `peek find <window-id> [--format json]` | Search for elements by `--role`, `--title`, `--value`, `--desc` (at least one required) |
-| `peek element-at <window-id> <x> <y> [--format json]` | Hit-test: find the deepest (most specific) element at screen coordinates. Coordinates are absolute screen pixels. Use to identify what's at a known position — pair with `peek capture` to map visual locations to elements |
-| `peek menu <pid> [--format json]` | Dump the menu bar structure with keyboard shortcuts |
+9 app(s), 17 window(s).
+```
 
-### Interaction
+```bash
+$ peek apps --format json
+```
+```json
+[
+  {
+    "bundleID" : "com.apple.dt.Xcode",
+    "isActive" : false,
+    "isHidden" : false,
+    "name" : "Xcode",
+    "pid" : 53051,
+    "windows" : [
+      {
+        "frame" : { "height" : 882, "width" : 1512, "x" : 0, "y" : 33 },
+        "isOnScreen" : true,
+        "title" : "peek — MenuBarManager.swift",
+        "windowID" : 21121
+      }
+    ]
+  }
+]
+```
 
-| Command | Description |
-|---------|-------------|
-| `peek click <x> <y>` | Click at screen coordinates |
-| `peek type <text>` | Type text via keyboard events |
-| `peek action <window-id> <action> [--format json]` | Perform an AX action on a matched element. Filters: `--role`, `--title`, `--value`, `--desc` |
+### `peek window` — Inspect the accessibility tree
+
+Options: `--depth <n>` to limit tree depth.
+
+```bash
+$ peek window --app Xcode --depth 3
+Window  "peek — MenuBarManager.swift"  (0, 33) 1512x882
+├── SplitGroup  "peek"  desc="/Users/alexmx/Projects/peek"  (0, 33) 1512x882
+│   ├── Group  desc="navigator"  (8, 41) 300x866
+│   │   ├── RadioGroup  (15, 84) 286x30
+│   │   ├── ScrollArea  (8, 113) 300x750
+│   │   ├── TextField  desc="Project navigator filter"  (43, 870) 258x30
+│   │   └── MenuButton  (23, 876) 17x18
+│   ├── Splitter  value="308"  (308, 85) 0x830
+│   └── Group  desc="editor area"  (0, 33) 1512x882
+│       ├── SplitGroup  (0, 33) 1512x882
+│       └── Group  desc="debug bar"  (308, 879) 1204x36
+├── Toolbar  (0, 33) 1512x52
+│   └── ...
+└── Button  (18, 51) 16x16
+```
+
+```bash
+$ peek window 21121 --depth 1 --format json
+```
+```json
+{
+  "role" : "AXWindow",
+  "title" : "peek — MenuBarManager.swift",
+  "frame" : { "x" : 0, "y" : 33, "width" : 1512, "height" : 882 },
+  "children" : [
+    { "role" : "AXSplitGroup", "title" : "peek", "description" : "/Users/alexmx/Projects/peek", "frame" : { ... }, "children" : [] },
+    { "role" : "AXToolbar", "frame" : { ... }, "children" : [] }
+  ]
+}
+```
+
+### `peek find` — Search for UI elements
+
+Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
+
+```bash
+$ peek find --app Xcode --role AXButton --desc "Run"
+AXButton  desc="Run"  (276, 45) 28x28
+
+1 element(s) found.
+```
+
+```bash
+$ peek find --app Xcode --role AXButton --desc "Run" --format json
+```
+```json
+[
+  {
+    "description" : "Run",
+    "frame" : { "height" : 28, "width" : 28, "x" : 276, "y" : 45 },
+    "role" : "AXButton",
+    "children" : []
+  }
+]
+```
+
+### `peek element-at` — Hit-test at screen coordinates
+
+Returns the deepest (most specific) element at the given `(x, y)` screen point.
+
+```bash
+$ peek element-at --app Xcode 280 50
+AXGroup  desc="navigator"  (8, 41) 300x866
+```
+
+```bash
+$ peek element-at --app Xcode 280 50 --format json
+```
+```json
+{
+  "description" : "navigator",
+  "frame" : { "height" : 866, "width" : 300, "x" : 8, "y" : 41 },
+  "role" : "AXGroup",
+  "children" : []
+}
+```
+
+### `peek menu` — Inspect or click menu items
+
+Without `--click`: dumps the full menu bar structure.
+With `--click <title>`: finds and presses a menu item by title (case-insensitive substring).
+
+```bash
+$ peek menu 53051
+Apple
+  About This Mac
+  System Information
+  ---
+  System Settings…, 1 update
+  App Store
+  ---
+  Recent Items  >
+    ...
+File
+  New  >
+    File…  ⌘N
+    Target…
+    ...
+  Open…  ⌘O
+  Open Recent  >
+  Close Window  ⇧⌘W
+  ...
+```
+
+```bash
+$ peek menu 53051 --format json
+```
+```json
+{
+  "role" : "AXMenuBar",
+  "title" : "",
+  "enabled" : true,
+  "children" : [
+    {
+      "role" : "AXMenuBarItem",
+      "title" : "File",
+      "enabled" : true,
+      "children" : [
+        { "role" : "AXMenuItem", "title" : "New File…", "enabled" : true, "shortcut" : "⌘N", "children" : [] },
+        { "role" : "AXMenuItem", "title" : "Open…", "enabled" : true, "shortcut" : "⌘O", "children" : [] }
+      ]
+    }
+  ]
+}
+```
+
+```bash
+$ peek menu 53051 --click "Paste"
+Clicked menu item: Paste
+```
+
+### `peek action` — Perform accessibility actions
+
+Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
+Use `--all` to act on every matching element (default: first match only).
+
+```bash
+$ peek action --app Xcode AXPress --role AXButton --desc "Run"
+Performed 'AXPress' on: AXButton  desc="Run"
+```
+
+```bash
+$ peek action --app Xcode AXPress --role AXButton --desc "Run" --format json
+```
+```json
+{
+  "description" : "Run",
+  "frame" : { "height" : 28, "width" : 28, "x" : 276, "y" : 45 },
+  "role" : "AXButton",
+  "children" : []
+}
+```
 
 Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncrement`, `AXDecrement`, `AXRaise`.
 
-### Capture
+### `peek click` — Click at screen coordinates
 
-| Command | Description |
-|---------|-------------|
-| `peek capture <window-id> [-o path] [--format json]` | Screenshot a window to PNG |
+```bash
+$ peek click 276 50
+Clicked at (276, 50)
+```
 
-### Monitoring
+```bash
+$ peek click 276 50 --format json
+```
+```json
+{ "x" : 276, "y" : 50 }
+```
 
-| Command | Description |
-|---------|-------------|
-| `peek watch <window-id> [--format json]` | Stream real-time accessibility change notifications (Ctrl+C to stop) |
-| `peek diff <window-id> [-d seconds] [--format json]` | Snapshot tree, wait, snapshot again, show what changed |
+### `peek type` — Type text via keyboard events
+
+```bash
+$ peek type "hello world"
+Typed 11 character(s)
+```
+
+```bash
+$ peek type "hello" --format json
+```
+```json
+{ "characters" : 5 }
+```
+
+### `peek capture` — Screenshot a window
+
+```bash
+$ peek capture --app Xcode -o screenshot.png
+Saved screenshot to screenshot.png
+Size: 3024x1764 pixels
+```
+
+```bash
+$ peek capture --app Xcode -o screenshot.png --format json
+```
+```json
+{ "path" : "screenshot.png", "width" : 3024, "height" : 1764 }
+```
+
+### `peek watch` — Monitor real-time changes
+
+Streams accessibility notifications until interrupted with Ctrl+C.
+
+```bash
+$ peek watch --app Xcode
+[0.000s] AXValueChanged AXStaticText "Build Succeeded"
+[0.120s] AXLayoutChanged AXGroup
+[1.500s] AXValueChanged AXStaticText "Indexing..."
+^C
+```
+
+### `peek diff` — Snapshot and diff the tree
+
+Options: `-d <seconds>` to set delay between snapshots (default: 3).
+
+```bash
+$ peek diff --app Xcode -d 5
+Taking first snapshot...
+Waiting 5.0s...
+
+~ Changed (1):
+  ~ AXStaticText [AXStaticText|Build Succeeded||608,47]
+    value: "Build Succeeded" -> "Indexing"
+
+1 change(s) detected.
+```
+
+```bash
+$ peek diff --app Xcode --format json
+```
+```json
+{
+  "added" : [],
+  "changed" : [
+    {
+      "after" : { "frame" : { ... }, "title" : null, "value" : "Indexing" },
+      "before" : { "frame" : { ... }, "title" : null, "value" : "Build Succeeded" },
+      "identity" : "AXStaticText|||608,47",
+      "role" : "AXStaticText"
+    }
+  ],
+  "removed" : []
+}
+```
 
 ## Tips
 
 - All commands support `--format json` for structured output — prefer this for programmatic use.
+- Use `--app` or `--pid` to target windows by name instead of looking up IDs manually.
 - Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches.
 - `--role` is an exact match. Common roles: `AXButton`, `AXStaticText`, `AXTextField`, `AXCheckBox`, `AXRadioButton`, `AXPopUpButton`, `AXMenuItem`, `AXTable`, `AXRow`, `AXCell`.
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
