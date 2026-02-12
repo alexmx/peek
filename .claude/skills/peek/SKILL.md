@@ -44,7 +44,7 @@ peek action <window-id> AXPress --role AXButton --title "Submit"
 |---------|-------------|
 | `peek inspect <window-id> [--json]` | Dump the full accessibility tree of a window |
 | `peek find <window-id> [--json]` | Search for elements by `--role`, `--title`, `--value`, `--desc` (at least one required) |
-| `peek element-at <window-id> <x> <y> [--json]` | Find the deepest element at screen coordinates |
+| `peek element-at <window-id> <x> <y> [--json]` | Hit-test: find the deepest (most specific) element at screen coordinates. Coordinates are absolute screen pixels. Use to identify what's at a known position — pair with `peek capture` to map visual locations to elements |
 | `peek menu <pid> [--json]` | Dump the menu bar structure with keyboard shortcuts |
 
 ### Interaction
@@ -79,3 +79,4 @@ Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncremen
 - `peek click` and `peek type` operate at the system level (not window-scoped).
 - Use `peek apps` to get window IDs and PIDs. Use PIDs for `peek menu`.
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
+- `peek element-at` is a coordinate-based hit-test — it returns the single deepest element at that point. Use `peek find` for attribute-based searches across the whole tree.

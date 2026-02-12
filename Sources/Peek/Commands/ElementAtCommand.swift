@@ -5,16 +5,17 @@ import Foundation
 struct ElementAtCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "element-at",
-        abstract: "Find the UI element at a screen coordinate"
+        abstract: "Hit-test: find the deepest UI element at a screen coordinate",
+        discussion: "Returns the most specific (deepest) accessibility element at the given (x, y) screen point within the target window. Useful for identifying what lies under a cursor position or a known pixel coordinate."
     )
 
     @Argument(help: "The window ID to query")
     var windowID: UInt32
 
-    @Argument(help: "X coordinate")
+    @Argument(help: "X screen coordinate (pixels from left edge)")
     var x: Int
 
-    @Argument(help: "Y coordinate")
+    @Argument(help: "Y screen coordinate (pixels from top edge)")
     var y: Int
 
     @Flag(name: .long, help: "Output as JSON")
