@@ -18,15 +18,15 @@ struct ElementAtCommand: ParsableCommand {
     @Argument(help: "Y screen coordinate (pixels from top edge)")
     var y: Int
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() throws {
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
 
-        guard let node = try AccessibilityTree.elementAt(
+        guard let node = try AccessibilityTreeManager.elementAt(
             pid: pid,
             windowID: windowID,
             x: x,
@@ -36,7 +36,7 @@ struct ElementAtCommand: ParsableCommand {
             return
         }
 
-        if json {
+        if format == .json {
             try printJSON(node)
         } else {
             var line = node.role

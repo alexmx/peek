@@ -13,11 +13,11 @@ struct CaptureCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Output file path (default: window_<id>.png)")
     var output: String?
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() async throws {
         let path = output ?? "window_\(windowID).png"
-        try await ScreenCapture.capture(windowID: windowID, outputPath: path, json: json)
+        try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, format: format)
     }
 }

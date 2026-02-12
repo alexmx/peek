@@ -36,16 +36,16 @@ peek action <window-id> AXPress --role AXButton --title "Submit"
 
 | Command | Description |
 |---------|-------------|
-| `peek apps [--json]` | List running apps with bundle IDs, PIDs, active/hidden state, and their windows (IDs, titles, frames) |
+| `peek apps [--format json]` | List running apps with bundle IDs, PIDs, active/hidden state, and their windows (IDs, titles, frames) |
 
 ### Inspection
 
 | Command | Description |
 |---------|-------------|
-| `peek window <window-id> [--json]` | Dump the full accessibility tree of a window |
-| `peek find <window-id> [--json]` | Search for elements by `--role`, `--title`, `--value`, `--desc` (at least one required) |
-| `peek element-at <window-id> <x> <y> [--json]` | Hit-test: find the deepest (most specific) element at screen coordinates. Coordinates are absolute screen pixels. Use to identify what's at a known position — pair with `peek capture` to map visual locations to elements |
-| `peek menu <pid> [--json]` | Dump the menu bar structure with keyboard shortcuts |
+| `peek window <window-id> [--format json]` | Dump the full accessibility tree of a window |
+| `peek find <window-id> [--format json]` | Search for elements by `--role`, `--title`, `--value`, `--desc` (at least one required) |
+| `peek element-at <window-id> <x> <y> [--format json]` | Hit-test: find the deepest (most specific) element at screen coordinates. Coordinates are absolute screen pixels. Use to identify what's at a known position — pair with `peek capture` to map visual locations to elements |
+| `peek menu <pid> [--format json]` | Dump the menu bar structure with keyboard shortcuts |
 
 ### Interaction
 
@@ -53,7 +53,7 @@ peek action <window-id> AXPress --role AXButton --title "Submit"
 |---------|-------------|
 | `peek click <x> <y>` | Click at screen coordinates |
 | `peek type <text>` | Type text via keyboard events |
-| `peek action <window-id> <action> [--json]` | Perform an AX action on a matched element. Filters: `--role`, `--title`, `--value`, `--desc` |
+| `peek action <window-id> <action> [--format json]` | Perform an AX action on a matched element. Filters: `--role`, `--title`, `--value`, `--desc` |
 
 Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncrement`, `AXDecrement`, `AXRaise`.
 
@@ -61,18 +61,18 @@ Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncremen
 
 | Command | Description |
 |---------|-------------|
-| `peek capture <window-id> [-o path] [--json]` | Screenshot a window to PNG |
+| `peek capture <window-id> [-o path] [--format json]` | Screenshot a window to PNG |
 
 ### Monitoring
 
 | Command | Description |
 |---------|-------------|
-| `peek watch <window-id> [--json]` | Stream real-time accessibility change notifications (Ctrl+C to stop) |
-| `peek diff <window-id> [-d seconds] [--json]` | Snapshot tree, wait, snapshot again, show what changed |
+| `peek watch <window-id> [--format json]` | Stream real-time accessibility change notifications (Ctrl+C to stop) |
+| `peek diff <window-id> [-d seconds] [--format json]` | Snapshot tree, wait, snapshot again, show what changed |
 
 ## Tips
 
-- All commands support `--json` for structured output — prefer this for programmatic use.
+- All commands support `--format json` for structured output — prefer this for programmatic use.
 - Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches.
 - `--role` is an exact match. Common roles: `AXButton`, `AXStaticText`, `AXTextField`, `AXCheckBox`, `AXRadioButton`, `AXPopUpButton`, `AXMenuItem`, `AXTable`, `AXRow`, `AXCell`.
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.

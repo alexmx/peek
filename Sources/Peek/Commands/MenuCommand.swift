@@ -10,13 +10,13 @@ struct MenuCommand: ParsableCommand {
     @Argument(help: "The PID of the application")
     var pid: Int32
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() throws {
-        let tree = try AppInfo.menuBar(pid: pid)
+        let tree = try MenuBarManager.menuBar(pid: pid)
 
-        if json {
+        if format == .json {
             try printJSON(tree)
         } else {
             printMenu(tree)

@@ -11,17 +11,17 @@ struct WindowCommand: ParsableCommand {
     @Argument(help: "The window ID to inspect")
     var windowID: UInt32
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() throws {
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
 
-        let tree = try AccessibilityTree.inspect(pid: pid, windowID: windowID)
+        let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID)
 
-        if json {
+        if format == .json {
             try printJSON(tree)
         } else {
             printNode(tree)

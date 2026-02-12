@@ -4,8 +4,8 @@ import Foundation
 
 // MARK: - Watch
 
-enum Monitor {
-    static func watch(pid: pid_t, windowID: CGWindowID, json: Bool) throws {
+enum MonitorManager {
+    static func watch(pid: pid_t, windowID: CGWindowID, format: OutputFormat) throws {
         guard AXIsProcessTrusted() else {
             throw PeekError.accessibilityNotTrusted
         }
@@ -18,7 +18,7 @@ enum Monitor {
             throw PeekError.actionFailed("AXObserverCreate", result)
         }
 
-        let context = WatchContext(json: json)
+        let context = WatchContext(format: format)
         let contextPtr = Unmanaged.passRetained(context).toOpaque()
 
         let notifications: [String] = [
@@ -44,7 +44,7 @@ enum Monitor {
             .defaultMode
         )
 
-        if !json {
+        if format != .json {
             print("Watching window \(windowID) (pid \(pid)) for changes... (Ctrl+C to stop)")
         }
 
@@ -54,9 +54,9 @@ enum Monitor {
 }
 
 private class WatchContext {
-    let json: Bool
-    init(json: Bool) {
-        self.json = json
+    let format: OutputFormat
+    init(format: OutputFormat) {
+        self.format = format
     }
 }
 
@@ -74,7 +74,7 @@ private func watchCallback(
     let value = axString(of: element, key: kAXValueAttribute)
     let description = axString(of: element, key: kAXDescriptionAttribute)
 
-    if watchCtx.json {
+    if watchCtx.format == .json {
         struct WatchEvent: Encodable {
             let timestamp: String
             let notification: String
@@ -113,40 +113,20 @@ private func watchCallback(
 
 // MARK: - Diff
 
-struct TreeDiff: Encodable {
-    let added: [AXNode]
-    let removed: [AXNode]
-    let changed: [NodeChange]
-
-    struct NodeChange: Encodable {
-        let identity: String
-        let role: String
-        let before: ChangeValues
-        let after: ChangeValues
-    }
-
-    struct ChangeValues: Encodable {
-        let title: String?
-        let value: String?
-        let description: String?
-        let frame: AXNode.FrameInfo?
-    }
-}
-
-extension Monitor {
+extension MonitorManager {
     static func diff(pid: pid_t, windowID: CGWindowID, delay: Double) throws -> TreeDiff {
         guard AXIsProcessTrusted() else {
             throw PeekError.accessibilityNotTrusted
         }
 
-        let window = try AccessibilityTree.findWindow(pid: pid, windowID: windowID)
+        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
 
-        let before = AccessibilityTree.buildNode(from: window)
+        let before = AccessibilityTreeManager.buildNode(from: window)
         let beforeFlat = flattenNodes(before)
 
         Thread.sleep(forTimeInterval: delay)
 
-        let after = AccessibilityTree.buildNode(from: window)
+        let after = AccessibilityTreeManager.buildNode(from: window)
         let afterFlat = flattenNodes(after)
 
         let beforeByID = Dictionary(grouping: beforeFlat, by: { $0.identity })

@@ -26,8 +26,8 @@ struct ActionCommand: ParsableCommand {
     @Option(name: .long, help: "Filter by description (case-insensitive substring)")
     var desc: String?
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func validate() throws {
         if role == nil, title == nil, value == nil, desc == nil {
@@ -40,7 +40,7 @@ struct ActionCommand: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
 
-        let node = try Interaction.performAction(
+        let node = try InteractionManager.performAction(
             pid: pid,
             windowID: windowID,
             action: action,
@@ -50,7 +50,7 @@ struct ActionCommand: ParsableCommand {
             description: desc
         )
 
-        if json {
+        if format == .json {
             try printJSON(node)
         } else {
             var line = "Performed '\(action)' on: \(node.role)"

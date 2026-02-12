@@ -2,7 +2,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-enum Interaction {
+enum InteractionManager {
     /// Click at screen coordinates.
     static func click(x: Double, y: Double) {
         let point = CGPoint(x: x, y: y)
@@ -45,7 +45,7 @@ enum Interaction {
             throw PeekError.accessibilityNotTrusted
         }
 
-        let window = try AccessibilityTree.findWindow(pid: pid, windowID: windowID)
+        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
         guard let element = findFirstElement(
             in: window,
             role: role,

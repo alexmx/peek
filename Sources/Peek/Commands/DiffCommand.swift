@@ -14,22 +14,22 @@ struct DiffCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Seconds to wait between snapshots (default: 3)")
     var delay: Double = 3.0
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() throws {
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
 
-        if !json {
+        if format != .json {
             print("Taking first snapshot...")
             print("Waiting \(String(format: "%.1f", delay))s...")
         }
 
-        let diff = try Monitor.diff(pid: pid, windowID: windowID, delay: delay)
+        let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
 
-        if json {
+        if format == .json {
             try printJSON(diff)
         } else {
             printDiff(diff)

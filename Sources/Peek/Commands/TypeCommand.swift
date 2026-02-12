@@ -11,7 +11,7 @@ struct TypeCommand: ParsableCommand {
     var text: String
 
     func run() {
-        Interaction.type(text: text)
+        InteractionManager.type(text: text)
         print("Typed \(text.count) character(s)")
     }
 }

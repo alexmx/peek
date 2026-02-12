@@ -4,14 +4,14 @@ import ImageIO
 import ScreenCaptureKit
 import UniformTypeIdentifiers
 
-enum ScreenCapture {
+enum ScreenCaptureManager {
     struct CaptureResult: Encodable {
         let path: String
         let width: Int
         let height: Int
     }
 
-    static func capture(windowID: CGWindowID, outputPath: String, json: Bool) async throws {
+    static func capture(windowID: CGWindowID, outputPath: String, format: OutputFormat) async throws {
         // Get all available windows
         let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
 
@@ -48,7 +48,7 @@ enum ScreenCapture {
             throw PeekError.failedToWrite(outputPath)
         }
 
-        if json {
+        if format == .json {
             try printJSON(CaptureResult(path: outputPath, width: image.width, height: image.height))
         } else {
             print("Saved screenshot to \(outputPath)")

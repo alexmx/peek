@@ -23,8 +23,8 @@ struct FindCommand: ParsableCommand {
     @Option(name: .long, help: "Filter by description (case-insensitive substring)")
     var desc: String?
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func validate() throws {
         if role == nil, title == nil, value == nil, desc == nil {
@@ -37,7 +37,7 @@ struct FindCommand: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
 
-        let results = try AccessibilityTree.find(
+        let results = try AccessibilityTreeManager.find(
             pid: pid,
             windowID: windowID,
             role: role,
@@ -46,7 +46,7 @@ struct FindCommand: ParsableCommand {
             description: desc
         )
 
-        if json {
+        if format == .json {
             try printJSON(results)
         } else {
             if results.isEmpty {

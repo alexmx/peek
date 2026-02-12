@@ -8,14 +8,14 @@ struct AppsCommand: AsyncParsableCommand {
         abstract: "List running applications and their windows"
     )
 
-    @Flag(name: .long, help: "Output as JSON")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() async throws {
         let windows = try await WindowManager.listWindows()
-        let apps = AppInfo.listApps(windows: windows)
+        let apps = AppManager.listApps(windows: windows)
 
-        if json {
+        if format == .json {
             try printJSON(apps)
         } else {
             printAppList(apps)

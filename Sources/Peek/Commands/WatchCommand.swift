@@ -11,13 +11,13 @@ struct WatchCommand: ParsableCommand {
     @Argument(help: "The window ID to watch")
     var windowID: UInt32
 
-    @Flag(name: .long, help: "Output as JSON (one event per line)")
-    var json = false
+    @Option(name: .long, help: "Output format")
+    var format: OutputFormat = .default
 
     func run() throws {
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
-        try Monitor.watch(pid: pid, windowID: windowID, json: json)
+        try MonitorManager.watch(pid: pid, windowID: windowID, format: format)
     }
 }

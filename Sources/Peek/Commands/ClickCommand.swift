@@ -14,7 +14,7 @@ struct ClickCommand: ParsableCommand {
     var y: Double
 
     func run() {
-        Interaction.click(x: x, y: y)
+        InteractionManager.click(x: x, y: y)
         print("Clicked at (\(Int(x)), \(Int(y)))")
     }
 }

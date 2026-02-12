@@ -58,12 +58,3 @@ func axFrameInfo(of element: AXUIElement) -> AXNode.FrameInfo? {
         )
     }
 }
-
-// MARK: - JSON output
-
-func printJSON(_ value: some Encodable) throws {
-    let encoder = JSONEncoder()
-    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(value)
-    print(String(data: data, encoding: .utf8)!)
-}

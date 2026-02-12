@@ -14,7 +14,7 @@ enum PeekError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .windowNotFound(let id):
-            "No window found with ID \(id). Run 'peek list' to see available windows."
+            "No window found with ID \(id). Run 'peek apps' to see available windows."
         case .accessibilityNotTrusted:
             "Accessibility permission not granted. Enable it in System Settings > Privacy & Security > Accessibility."
         case .noWindows:
