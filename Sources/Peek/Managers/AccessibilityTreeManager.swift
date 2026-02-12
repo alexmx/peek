@@ -4,9 +4,9 @@ import Foundation
 enum AccessibilityTreeManager {
     private static let maxDepth = 50
 
-    static func inspect(pid: pid_t, windowID: CGWindowID) throws -> AXNode {
+    static func inspect(pid: pid_t, windowID: CGWindowID, maxDepth: Int? = nil) throws -> AXNode {
         let window = try findWindow(pid: pid, windowID: windowID)
-        return buildNode(from: window, depth: 0)
+        return buildNode(from: window, depth: 0, limit: maxDepth ?? self.maxDepth)
     }
 
     static func findWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
@@ -27,15 +27,15 @@ enum AccessibilityTreeManager {
     }
 
     /// Build an AXNode tree from an AXUIElement.
-    static func buildNode(from element: AXUIElement, depth: Int = 0) -> AXNode {
+    static func buildNode(from element: AXUIElement, depth: Int = 0, limit: Int = maxDepth) -> AXNode {
         let role = axString(of: element, key: kAXRoleAttribute) ?? "unknown"
         let title = axString(of: element, key: kAXTitleAttribute)
         let value = axString(of: element, key: kAXValueAttribute)
         let description = axString(of: element, key: kAXDescriptionAttribute)
 
         var childNodes: [AXNode] = []
-        if depth < maxDepth, let children = axChildren(of: element) {
-            childNodes = children.map { buildNode(from: $0, depth: depth + 1) }
+        if depth < limit, let children = axChildren(of: element) {
+            childNodes = children.map { buildNode(from: $0, depth: depth + 1, limit: limit) }
         }
 
         return AXNode(

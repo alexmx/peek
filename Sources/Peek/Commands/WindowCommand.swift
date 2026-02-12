@@ -11,6 +11,9 @@ struct WindowCommand: ParsableCommand {
     @Argument(help: "The window ID to inspect")
     var windowID: UInt32
 
+    @Option(name: .long, help: "Maximum tree depth to traverse")
+    var depth: Int?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -19,7 +22,7 @@ struct WindowCommand: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
 
-        let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID)
+        let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: depth)
 
         if format == .json {
             try printJSON(tree)
