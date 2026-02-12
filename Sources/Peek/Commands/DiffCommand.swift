@@ -8,8 +8,7 @@ struct DiffCommand: ParsableCommand {
         abstract: "Snapshot the accessibility tree, wait, then show changes"
     )
 
-    @Argument(help: "The window ID to diff")
-    var windowID: UInt32
+    @OptionGroup var target: WindowTarget
 
     @Option(name: .shortAndLong, help: "Seconds to wait between snapshots (default: 3)")
     var delay: Double = 3.0
@@ -18,6 +17,7 @@ struct DiffCommand: ParsableCommand {
     var format: OutputFormat = .default
 
     func run() throws {
+        let windowID = try target.resolve()
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }

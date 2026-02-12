@@ -9,8 +9,7 @@ struct ElementAtCommand: ParsableCommand {
         discussion: "Returns the most specific (deepest) accessibility element at the given (x, y) screen point within the target window. Useful for identifying what lies under a cursor position or a known pixel coordinate."
     )
 
-    @Argument(help: "The window ID to query")
-    var windowID: UInt32
+    @OptionGroup var target: WindowTarget
 
     @Argument(help: "X screen coordinate (pixels from left edge)")
     var x: Int
@@ -22,6 +21,7 @@ struct ElementAtCommand: ParsableCommand {
     var format: OutputFormat = .default
 
     func run() throws {
+        let windowID = try target.resolve()
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }

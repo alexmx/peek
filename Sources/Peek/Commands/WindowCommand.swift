@@ -8,8 +8,7 @@ struct WindowCommand: ParsableCommand {
         abstract: "Inspect the accessibility tree of a window"
     )
 
-    @Argument(help: "The window ID to inspect")
-    var windowID: UInt32
+    @OptionGroup var target: WindowTarget
 
     @Option(name: .long, help: "Maximum tree depth to traverse")
     var depth: Int?
@@ -18,6 +17,7 @@ struct WindowCommand: ParsableCommand {
     var format: OutputFormat = .default
 
     func run() throws {
+        let windowID = try target.resolve()
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }

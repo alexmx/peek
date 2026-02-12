@@ -8,8 +8,7 @@ struct ActionCommand: ParsableCommand {
         abstract: "Perform an accessibility action on a UI element"
     )
 
-    @Argument(help: "The window ID containing the element")
-    var windowID: UInt32
+    @OptionGroup var target: WindowTarget
 
     @Argument(help: "The AX action to perform (e.g. AXPress, AXConfirm, AXCancel, AXShowMenu)")
     var action: String
@@ -36,6 +35,7 @@ struct ActionCommand: ParsableCommand {
     }
 
     func run() throws {
+        let windowID = try target.resolve()
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }

@@ -39,6 +39,46 @@ enum WindowManager {
         }
     }
 
+    /// Find the first window ID for an app by name (case-insensitive substring match).
+    static func windowID(forApp name: String) -> CGWindowID? {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionAll],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return nil
+        }
+
+        for entry in list {
+            guard let ownerName = entry[kCGWindowOwnerName as String] as? String,
+                  ownerName.localizedCaseInsensitiveContains(name),
+                  let id = entry[kCGWindowNumber as String] as? CGWindowID,
+                  let layer = entry[kCGWindowLayer as String] as? Int, layer == 0
+            else { continue }
+            return id
+        }
+        return nil
+    }
+
+    /// Find the first window ID for a given PID.
+    static func windowID(forPID pid: pid_t) -> CGWindowID? {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionAll],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return nil
+        }
+
+        for entry in list {
+            guard let entryPID = entry[kCGWindowOwnerPID as String] as? pid_t,
+                  entryPID == pid,
+                  let id = entry[kCGWindowNumber as String] as? CGWindowID,
+                  let layer = entry[kCGWindowLayer as String] as? Int, layer == 0
+            else { continue }
+            return id
+        }
+        return nil
+    }
+
     /// Lightweight PID lookup for a window ID using CGWindowList (no permissions needed).
     static func pid(forWindowID windowID: CGWindowID) -> pid_t? {
         guard let list = CGWindowListCopyWindowInfo(

@@ -7,8 +7,7 @@ struct CaptureCommand: ParsableCommand {
         abstract: "Capture a screenshot of a window"
     )
 
-    @Argument(help: "The window ID to capture")
-    var windowID: UInt32
+    @OptionGroup var target: WindowTarget
 
     @Option(name: .shortAndLong, help: "Output file path (default: window_<id>.png)")
     var output: String?
@@ -17,6 +16,7 @@ struct CaptureCommand: ParsableCommand {
     var format: OutputFormat = .default
 
     func run() throws {
+        let windowID = try target.resolve()
         let path = output ?? "window_\(windowID).png"
         try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, format: format)
     }

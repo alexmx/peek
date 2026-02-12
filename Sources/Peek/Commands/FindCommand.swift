@@ -8,8 +8,7 @@ struct FindCommand: ParsableCommand {
         abstract: "Search for UI elements in a window"
     )
 
-    @Argument(help: "The window ID to search")
-    var windowID: UInt32
+    @OptionGroup var target: WindowTarget
 
     @Option(name: .long, help: "Filter by role (e.g. AXButton, AXStaticText)")
     var role: String?
@@ -33,6 +32,7 @@ struct FindCommand: ParsableCommand {
     }
 
     func run() throws {
+        let windowID = try target.resolve()
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
