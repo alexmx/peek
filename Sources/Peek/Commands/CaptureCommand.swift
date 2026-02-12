@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct CaptureCommand: AsyncParsableCommand {
+struct CaptureCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "capture",
         abstract: "Capture a screenshot of a window"
@@ -16,8 +16,8 @@ struct CaptureCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    func run() async throws {
+    func run() throws {
         let path = output ?? "window_\(windowID).png"
-        try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, format: format)
+        try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, format: format)
     }
 }

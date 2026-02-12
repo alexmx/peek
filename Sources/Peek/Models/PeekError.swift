@@ -10,6 +10,7 @@ enum PeekError: LocalizedError {
     case elementNotFound
     case actionFailed(String, AXError)
     case noMenuBar(pid_t)
+    case screenCaptureNotGranted
 
     var errorDescription: String? {
         switch self {
@@ -27,6 +28,8 @@ enum PeekError: LocalizedError {
             "Action '\(action)' failed with error code \(error.rawValue)."
         case .noMenuBar(let pid):
             "No menu bar found for process \(pid)."
+        case .screenCaptureNotGranted:
+            "Screen Recording permission not granted. Enable it in System Settings > Privacy & Security > Screen Recording."
         }
     }
 }

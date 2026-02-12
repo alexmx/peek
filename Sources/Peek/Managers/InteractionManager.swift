@@ -41,9 +41,7 @@ enum InteractionManager {
         value: String?,
         description: String?
     ) throws -> AXNode {
-        guard AXIsProcessTrusted() else {
-            throw PeekError.accessibilityNotTrusted
-        }
+        try PermissionManager.requireAccessibility()
 
         let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
         guard let element = findFirstElement(

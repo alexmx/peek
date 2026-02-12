@@ -3,9 +3,7 @@ import Foundation
 
 enum MenuBarManager {
     static func menuBar(pid: pid_t) throws -> MenuNode {
-        guard AXIsProcessTrusted() else {
-            throw PeekError.accessibilityNotTrusted
-        }
+        try PermissionManager.requireAccessibility()
 
         let app = AXUIElementCreateApplication(pid)
 

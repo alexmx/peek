@@ -6,9 +6,7 @@ import Foundation
 
 enum MonitorManager {
     static func watch(pid: pid_t, windowID: CGWindowID, format: OutputFormat) throws {
-        guard AXIsProcessTrusted() else {
-            throw PeekError.accessibilityNotTrusted
-        }
+        try PermissionManager.requireAccessibility()
 
         let appElement = AXUIElementCreateApplication(pid)
 
@@ -115,9 +113,7 @@ private func watchCallback(
 
 extension MonitorManager {
     static func diff(pid: pid_t, windowID: CGWindowID, delay: Double) throws -> TreeDiff {
-        guard AXIsProcessTrusted() else {
-            throw PeekError.accessibilityNotTrusted
-        }
+        try PermissionManager.requireAccessibility()
 
         let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
 

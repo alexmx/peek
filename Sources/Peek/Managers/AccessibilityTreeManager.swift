@@ -10,9 +10,7 @@ enum AccessibilityTreeManager {
     }
 
     static func findWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
-        guard AXIsProcessTrusted() else {
-            throw PeekError.accessibilityNotTrusted
-        }
+        try PermissionManager.requireAccessibility()
 
         let appElement = AXUIElementCreateApplication(pid)
 
