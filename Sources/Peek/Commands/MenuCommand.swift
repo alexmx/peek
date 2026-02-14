@@ -4,7 +4,7 @@ import Foundation
 struct MenuCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "menu",
-        abstract: "Dump the menu bar structure of an application"
+        abstract: "Inspect the menu bar structure of an application"
     )
 
     @OptionGroup var target: WindowTarget
