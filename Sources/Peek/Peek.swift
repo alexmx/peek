@@ -5,18 +5,23 @@ struct Peek: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "macOS Window Inspector",
         subcommands: [
+            // Discovery
             AppsCommand.self,
-            CaptureCommand.self,
+            // Inspection
             WindowCommand.self,
             FindCommand.self,
             ElementAtCommand.self,
+            MenuCommand.self,
+            // Interaction
             ClickCommand.self,
             TypeCommand.self,
             ActionCommand.self,
             ActivateCommand.self,
+            // Monitoring
             WatchCommand.self,
             DiffCommand.self,
-            MenuCommand.self,
+            CaptureCommand.self,
+            // System
             DoctorCommand.self,
             MCPServerCommand.self,
         ]
