@@ -133,18 +133,18 @@ enum PeekTools {
         schema: """
         {
             "properties": {
-                "x": { "type": "number", "description": "X coordinate" },
-                "y": { "type": "number", "description": "Y coordinate" }
+                "x": { "type": "integer", "description": "X coordinate" },
+                "y": { "type": "integer", "description": "Y coordinate" }
             },
             "required": ["x", "y"]
         }
         """
     ) { args in
-        guard let x = args["x"] as? Double, let y = args["y"] as? Double else {
+        guard let x = args["x"] as? Int, let y = args["y"] as? Int else {
             throw PeekError.elementNotFound
         }
-        InteractionManager.click(x: x, y: y)
-        return try jsonString(["x": Int(x), "y": Int(y)])
+        InteractionManager.click(x: Double(x), y: Double(y))
+        return try jsonString(["x": x, "y": y])
     }
 
     static let type = MCPTool(
