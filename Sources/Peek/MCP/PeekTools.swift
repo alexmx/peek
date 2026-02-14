@@ -47,7 +47,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, window, find, elementAt, click, type, action, capture, menu, doctor]
+        [apps, window, find, elementAt, click, type, action, activate, capture, menu, doctor]
     }
 
     static let apps = MCPTool(
@@ -207,6 +207,22 @@ enum PeekTools {
             )
             return try jsonString(node)
         }
+    }
+
+    static let activate = MCPTool(
+        name: "peek_activate",
+        description: "Bring an app to the foreground and raise its window.",
+        schema: """
+        {
+            "properties": {
+                \(windowTargetSchema)
+            }
+        }
+        """
+    ) { args in
+        let (windowID, pid) = try resolveWindow(from: args)
+        let result = try InteractionManager.activate(pid: pid, windowID: windowID)
+        return try jsonString(result)
     }
 
     static let capture = MCPTool(

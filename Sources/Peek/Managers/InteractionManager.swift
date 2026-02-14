@@ -1,9 +1,36 @@
+import AppKit
 import ApplicationServices
 import CoreGraphics
 import Foundation
 
 enum InteractionManager {
     private static let maxDepth = 50
+    /// Activate an app and raise its window.
+    static func activate(pid: pid_t, windowID: CGWindowID) throws -> ActivateResult {
+        try PermissionManager.requireAccessibility()
+
+        guard let app = NSRunningApplication(processIdentifier: pid) else {
+            throw PeekError.windowNotFound(windowID)
+        }
+
+        app.activate()
+
+        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
+        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+
+        return ActivateResult(
+            pid: pid,
+            windowID: windowID,
+            app: app.localizedName ?? "Unknown"
+        )
+    }
+
+    struct ActivateResult: Encodable {
+        let pid: Int32
+        let windowID: UInt32
+        let app: String
+    }
+
     /// Click at screen coordinates.
     static func click(x: Double, y: Double) {
         let point = CGPoint(x: x, y: y)
