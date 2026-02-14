@@ -10,7 +10,7 @@ struct DiffCommand: ParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .shortAndLong, help: "Seconds to wait between snapshots (default: 3)")
+    @Option(name: .shortAndLong, help: "Seconds to wait between snapshots")
     var delay: Double = 3.0
 
     @Option(name: .long, help: "Output format")
