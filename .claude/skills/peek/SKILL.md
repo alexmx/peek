@@ -27,13 +27,16 @@ peek window --app Xcode --depth 3
 # 3. Search for a specific element
 peek find --app Xcode --role AXButton --desc "Run"
 
-# 4. Interact with it
+# 4. Hit-test at coordinates
+peek find --app Xcode --at 280 50
+
+# 5. Interact with it
 peek action --app Xcode AXPress --role AXButton --desc "Run"
 
-# 5. Click a menu item
+# 6. Click a menu item
 peek menu --app Xcode --click "Paste"
 
-# 6. Bring an app to the foreground
+# 7. Bring an app to the foreground
 peek activate --app Claude
 ```
 
@@ -47,7 +50,7 @@ Most commands accept a window target. You can specify it three ways:
 | `--app` | `peek window --app Xcode` | First window matching app name (case-insensitive substring) |
 | `--pid` | `peek window --pid 53051` | First window for the given process ID |
 
-Applies to: `window`, `find`, `element-at`, `action`, `activate`, `capture`, `watch`, `diff`, `menu`.
+Applies to: `window`, `find`, `action`, `activate`, `capture`, `watch`, `menu`.
 
 ## Commands Reference
 
@@ -126,7 +129,9 @@ $ peek window 21121 --depth 1 --format json
 
 ### `peek find` — Search for UI elements
 
-Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
+Two modes: **attribute search** or **hit-test**.
+
+**Attribute search** — filter by `--role`, `--title`, `--value`, `--desc` (at least one required):
 
 ```bash
 $ peek find --app Xcode --role AXButton --desc "Run"
@@ -149,17 +154,15 @@ $ peek find --app Xcode --role AXButton --desc "Run" --format json
 ]
 ```
 
-### `peek element-at` — Hit-test at screen coordinates
-
-Returns the deepest (most specific) element at the given `(x, y)` screen point.
+**Hit-test** — find the deepest element at screen coordinates with `--at <x> <y>`:
 
 ```bash
-$ peek element-at --app Xcode 280 50
+$ peek find --app Xcode --at 280 50
 AXGroup  desc="navigator"  (8, 41) 300x866
 ```
 
 ```bash
-$ peek element-at --app Xcode 280 50 --format json
+$ peek find --app Xcode --at 280 50 --format json
 ```
 ```json
 {
@@ -292,9 +295,11 @@ $ peek activate --app Claude --format json
 { "app" : "Claude", "pid" : 84720, "windowID" : 22325 }
 ```
 
-### `peek watch` — Monitor real-time changes
+### `peek watch` — Monitor accessibility changes
 
-Streams accessibility notifications until interrupted with Ctrl+C.
+Two modes: **streaming** (default) or **snapshot**.
+
+**Streaming** — real-time notifications until Ctrl+C:
 
 ```bash
 $ peek watch --app Xcode
@@ -304,12 +309,10 @@ $ peek watch --app Xcode
 ^C
 ```
 
-### `peek diff` — Snapshot and diff the tree
-
-Options: `-d <seconds>` to set delay between snapshots (default: 3).
+**Snapshot** — take two snapshots and show differences with `--snapshot`:
 
 ```bash
-$ peek diff --app Xcode -d 5
+$ peek watch --app Xcode --snapshot -d 5
 Taking first snapshot...
 Waiting 5.0s...
 
@@ -321,7 +324,7 @@ Waiting 5.0s...
 ```
 
 ```bash
-$ peek diff --app Xcode --format json
+$ peek watch --app Xcode --snapshot --format json
 ```
 ```json
 {
@@ -390,4 +393,4 @@ $ peek doctor --format json
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
 - `peek click` and `peek type` operate at the system level (not window-scoped).
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
-- `peek element-at` is a coordinate-based hit-test — it returns the single deepest element at that point. Use `peek find` for attribute-based searches across the whole tree.
+- Use `peek find --at <x> <y>` for coordinate-based hit-testing — it returns the single deepest element at that point.
