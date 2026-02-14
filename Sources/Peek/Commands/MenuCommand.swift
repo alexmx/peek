@@ -7,8 +7,7 @@ struct MenuCommand: ParsableCommand {
         abstract: "Dump the menu bar structure of an application"
     )
 
-    @Argument(help: "The PID of the application")
-    var pid: Int32
+    @OptionGroup var target: WindowTarget
 
     @Option(name: .long, help: "Click a menu item by title (case-insensitive substring)")
     var click: String?
@@ -21,6 +20,11 @@ struct MenuCommand: ParsableCommand {
     }
 
     func run() throws {
+        let windowID = try target.resolve()
+        guard let pid = WindowManager.pid(forWindowID: windowID) else {
+            throw PeekError.windowNotFound(windowID)
+        }
+
         if let click {
             let title = try MenuBarManager.clickMenuItem(pid: pid, title: click)
             if format == .json {

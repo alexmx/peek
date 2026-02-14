@@ -249,21 +249,18 @@ enum PeekTools {
         schema: """
         {
             "properties": {
-                "pid": { "type": "integer", "description": "Process ID of the application" },
+                \(windowTargetSchema),
                 "click": { "type": "string", "description": "Menu item title to click (case-insensitive substring)" }
-            },
-            "required": ["pid"]
+            }
         }
         """
     ) { args in
-        guard let pid = args["pid"] as? Int else {
-            throw PeekError.noWindows
-        }
+        let (_, pid) = try resolveWindow(from: args)
         if let clickTitle = args["click"] as? String {
-            let title = try MenuBarManager.clickMenuItem(pid: pid_t(pid), title: clickTitle)
+            let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
             return try jsonString(["title": title])
         } else {
-            let tree = try MenuBarManager.menuBar(pid: pid_t(pid))
+            let tree = try MenuBarManager.menuBar(pid: pid)
             return try jsonString(tree)
         }
     }
