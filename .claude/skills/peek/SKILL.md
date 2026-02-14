@@ -31,7 +31,10 @@ peek find --app Xcode --role AXButton --desc "Run"
 peek action --app Xcode AXPress --role AXButton --desc "Run"
 
 # 5. Click a menu item
-peek menu 53051 --click "Paste"
+peek menu --app Xcode --click "Paste"
+
+# 6. Bring an app to the foreground
+peek activate --app Claude
 ```
 
 ## Window Targeting
@@ -44,7 +47,7 @@ Most commands accept a window target. You can specify it three ways:
 | `--app` | `peek window --app Xcode` | First window matching app name (case-insensitive substring) |
 | `--pid` | `peek window --pid 53051` | First window for the given process ID |
 
-Applies to: `window`, `find`, `element-at`, `action`, `capture`, `watch`, `diff`.
+Applies to: `window`, `find`, `element-at`, `action`, `activate`, `capture`, `watch`, `diff`, `menu`.
 
 ## Commands Reference
 
@@ -167,13 +170,13 @@ $ peek element-at --app Xcode 280 50 --format json
 }
 ```
 
-### `peek menu` — Inspect or click menu items
+### `peek menu` — Inspect the menu bar structure
 
-Without `--click`: dumps the full menu bar structure.
+Without `--click`: shows the full menu bar structure.
 With `--click <title>`: finds and presses a menu item by title (case-insensitive substring).
 
 ```bash
-$ peek menu 53051
+$ peek menu --app Xcode
 Apple
   About This Mac
   System Information
@@ -195,7 +198,7 @@ File
 ```
 
 ```bash
-$ peek menu 53051 --format json
+$ peek menu --app Xcode --format json
 ```
 ```json
 {
@@ -217,33 +220,9 @@ $ peek menu 53051 --format json
 ```
 
 ```bash
-$ peek menu 53051 --click "Paste"
+$ peek menu --app Xcode --click "Paste"
 Clicked menu item: Paste
 ```
-
-### `peek action` — Perform accessibility actions
-
-Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
-Use `--all` to act on every matching element (default: first match only).
-
-```bash
-$ peek action --app Xcode AXPress --role AXButton --desc "Run"
-Performed 'AXPress' on: AXButton  desc="Run"
-```
-
-```bash
-$ peek action --app Xcode AXPress --role AXButton --desc "Run" --format json
-```
-```json
-{
-  "description" : "Run",
-  "frame" : { "height" : 28, "width" : 28, "x" : 276, "y" : 45 },
-  "role" : "AXButton",
-  "children" : []
-}
-```
-
-Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncrement`, `AXDecrement`, `AXRaise`.
 
 ### `peek click` — Click at screen coordinates
 
@@ -273,19 +252,44 @@ $ peek type "hello" --format json
 { "characters" : 5 }
 ```
 
-### `peek capture` — Screenshot a window
+### `peek action` — Perform accessibility actions
+
+Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
+Use `--all` to act on every matching element (default: first match only).
 
 ```bash
-$ peek capture --app Xcode -o screenshot.png
-Saved screenshot to screenshot.png
-Size: 3024x1764 pixels
+$ peek action --app Xcode AXPress --role AXButton --desc "Run"
+Performed 'AXPress' on: AXButton  desc="Run"
 ```
 
 ```bash
-$ peek capture --app Xcode -o screenshot.png --format json
+$ peek action --app Xcode AXPress --role AXButton --desc "Run" --format json
 ```
 ```json
-{ "path" : "screenshot.png", "width" : 3024, "height" : 1764 }
+{
+  "description" : "Run",
+  "frame" : { "height" : 28, "width" : 28, "x" : 276, "y" : 45 },
+  "role" : "AXButton",
+  "children" : []
+}
+```
+
+Common AX actions: `AXPress`, `AXConfirm`, `AXCancel`, `AXShowMenu`, `AXIncrement`, `AXDecrement`, `AXRaise`.
+
+### `peek activate` — Bring an app to the foreground
+
+Activates the app and raises the target window.
+
+```bash
+$ peek activate --app Claude
+Activated Claude (pid 84720, window 22325)
+```
+
+```bash
+$ peek activate --app Claude --format json
+```
+```json
+{ "app" : "Claude", "pid" : 84720, "windowID" : 22325 }
 ```
 
 ### `peek watch` — Monitor real-time changes
@@ -334,6 +338,21 @@ $ peek diff --app Xcode --format json
 }
 ```
 
+### `peek capture` — Screenshot a window
+
+```bash
+$ peek capture --app Xcode -o screenshot.png
+Saved screenshot to screenshot.png
+Size: 3024x1764 pixels
+```
+
+```bash
+$ peek capture --app Xcode -o screenshot.png --format json
+```
+```json
+{ "path" : "screenshot.png", "width" : 3024, "height" : 1764 }
+```
+
 ### `peek doctor` — Check permissions
 
 ```bash
@@ -365,10 +384,10 @@ $ peek doctor --format json
 
 - All commands support `--format json` for structured output — prefer this for programmatic use.
 - Use `--app` or `--pid` to target windows by name instead of looking up IDs manually.
+- Use `peek activate --app <name>` to bring an app to the foreground before clicking or typing.
 - Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches.
 - `--role` is an exact match. Common roles: `AXButton`, `AXStaticText`, `AXTextField`, `AXCheckBox`, `AXRadioButton`, `AXPopUpButton`, `AXMenuItem`, `AXTable`, `AXRow`, `AXCell`.
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
 - `peek click` and `peek type` operate at the system level (not window-scoped).
-- Use `peek apps` to get window IDs and PIDs. Use PIDs for `peek menu`.
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
 - `peek element-at` is a coordinate-based hit-test — it returns the single deepest element at that point. Use `peek find` for attribute-based searches across the whole tree.
