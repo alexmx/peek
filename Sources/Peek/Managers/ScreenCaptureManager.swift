@@ -10,7 +10,8 @@ enum ScreenCaptureManager {
         let height: Int
     }
 
-    static func capture(windowID: CGWindowID, outputPath: String, format: OutputFormat) throws {
+    /// Capture a window to a PNG file and return the result.
+    static func capture(windowID: CGWindowID, outputPath: String) throws -> CaptureResult {
         try PermissionManager.requireScreenCapture()
 
         guard let image = captureWindowImage(windowID) else {
@@ -33,12 +34,7 @@ enum ScreenCaptureManager {
             throw PeekError.failedToWrite(outputPath)
         }
 
-        if format == .json {
-            try printJSON(CaptureResult(path: outputPath, width: image.width, height: image.height))
-        } else {
-            print("Saved screenshot to \(outputPath)")
-            print("Size: \(image.width)x\(image.height) pixels")
-        }
+        return CaptureResult(path: outputPath, width: image.width, height: image.height)
     }
 
     // CGWindowListCreateImage is marked unavailable in macOS 15 SDK but still works at runtime.

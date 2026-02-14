@@ -17,6 +17,7 @@ struct Peek: AsyncParsableCommand {
             DiffCommand.self,
             MenuCommand.self,
             DoctorCommand.self,
+            MCPServerCommand.self,
         ]
     )
 }

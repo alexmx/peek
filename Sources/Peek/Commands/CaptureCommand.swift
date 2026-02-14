@@ -18,6 +18,12 @@ struct CaptureCommand: ParsableCommand {
     func run() throws {
         let windowID = try target.resolve()
         let path = output ?? "window_\(windowID).png"
-        try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, format: format)
+        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path)
+        if format == .json {
+            try printJSON(result)
+        } else {
+            print("Saved screenshot to \(result.path)")
+            print("Size: \(result.width)x\(result.height) pixels")
+        }
     }
 }
