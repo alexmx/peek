@@ -47,7 +47,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, window, find, elementAt, click, type, action, activate, capture, menu, doctor]
+        [apps, window, find, click, type, action, activate, capture, menu, doctor]
     }
 
     static let apps = MCPTool(
@@ -79,7 +79,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements in a window by role, title, value, or description. At least one filter required.",
+        description: "Search for UI elements by attributes or coordinates. Use role/title/value/desc for attribute search, or x/y for hit-test.",
         schema: """
         {
             "properties": {
@@ -87,44 +87,30 @@ enum PeekTools {
                 "role": { "type": "string", "description": "Filter by role (exact match, e.g. AXButton)" },
                 "title": { "type": "string", "description": "Filter by title (case-insensitive substring)" },
                 "value": { "type": "string", "description": "Filter by value (case-insensitive substring)" },
-                "desc": { "type": "string", "description": "Filter by description (case-insensitive substring)" }
+                "desc": { "type": "string", "description": "Filter by description (case-insensitive substring)" },
+                "x": { "type": "integer", "description": "Hit-test X screen coordinate (use with y instead of filters)" },
+                "y": { "type": "integer", "description": "Hit-test Y screen coordinate (use with x instead of filters)" }
             }
         }
         """
     ) { args in
         let (windowID, pid) = try resolveWindow(from: args)
-        let results = try AccessibilityTreeManager.find(
-            pid: pid, windowID: windowID,
-            role: args["role"] as? String,
-            title: args["title"] as? String,
-            value: args["value"] as? String,
-            description: args["desc"] as? String
-        )
-        return try jsonString(results)
-    }
 
-    static let elementAt = MCPTool(
-        name: "peek_element_at",
-        description: "Hit-test: find the deepest UI element at screen coordinates (x, y).",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema),
-                "x": { "type": "integer", "description": "X screen coordinate" },
-                "y": { "type": "integer", "description": "Y screen coordinate" }
-            },
-            "required": ["x", "y"]
+        if let x = args["x"] as? Int, let y = args["y"] as? Int {
+            guard let node = try AccessibilityTreeManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
+                return "No element found at (\(x), \(y))."
+            }
+            return try jsonString(node)
+        } else {
+            let results = try AccessibilityTreeManager.find(
+                pid: pid, windowID: windowID,
+                role: args["role"] as? String,
+                title: args["title"] as? String,
+                value: args["value"] as? String,
+                description: args["desc"] as? String
+            )
+            return try jsonString(results)
         }
-        """
-    ) { args in
-        let (windowID, pid) = try resolveWindow(from: args)
-        guard let x = args["x"] as? Int, let y = args["y"] as? Int else {
-            throw PeekError.elementNotFound
-        }
-        guard let node = try AccessibilityTreeManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
-            return "No element found at (\(x), \(y))."
-        }
-        return try jsonString(node)
     }
 
     static let click = MCPTool(

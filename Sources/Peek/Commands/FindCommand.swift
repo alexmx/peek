@@ -5,7 +5,7 @@ import Foundation
 struct FindCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "find",
-        abstract: "Search for UI elements in a window"
+        abstract: "Search for UI elements by attributes or coordinates"
     )
 
     @OptionGroup var target: WindowTarget
@@ -22,12 +22,24 @@ struct FindCommand: ParsableCommand {
     @Option(name: .long, help: "Filter by description (case-insensitive substring)")
     var desc: String?
 
+    @Option(name: .long, parsing: .upToNextOption, help: "Hit-test at screen coordinates (x y)")
+    var at: [Int] = []
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
     func validate() throws {
-        if role == nil, title == nil, value == nil, desc == nil {
-            throw ValidationError("At least one filter is required: --role, --title, --value, or --desc")
+        let hasFilters = role != nil || title != nil || value != nil || desc != nil
+        let hasAt = !at.isEmpty
+
+        if !hasFilters && !hasAt {
+            throw ValidationError("Provide --at <x> <y> or at least one filter: --role, --title, --value, or --desc")
+        }
+        if hasFilters && hasAt {
+            throw ValidationError("--at cannot be combined with --role, --title, --value, or --desc")
+        }
+        if hasAt && at.count != 2 {
+            throw ValidationError("--at requires exactly two values: --at <x> <y>")
         }
     }
 
@@ -37,6 +49,35 @@ struct FindCommand: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
 
+        if !at.isEmpty {
+            try runHitTest(pid: pid, windowID: windowID)
+        } else {
+            try runSearch(pid: pid, windowID: windowID)
+        }
+    }
+
+    private func runHitTest(pid: pid_t, windowID: CGWindowID) throws {
+        let x = at[0]
+        let y = at[1]
+
+        guard let node = try AccessibilityTreeManager.elementAt(
+            pid: pid,
+            windowID: windowID,
+            x: x,
+            y: y
+        ) else {
+            print("No element found at (\(x), \(y)).")
+            return
+        }
+
+        if format == .json {
+            try printJSON(node)
+        } else {
+            printNode(node)
+        }
+    }
+
+    private func runSearch(pid: pid_t, windowID: CGWindowID) throws {
         let results = try AccessibilityTreeManager.find(
             pid: pid,
             windowID: windowID,
@@ -53,17 +94,21 @@ struct FindCommand: ParsableCommand {
                 print("No matching elements found.")
             } else {
                 for node in results {
-                    var line = node.role
-                    if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
-                    if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
-                    if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
-                    if let f = node.frame {
-                        line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
-                    }
-                    print(line)
+                    printNode(node)
                 }
                 print("\n\(results.count) element(s) found.")
             }
         }
+    }
+
+    private func printNode(_ node: AXNode) {
+        var line = node.role
+        if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
+        if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
+        if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
+        if let f = node.frame {
+            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
+        }
+        print(line)
     }
 }

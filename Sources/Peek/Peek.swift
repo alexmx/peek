@@ -10,7 +10,6 @@ struct Peek: AsyncParsableCommand {
             // Inspection
             WindowCommand.self,
             FindCommand.self,
-            ElementAtCommand.self,
             MenuCommand.self,
             // Interaction
             ClickCommand.self,
