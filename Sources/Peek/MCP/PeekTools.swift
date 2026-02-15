@@ -13,25 +13,12 @@ enum PeekTools {
     }
 
     private static func resolveWindow(from args: [String: Any]) async throws -> (windowID: CGWindowID, pid: pid_t) {
-        let windows = try await WindowManager.listWindows()
-
-        let window: WindowInfo?
-        if let id = args["window_id"] as? Int {
-            window = windows.first { $0.windowID == CGWindowID(id) }
-        } else if let app = args["app"] as? String {
-            let matching = windows.filter { $0.ownerName.localizedCaseInsensitiveContains(app) }
-            window = matching.first(where: { $0.isOnScreen }) ?? matching.first
-        } else if let pidVal = args["pid"] as? Int {
-            let matching = windows.filter { $0.pid == pid_t(pidVal) }
-            window = matching.first(where: { $0.isOnScreen }) ?? matching.first
-        } else {
-            throw PeekError.noWindows
-        }
-
-        guard let window else {
-            throw PeekError.windowNotFound(0)
-        }
-        return (window.windowID, window.pid)
+        let resolved = try await WindowTarget.resolve(
+            windowID: (args["window_id"] as? Int).map { UInt32($0) },
+            app: args["app"] as? String,
+            pid: (args["pid"] as? Int).map { pid_t($0) }
+        )
+        return (resolved.windowID, resolved.pid)
     }
 
     // MARK: - Shared Schema Fragments

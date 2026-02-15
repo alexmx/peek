@@ -18,6 +18,11 @@ struct WindowTarget: ParsableArguments {
 
     /// Resolve the target to a concrete window ID and PID from a single ScreenCaptureKit query.
     func resolve() async throws -> Resolved {
+        try await Self.resolve(windowID: windowID, app: app, pid: pid)
+    }
+
+    /// Core resolution logic shared by CLI commands and MCP tools.
+    static func resolve(windowID: UInt32? = nil, app: String? = nil, pid: pid_t? = nil) async throws -> Resolved {
         let windows = try await WindowManager.listWindows()
 
         if let windowID {
@@ -27,7 +32,6 @@ struct WindowTarget: ParsableArguments {
             return Resolved(windowID: window.windowID, pid: window.pid)
         }
         if let app {
-            // Prefer on-screen windows
             let matching = windows.filter { $0.ownerName.localizedCaseInsensitiveContains(app) }
             guard let window = matching.first(where: { $0.isOnScreen }) ?? matching.first else {
                 throw ValidationError("No window found for app '\(app)'. Run 'peek apps' to see available apps.")
