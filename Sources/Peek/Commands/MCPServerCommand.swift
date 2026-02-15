@@ -20,6 +20,7 @@ struct MCPServerCommand: AsyncParsableCommand {
         let server = MCPServer(
             name: "peek",
             version: "1.0.0",
+            description: "See and control any macOS app — inspect UI elements, read accessibility trees, click buttons, type text, navigate menus, and capture screenshots. Works with any native app including Xcode, Finder, Simulator, and third-party apps.",
             tools: PeekTools.all
         )
         await server.run()
