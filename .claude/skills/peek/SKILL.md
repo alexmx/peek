@@ -407,7 +407,8 @@ $ peek doctor --format json
 
 - All commands support `--format json` for structured output — prefer this for programmatic use.
 - Use `--app` or `--pid` to target windows by name instead of looking up IDs manually.
-- Use `peek activate --app <name>` to bring an app to the foreground before clicking or typing.
+- Commands that need the accessibility tree (`tree`, `find`, `action`, `watch`, `menu`) will **auto-activate** apps on other Spaces — no need to manually run `peek activate` first.
+- Use `peek activate --app <name>` to bring an app to the foreground before clicking or typing (these operate at screen level, not via accessibility).
 - Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches.
 - `--role` is an exact match (without the `AX` prefix). Common roles:
   - **Containers:** `Window`, `Group`, `SplitGroup`, `ScrollArea`, `TabGroup`, `Sheet`, `Drawer`
