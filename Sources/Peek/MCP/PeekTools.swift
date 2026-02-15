@@ -49,7 +49,7 @@ enum PeekTools {
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running macOS applications and their windows with IDs, titles, frames"
+        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs."
     ) { _ in
         let windows = try await WindowManager.listWindows()
         let entries = AppManager.listApps(windows: windows)
@@ -71,7 +71,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements by attributes or coordinates. Use role/title/value/desc for attribute search, or x/y for hit-test.",
+        description: "Search for UI elements (read-only). Use to discover what's on screen before acting. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click.",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "role": .string("Filter by role (exact match, e.g. Button)"),
             "title": .string("Filter by title (case-insensitive substring)"),
@@ -102,7 +102,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates. Requires the app to be in the foreground — always provide app/pid/window_id to auto-activate. Prefer peek_action for clicking UI elements like buttons.",
+        description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (e.g. on images or canvas areas). For UI elements like buttons, use peek_action instead. Always provide app/pid/window_id to auto-activate the target app.",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
                 "x": .integer("X coordinate"),
@@ -121,7 +121,7 @@ enum PeekTools {
 
     static let type = MCPTool(
         name: "peek_type",
-        description: "Type text via keyboard events. Requires the app to be in the foreground — always provide app/pid/window_id to auto-activate.",
+        description: "Type text via keyboard events into the focused element. Always provide app/pid/window_id to auto-activate the target app. Focus a text field first with peek_click or peek_action.",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: ["text": .string("The text to type")],
             required: ["text"]
@@ -137,7 +137,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "Perform an accessibility action on a UI element matching the given filters. Preferred over peek_click for interacting with UI elements — finds and acts on elements by role/title/desc without needing coordinates. Common actions by role: Button/MenuItem→Press, TextField/TextArea→Confirm (or use peek_click to focus), CheckBox→Press, Slider→Increment/Decrement.",
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items), Confirm (text fields), ShowMenu (popups), Increment/Decrement (sliders).",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
                 "action": .string("AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise"),
@@ -210,7 +210,7 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Inspect or click menu bar items. Without 'click', returns the full menu structure. With 'click', triggers a menu item by title. Use 'find' to search for items without clicking.",
+        description: "Interact with an app's menu bar. Use 'find' to search for menu items by title (returns matches with full path). Use 'click' to trigger a menu item. Avoid calling without find/click — the full menu tree can be very large.",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "click": .string("Menu item title to click (case-insensitive substring)"),
             "find": .string("Search for menu items by title (case-insensitive substring) — returns matches with their menu path"),
