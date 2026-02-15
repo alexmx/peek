@@ -136,10 +136,10 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "Perform an accessibility action on a UI element matching the given filters. Preferred over peek_click for interacting with UI elements — finds and acts on elements by role/title/desc without needing coordinates.",
+        description: "Perform an accessibility action on a UI element matching the given filters. Preferred over peek_click for interacting with UI elements — finds and acts on elements by role/title/desc without needing coordinates. Common actions by role: Button/MenuItem→Press, TextField/TextArea→Confirm (or use peek_click to focus), CheckBox→Press, Slider→Increment/Decrement.",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
-                "action": .string("AX action (e.g. Press, Confirm, Cancel, ShowMenu)"),
+                "action": .string("AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise"),
                 "role": .string("Filter by role"),
                 "title": .string("Filter by title"),
                 "value": .string("Filter by value"),

@@ -29,7 +29,7 @@ enum PeekError: LocalizedError {
         case .elementNotFound:
             "No matching element found."
         case .actionFailed(let action, let error):
-            "Action '\(action)' failed with error code \(error.rawValue)."
+            "Action '\(action)' failed: \(error.label). Try a different action for this element role."
         case .noMenuBar(let pid):
             "No menu bar found for process \(pid)."
         case .menuItemNotFound(let title):

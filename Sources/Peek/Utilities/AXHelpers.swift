@@ -64,6 +64,30 @@ func axFrame(of element: AXUIElement) -> CGRect? {
 /// even when the action succeeds because the element gets recreated during state changes.
 let toleratedActionErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
 
+extension AXError {
+    var label: String {
+        switch self {
+        case .success: "success"
+        case .failure: "general failure"
+        case .illegalArgument: "illegal argument"
+        case .invalidUIElement: "invalid UI element"
+        case .invalidUIElementObserver: "invalid observer"
+        case .cannotComplete: "cannot complete"
+        case .attributeUnsupported: "attribute unsupported"
+        case .actionUnsupported: "action not supported on this element"
+        case .notificationUnsupported: "notification unsupported"
+        case .notImplemented: "not implemented"
+        case .notificationAlreadyRegistered: "notification already registered"
+        case .notificationNotRegistered: "notification not registered"
+        case .apiDisabled: "accessibility API disabled"
+        case .noValue: "no value"
+        case .parameterizedAttributeUnsupported: "parameterized attribute unsupported"
+        case .notEnoughPrecision: "not enough precision"
+        @unknown default: "unknown error (\(rawValue))"
+        }
+    }
+}
+
 func axFrameInfo(of element: AXUIElement) -> AXNode.FrameInfo? {
     axFrame(of: element).map {
         AXNode.FrameInfo(
