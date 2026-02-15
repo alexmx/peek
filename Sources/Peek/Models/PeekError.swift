@@ -14,6 +14,7 @@ enum PeekError: LocalizedError {
     case screenCaptureNotGranted
     case invalidCropRegion
     case captureFailed
+    case encodingFailed
 
     var errorDescription: String? {
         switch self {
@@ -39,6 +40,8 @@ enum PeekError: LocalizedError {
             "Crop region is outside the window bounds."
         case .captureFailed:
             "Screen capture timed out. Try running 'peek doctor --prompt' to re-grant Screen Recording permission."
+        case .encodingFailed:
+            "Failed to encode result as JSON."
         }
     }
 }

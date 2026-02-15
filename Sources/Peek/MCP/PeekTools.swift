@@ -9,7 +9,10 @@ enum PeekTools {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(value)
-        return String(data: data, encoding: .utf8)!
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw PeekError.encodingFailed
+        }
+        return json
     }
 
     private static func resolveWindow(from args: [String: Any]) async throws -> (windowID: CGWindowID, pid: pid_t) {
