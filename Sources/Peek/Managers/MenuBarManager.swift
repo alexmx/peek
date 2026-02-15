@@ -8,6 +8,18 @@ enum MenuBarManager {
         return buildMenuNode(from: menuBar)
     }
 
+    /// Search for menu items matching a title (case-insensitive substring).
+    static func findMenuItems(pid: pid_t, title: String) throws -> [MenuNode] {
+        let menuBar = try getMenuBar(pid: pid)
+        let tree = buildMenuNode(from: menuBar)
+        var results: [MenuNode] = []
+        searchMenuNode(tree, title: title, path: [], results: &results)
+        guard !results.isEmpty else {
+            throw PeekError.menuItemNotFound(title)
+        }
+        return results
+    }
+
     /// Find and press a menu item by title (case-insensitive substring match).
     static func clickMenuItem(pid: pid_t, title: String) throws -> String {
         let menuBar = try getMenuBar(pid: pid)
@@ -58,6 +70,19 @@ enum MenuBarManager {
         }
 
         return nil
+    }
+
+    private static func searchMenuNode(_ node: MenuNode, title: String, path: [String], results: inout [MenuNode]) {
+        let currentPath = node.title.isEmpty ? path : path + [node.title]
+
+        if node.role == "MenuItem", !node.title.isEmpty,
+           node.title.localizedCaseInsensitiveContains(title) {
+            results.append(node.withPath(currentPath.joined(separator: " > ")))
+        }
+
+        for child in node.children {
+            searchMenuNode(child, title: title, path: currentPath, results: &results)
+        }
     }
 
     private static func buildMenuNode(from element: AXUIElement, depth: Int = 0) -> MenuNode {

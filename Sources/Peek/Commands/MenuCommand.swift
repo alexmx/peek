@@ -12,6 +12,9 @@ struct MenuCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Click a menu item by title (case-insensitive substring)")
     var click: String?
 
+    @Option(name: .long, help: "Search for menu items by title (case-insensitive substring)")
+    var find: String?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -29,6 +32,23 @@ struct MenuCommand: AsyncParsableCommand {
                 try printJSON(ClickResult(title: title))
             } else {
                 print("Clicked menu item: \(title)")
+            }
+            return
+        }
+
+        if let find {
+            let items = try MenuBarManager.findMenuItems(pid: resolved.pid, title: find)
+            if format == .json {
+                try printJSON(items)
+            } else {
+                for item in items {
+                    var line = item.title
+                    if !item.enabled { line += "  (disabled)" }
+                    if let shortcut = item.shortcut { line += "  \(shortcut)" }
+                    if let path = item.path { line += "  [\(path)]" }
+                    print(line)
+                }
+                print("\n\(items.count) item(s) found.")
             }
             return
         }

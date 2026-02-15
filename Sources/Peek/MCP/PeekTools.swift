@@ -209,9 +209,10 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Inspect or click menu bar items. Without 'click', returns the full menu structure. With 'click', triggers a menu item by title.",
+        description: "Inspect or click menu bar items. Without 'click', returns the full menu structure. With 'click', triggers a menu item by title. Use 'find' to search for items without clicking.",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "click": .string("Menu item title to click (case-insensitive substring)"),
+            "find": .string("Search for menu items by title (case-insensitive substring) — returns matches with their menu path"),
         ]))
     ) { args in
         let (windowID, pid) = try await resolveWindow(from: args)
@@ -219,6 +220,9 @@ enum PeekTools {
         if let clickTitle = args["click"] as? String {
             let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
             return try jsonString(["title": title])
+        } else if let findTitle = args["find"] as? String {
+            let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
+            return try jsonString(items)
         } else {
             let tree = try MenuBarManager.menuBar(pid: pid)
             return try jsonString(tree)
