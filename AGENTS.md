@@ -32,6 +32,33 @@ swift run peek <command> [options]
 - `swift-argument-parser` — CLI argument parsing
 - `swift-cli-mcp` — MCP server framework
 
+## Version Management & Releases
+
+**Version Source:** `.peek-version` file in repository root
+
+- Single source of truth for version number (e.g., `1.0.0` or `dev`)
+- `Sources/Peek/Version.swift` defines `peekVersion` constant (defaults to "dev" for local builds)
+- GitHub Actions reads `.peek-version`, generates `Version.swift` with actual version, then builds release binary
+- CLI exposes version via `peek --version`
+
+**Release Process:**
+
+1. Update `.peek-version` with new version (e.g., `1.0.0`)
+2. Commit and push to main
+3. Manually trigger "Release" workflow from GitHub Actions (or enable auto-trigger in `.github/workflows/release.yml`)
+4. Workflow creates git tag, builds universal binary, publishes GitHub release
+5. Update Homebrew formula in `homebrew-tools` repository with new SHA256
+
+**Homebrew Distribution:**
+
+Users install via:
+```bash
+brew tap alexmx/tools
+brew install peek
+```
+
+Formula location: `alexmx/homebrew-tools/Formula/peek.rb`
+
 ## Commands
 
 All commands support `--format json` for JSON output (default: text). Most commands accept window targeting via `--app <name>`, `--pid <pid>`, or positional `<window-id>`.
