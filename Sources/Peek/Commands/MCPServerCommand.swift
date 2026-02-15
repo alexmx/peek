@@ -26,16 +26,13 @@ struct MCPServerCommand: AsyncParsableCommand {
     }
 
     private func printSetup() {
-        let binary = ProcessInfo.processInfo.arguments[0]
-        let path = URL(fileURLWithPath: binary).standardized.path
-
         print("""
         Add peek as an MCP server to your AI coding agent:
 
-          Claude Code:          claude mcp add --transport stdio peek -- \(path) mcp
-          Codex CLI:            codex mcp add peek -- \(path) mcp
-          VS Code / Copilot:    code --add-mcp '{"name":"peek","command":"\(path)","args":["mcp"]}'
-          Cursor:               cursor --add-mcp '{"name":"peek","command":"\(path)","args":["mcp"]}'
+          Claude Code:          claude mcp add --transport stdio peek -- peek mcp
+          Codex CLI:            codex mcp add peek -- peek mcp
+          VS Code / Copilot:    code --add-mcp '{"name":"peek","command":"peek","args":["mcp"]}'
+          Cursor:               cursor --add-mcp '{"name":"peek","command":"peek","args":["mcp"]}'
         """)
     }
 }
