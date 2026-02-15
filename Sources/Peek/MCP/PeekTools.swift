@@ -44,7 +44,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, window, find, click, type, action, activate, capture, menu, doctor]
+        [apps, window, find, click, type, action, activate, capture, menu, watch, doctor]
     }
 
     static let apps = MCPTool(
@@ -228,6 +228,19 @@ enum PeekTools {
             let tree = try MenuBarManager.menuBar(pid: pid)
             return try jsonString(tree)
         }
+    }
+
+    static let watch = MCPTool(
+        name: "peek_watch",
+        description: "Detect UI changes in a window. Takes two accessibility snapshots separated by a delay and returns what was added, removed, or changed. Use this to monitor the effect of an action (e.g. build status after triggering a build, UI updates after a click).",
+        schema: windowTargetSchema.merging(MCPSchema(properties: [
+            "delay": .number("Seconds to wait between snapshots (default: 3)"),
+        ]))
+    ) { args in
+        let (windowID, pid) = try await resolveWindow(from: args)
+        let delay = (args["delay"] as? Double) ?? (args["delay"] as? Int).map(Double.init) ?? 3.0
+        let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
+        return try jsonString(diff)
     }
 
     static let doctor = MCPTool(
