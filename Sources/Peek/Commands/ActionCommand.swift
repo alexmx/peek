@@ -10,8 +10,8 @@ struct ActionCommand: ParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Argument(help: "The action to perform (e.g. Press, Confirm, Cancel, ShowMenu)")
-    var action: String
+    @Option(name: .long, help: "The action to perform (e.g. Press, Confirm, Cancel, ShowMenu)")
+    var `do`: String
 
     @Option(name: .long, help: "Filter by role (e.g. Button)")
     var role: String?
@@ -42,6 +42,8 @@ struct ActionCommand: ParsableCommand {
         guard let pid = WindowManager.pid(forWindowID: windowID) else {
             throw PeekError.windowNotFound(windowID)
         }
+
+        let action = self.`do`
 
         if all {
             let nodes = try InteractionManager.performActionOnAll(

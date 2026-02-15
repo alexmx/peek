@@ -31,7 +31,7 @@ peek find --app Xcode --role Button --desc "Run"
 peek find --app Xcode --at 280 50
 
 # 5. Interact with it
-peek action --app Xcode Press --role Button --desc "Run"
+peek action --app Xcode --do Press --role Button --desc "Run"
 
 # 6. Click a menu item
 peek menu --app Xcode --click "Paste"
@@ -261,12 +261,12 @@ Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
 Use `--all` to act on every matching element (default: first match only).
 
 ```bash
-$ peek action --app Xcode Press --role Button --desc "Run"
+$ peek action --app Xcode --do Press --role Button --desc "Run"
 Performed 'Press' on: Button  desc="Run"
 ```
 
 ```bash
-$ peek action --app Xcode Press --role Button --desc "Run" --format json
+$ peek action --app Xcode --do Press --role Button --desc "Run" --format json
 ```
 ```json
 {
