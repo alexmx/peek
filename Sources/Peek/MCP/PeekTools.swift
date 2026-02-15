@@ -24,6 +24,14 @@ enum PeekTools {
         return (resolved.windowID, resolved.pid)
     }
 
+    /// Activate the target app if window targeting args are provided.
+    /// Used by click/type which operate at screen level and need the window in foreground.
+    private static func activateIfTargeted(_ args: [String: Any]) async throws {
+        guard args["window_id"] != nil || args["app"] != nil || args["pid"] != nil else { return }
+        let (windowID, pid) = try await resolveWindow(from: args)
+        _ = try InteractionManager.activate(pid: pid, windowID: windowID)
+    }
+
     // MARK: - Shared Schema Fragments
 
     private static let windowTargetSchema = MCPSchema(properties: [
@@ -94,17 +102,18 @@ enum PeekTools {
     static let click = MCPTool(
         name: "peek_click",
         description: "Click at screen coordinates.",
-        schema: MCPSchema(
+        schema: windowTargetSchema.merging(MCPSchema(
             properties: [
                 "x": .integer("X coordinate"),
                 "y": .integer("Y coordinate"),
             ],
             required: ["x", "y"]
-        )
+        ))
     ) { args in
         guard let x = args["x"] as? Int, let y = args["y"] as? Int else {
             throw PeekError.elementNotFound
         }
+        try await activateIfTargeted(args)
         InteractionManager.click(x: Double(x), y: Double(y))
         return try jsonString(["x": x, "y": y])
     }
@@ -112,14 +121,15 @@ enum PeekTools {
     static let type = MCPTool(
         name: "peek_type",
         description: "Type text via keyboard events.",
-        schema: MCPSchema(
+        schema: windowTargetSchema.merging(MCPSchema(
             properties: ["text": .string("The text to type")],
             required: ["text"]
-        )
+        ))
     ) { args in
         guard let text = args["text"] as? String else {
             throw PeekError.elementNotFound
         }
+        try await activateIfTargeted(args)
         InteractionManager.type(text: text)
         return try jsonString(["characters": text.count])
     }

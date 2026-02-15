@@ -1,11 +1,13 @@
 import ArgumentParser
 import Foundation
 
-struct TypeCommand: ParsableCommand {
+struct TypeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "type",
         abstract: "Type text via keyboard events"
     )
+
+    @OptionGroup var target: WindowTarget
 
     @Argument(help: "The text to type")
     var text: String
@@ -17,7 +19,12 @@ struct TypeCommand: ParsableCommand {
         let characters: Int
     }
 
-    func run() throws {
+    func run() async throws {
+        if target.windowID != nil || target.app != nil || target.pid != nil {
+            let resolved = try await target.resolve()
+            _ = try InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        }
+
         InteractionManager.type(text: text)
 
         if format == .json {
