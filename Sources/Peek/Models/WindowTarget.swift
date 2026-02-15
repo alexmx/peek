@@ -11,22 +11,35 @@ struct WindowTarget: ParsableArguments {
     @Option(name: .long, help: "Target app by process ID")
     var pid: pid_t?
 
-    /// Resolve the target to a concrete window ID.
-    func resolve() throws -> UInt32 {
+    struct Resolved {
+        let windowID: CGWindowID
+        let pid: pid_t
+    }
+
+    /// Resolve the target to a concrete window ID and PID from a single ScreenCaptureKit query.
+    func resolve() async throws -> Resolved {
+        let windows = try await WindowManager.listWindows()
+
         if let windowID {
-            return windowID
+            guard let window = windows.first(where: { $0.windowID == windowID }) else {
+                throw ValidationError("No window found with ID \(windowID). Run 'peek apps' to see available windows.")
+            }
+            return Resolved(windowID: window.windowID, pid: window.pid)
         }
         if let app {
-            guard let id = WindowManager.windowID(forApp: app) else {
+            // Prefer on-screen windows
+            let matching = windows.filter { $0.ownerName.localizedCaseInsensitiveContains(app) }
+            guard let window = matching.first(where: { $0.isOnScreen }) ?? matching.first else {
                 throw ValidationError("No window found for app '\(app)'. Run 'peek apps' to see available apps.")
             }
-            return id
+            return Resolved(windowID: window.windowID, pid: window.pid)
         }
         if let pid {
-            guard let id = WindowManager.windowID(forPID: pid) else {
+            let matching = windows.filter { $0.pid == pid }
+            guard let window = matching.first(where: { $0.isOnScreen }) ?? matching.first else {
                 throw ValidationError("No window found for PID \(pid). Run 'peek apps' to see available apps.")
             }
-            return id
+            return Resolved(windowID: window.windowID, pid: window.pid)
         }
         throw ValidationError("Provide a window ID, --app, or --pid.")
     }

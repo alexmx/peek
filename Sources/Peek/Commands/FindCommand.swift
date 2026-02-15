@@ -2,7 +2,7 @@ import ArgumentParser
 import CoreGraphics
 import Foundation
 
-struct FindCommand: ParsableCommand {
+struct FindCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "find",
         abstract: "Search for UI elements by attributes or coordinates"
@@ -46,16 +46,13 @@ struct FindCommand: ParsableCommand {
         }
     }
 
-    func run() throws {
-        let windowID = try target.resolve()
-        guard let pid = WindowManager.pid(forWindowID: windowID) else {
-            throw PeekError.windowNotFound(windowID)
-        }
+    func run() async throws {
+        let resolved = try await target.resolve()
 
         if let x, let y {
-            try runHitTest(pid: pid, windowID: windowID, x: x, y: y)
+            try runHitTest(pid: resolved.pid, windowID: resolved.windowID, x: x, y: y)
         } else {
-            try runSearch(pid: pid, windowID: windowID)
+            try runSearch(pid: resolved.pid, windowID: resolved.windowID)
         }
     }
 

@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct CaptureCommand: ParsableCommand {
+struct CaptureCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "capture",
         abstract: "Capture a screenshot of a window"
@@ -35,15 +35,15 @@ struct CaptureCommand: ParsableCommand {
         }
     }
 
-    func run() throws {
-        let windowID = try target.resolve()
-        let path = output ?? "window_\(windowID).png"
+    func run() async throws {
+        let resolved = try await target.resolve()
+        let path = output ?? "window_\(resolved.windowID).png"
         let crop: CGRect? = if let x, let y, let width, let height {
             CGRect(x: x, y: y, width: width, height: height)
         } else {
             nil
         }
-        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
+        let result = try await ScreenCaptureManager.capture(windowID: resolved.windowID, outputPath: path, crop: crop)
         if format == .json {
             try printJSON(result)
         } else {

@@ -2,7 +2,7 @@ import ArgumentParser
 import CoreGraphics
 import Foundation
 
-struct WindowCommand: ParsableCommand {
+struct WindowCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "tree",
         abstract: "Inspect the accessibility tree of a window"
@@ -16,13 +16,10 @@ struct WindowCommand: ParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    func run() throws {
-        let windowID = try target.resolve()
-        guard let pid = WindowManager.pid(forWindowID: windowID) else {
-            throw PeekError.windowNotFound(windowID)
-        }
+    func run() async throws {
+        let resolved = try await target.resolve()
 
-        let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: depth)
+        let tree = try AccessibilityTreeManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
 
         if format == .json {
             try printJSON(tree)

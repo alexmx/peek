@@ -11,7 +11,7 @@ enum ScreenCaptureManager {
     }
 
     /// Capture a window to a PNG file and return the result.
-    static func capture(windowID: CGWindowID, outputPath: String, crop: CGRect? = nil) throws -> CaptureResult {
+    static func capture(windowID: CGWindowID, outputPath: String, crop: CGRect? = nil) async throws -> CaptureResult {
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {
@@ -20,8 +20,9 @@ enum ScreenCaptureManager {
 
         if let crop {
             // Scale crop rect to account for Retina (image pixels vs point coordinates)
-            let scaleX = CGFloat(image.width) / CGFloat(WindowManager.windowBounds(forWindowID: windowID)?.width ?? CGFloat(image.width))
-            let scaleY = CGFloat(image.height) / CGFloat(WindowManager.windowBounds(forWindowID: windowID)?.height ?? CGFloat(image.height))
+            let bounds = try await WindowManager.windowBounds(forWindowID: windowID)
+            let scaleX = CGFloat(image.width) / CGFloat(bounds?.width ?? CGFloat(image.width))
+            let scaleY = CGFloat(image.height) / CGFloat(bounds?.height ?? CGFloat(image.height))
             let scaledRect = CGRect(
                 x: crop.origin.x * scaleX,
                 y: crop.origin.y * scaleY,

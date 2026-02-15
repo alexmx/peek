@@ -12,28 +12,26 @@ enum PeekTools {
         return String(data: data, encoding: .utf8)!
     }
 
-    private static func resolveWindow(from args: [String: Any]) throws -> (windowID: CGWindowID, pid: pid_t) {
-        let windowID: CGWindowID
+    private static func resolveWindow(from args: [String: Any]) async throws -> (windowID: CGWindowID, pid: pid_t) {
+        let windows = try await WindowManager.listWindows()
+
+        let window: WindowInfo?
         if let id = args["window_id"] as? Int {
-            windowID = CGWindowID(id)
+            window = windows.first { $0.windowID == CGWindowID(id) }
         } else if let app = args["app"] as? String {
-            guard let id = WindowManager.windowID(forApp: app) else {
-                throw PeekError.windowNotFound(0)
-            }
-            windowID = id
+            let matching = windows.filter { $0.ownerName.localizedCaseInsensitiveContains(app) }
+            window = matching.first(where: { $0.isOnScreen }) ?? matching.first
         } else if let pidVal = args["pid"] as? Int {
-            guard let id = WindowManager.windowID(forPID: pid_t(pidVal)) else {
-                throw PeekError.windowNotFound(0)
-            }
-            windowID = id
+            let matching = windows.filter { $0.pid == pid_t(pidVal) }
+            window = matching.first(where: { $0.isOnScreen }) ?? matching.first
         } else {
             throw PeekError.noWindows
         }
 
-        guard let pid = WindowManager.pid(forWindowID: windowID) else {
-            throw PeekError.windowNotFound(windowID)
+        guard let window else {
+            throw PeekError.windowNotFound(0)
         }
-        return (windowID, pid)
+        return (window.windowID, window.pid)
     }
 
     // MARK: - Shared Schema Fragments
@@ -71,7 +69,7 @@ enum PeekTools {
         }
         """
     ) { args in
-        let (windowID, pid) = try resolveWindow(from: args)
+        let (windowID, pid) = try await resolveWindow(from: args)
         let depth = args["depth"] as? Int
         let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: depth)
         return try jsonString(tree)
@@ -94,7 +92,7 @@ enum PeekTools {
         }
         """
     ) { args in
-        let (windowID, pid) = try resolveWindow(from: args)
+        let (windowID, pid) = try await resolveWindow(from: args)
 
         if let x = args["x"] as? Int, let y = args["y"] as? Int {
             guard let node = try AccessibilityTreeManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
@@ -170,7 +168,7 @@ enum PeekTools {
         }
         """
     ) { args in
-        let (windowID, pid) = try resolveWindow(from: args)
+        let (windowID, pid) = try await resolveWindow(from: args)
         guard let actionName = args["action"] as? String else {
             throw PeekError.elementNotFound
         }
@@ -206,7 +204,7 @@ enum PeekTools {
         }
         """
     ) { args in
-        let (windowID, pid) = try resolveWindow(from: args)
+        let (windowID, pid) = try await resolveWindow(from: args)
         let result = try InteractionManager.activate(pid: pid, windowID: windowID)
         return try jsonString(result)
     }
@@ -227,7 +225,7 @@ enum PeekTools {
         }
         """
     ) { args in
-        let (windowID, _) = try resolveWindow(from: args)
+        let (windowID, _) = try await resolveWindow(from: args)
         let path = args["output"] as? String ?? "window_\(windowID).png"
         let crop: CGRect? = if let x = args["x"] as? Int, let y = args["y"] as? Int,
                                let w = args["width"] as? Int, let h = args["height"] as? Int {
@@ -235,7 +233,7 @@ enum PeekTools {
         } else {
             nil
         }
-        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
+        let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
         return try jsonString(result)
     }
 
@@ -251,7 +249,7 @@ enum PeekTools {
         }
         """
     ) { args in
-        let (_, pid) = try resolveWindow(from: args)
+        let (_, pid) = try await resolveWindow(from: args)
         if let clickTitle = args["click"] as? String {
             let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
             return try jsonString(["title": title])

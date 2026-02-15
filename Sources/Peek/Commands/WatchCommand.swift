@@ -2,7 +2,7 @@ import ArgumentParser
 import CoreGraphics
 import Foundation
 
-struct WatchCommand: ParsableCommand {
+struct WatchCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "watch",
         abstract: "Watch a window for accessibility changes"
@@ -19,16 +19,13 @@ struct WatchCommand: ParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    func run() throws {
-        let windowID = try target.resolve()
-        guard let pid = WindowManager.pid(forWindowID: windowID) else {
-            throw PeekError.windowNotFound(windowID)
-        }
+    func run() async throws {
+        let resolved = try await target.resolve()
 
         if snapshot {
-            try runSnapshot(pid: pid, windowID: windowID)
+            try runSnapshot(pid: resolved.pid, windowID: resolved.windowID)
         } else {
-            try MonitorManager.watch(pid: pid, windowID: windowID, format: format)
+            try MonitorManager.watch(pid: resolved.pid, windowID: resolved.windowID, format: format)
         }
     }
 

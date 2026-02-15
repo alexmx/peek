@@ -2,7 +2,7 @@ import ArgumentParser
 import CoreGraphics
 import Foundation
 
-struct ActionCommand: ParsableCommand {
+struct ActionCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "action",
         abstract: "Perform an accessibility action on a UI element"
@@ -37,18 +37,15 @@ struct ActionCommand: ParsableCommand {
         }
     }
 
-    func run() throws {
-        let windowID = try target.resolve()
-        guard let pid = WindowManager.pid(forWindowID: windowID) else {
-            throw PeekError.windowNotFound(windowID)
-        }
+    func run() async throws {
+        let resolved = try await target.resolve()
 
         let action = self.`do`
 
         if all {
             let nodes = try InteractionManager.performActionOnAll(
-                pid: pid,
-                windowID: windowID,
+                pid: resolved.pid,
+                windowID: resolved.windowID,
                 action: action,
                 role: role,
                 title: title,
@@ -70,8 +67,8 @@ struct ActionCommand: ParsableCommand {
             }
         } else {
             let node = try InteractionManager.performAction(
-                pid: pid,
-                windowID: windowID,
+                pid: resolved.pid,
+                windowID: resolved.windowID,
                 action: action,
                 role: role,
                 title: title,

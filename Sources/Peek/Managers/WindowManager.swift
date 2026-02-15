@@ -5,7 +5,7 @@ import ScreenCaptureKit
 enum WindowManager {
     private static let minWindowSize: CGFloat = 200
 
-    /// Uses ScreenCaptureKit to list real windows across all desktops.
+    /// Fetch all real windows using ScreenCaptureKit.
     static func listWindows() async throws -> [WindowInfo] {
         let content = try await SCShareableContent.excludingDesktopWindows(
             true,
@@ -41,107 +41,17 @@ enum WindowManager {
         }
     }
 
-    /// Find the first window ID for an app by name (case-insensitive substring match).
-    static func windowID(forApp name: String) -> CGWindowID? {
-        let entries = windowListEntries()
-        let onScreen = onScreenWindowIDs()
-
-        // Prefer on-screen windows, fall back to any matching window.
-        var fallback: CGWindowID?
-
-        for entry in entries {
-            guard let ownerName = entry[kCGWindowOwnerName as String] as? String,
-                  ownerName.localizedCaseInsensitiveContains(name),
-                  let id = entry[kCGWindowNumber as String] as? CGWindowID,
-                  isRealWindow(entry)
-            else { continue }
-
-            if onScreen.contains(id) {
-                return id
-            }
-            if fallback == nil {
-                fallback = id
-            }
-        }
-        return fallback
-    }
-
-    /// Find the first window ID for a given PID.
-    static func windowID(forPID pid: pid_t) -> CGWindowID? {
-        let entries = windowListEntries()
-        let onScreen = onScreenWindowIDs()
-
-        var fallback: CGWindowID?
-
-        for entry in entries {
-            guard let entryPID = entry[kCGWindowOwnerPID as String] as? pid_t,
-                  entryPID == pid,
-                  let id = entry[kCGWindowNumber as String] as? CGWindowID,
-                  isRealWindow(entry)
-            else { continue }
-
-            if onScreen.contains(id) {
-                return id
-            }
-            if fallback == nil {
-                fallback = id
-            }
-        }
-        return fallback
-    }
-
-    /// Lightweight PID lookup for a window ID using CGWindowList (no permissions needed).
-    static func pid(forWindowID windowID: CGWindowID) -> pid_t? {
-        for entry in windowListEntries() {
-            if let id = entry[kCGWindowNumber as String] as? CGWindowID,
-               id == windowID,
-               let pid = entry[kCGWindowOwnerPID as String] as? pid_t
-            {
-                return pid
-            }
-        }
-        return nil
-    }
-
     /// Get the bounds (in points) of a window by ID.
-    static func windowBounds(forWindowID windowID: CGWindowID) -> CGSize? {
-        for entry in windowListEntries() {
-            if let id = entry[kCGWindowNumber as String] as? CGWindowID,
-               id == windowID,
-               let bounds = entry[kCGWindowBounds as String] as? [String: Any],
-               let width = bounds["Width"] as? CGFloat,
-               let height = bounds["Height"] as? CGFloat
-            {
-                return CGSize(width: width, height: height)
-            }
+    static func windowBounds(forWindowID windowID: CGWindowID) async throws -> CGSize? {
+        let windows = try await listWindows()
+        return windows.first { $0.windowID == windowID }.map {
+            CGSize(width: $0.frame.width, height: $0.frame.height)
         }
-        return nil
     }
 
     // MARK: - Private
 
-    private static func windowListEntries() -> [[String: Any]] {
-        CGWindowListCopyWindowInfo(
-            [.optionAll],
-            kCGNullWindowID
-        ) as? [[String: Any]] ?? []
-    }
-
-    /// Checks layer == 0 and minimum size to skip helper/overlay windows.
-    private static func isRealWindow(_ entry: [String: Any]) -> Bool {
-        guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0 else {
-            return false
-        }
-        guard let bounds = entry[kCGWindowBounds as String] as? [String: Any],
-              let width = bounds["Width"] as? CGFloat,
-              let height = bounds["Height"] as? CGFloat,
-              width > minWindowSize, height > minWindowSize
-        else {
-            return false
-        }
-        return true
-    }
-
+    /// On-screen window IDs via CGWindowList (lightweight, no permissions needed).
     private static func onScreenWindowIDs() -> Set<CGWindowID> {
         guard let list = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly],

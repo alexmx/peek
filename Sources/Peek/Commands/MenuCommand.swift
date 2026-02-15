@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct MenuCommand: ParsableCommand {
+struct MenuCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "menu",
         abstract: "Inspect the menu bar structure of an application"
@@ -19,14 +19,11 @@ struct MenuCommand: ParsableCommand {
         let title: String
     }
 
-    func run() throws {
-        let windowID = try target.resolve()
-        guard let pid = WindowManager.pid(forWindowID: windowID) else {
-            throw PeekError.windowNotFound(windowID)
-        }
+    func run() async throws {
+        let resolved = try await target.resolve()
 
         if let click {
-            let title = try MenuBarManager.clickMenuItem(pid: pid, title: click)
+            let title = try MenuBarManager.clickMenuItem(pid: resolved.pid, title: click)
             if format == .json {
                 try printJSON(ClickResult(title: title))
             } else {
@@ -35,7 +32,7 @@ struct MenuCommand: ParsableCommand {
             return
         }
 
-        let tree = try MenuBarManager.menuBar(pid: pid)
+        let tree = try MenuBarManager.menuBar(pid: resolved.pid)
 
         if format == .json {
             try printJSON(tree)
