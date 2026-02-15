@@ -27,6 +27,7 @@ struct ClickCommand: AsyncParsableCommand {
         if target.windowID != nil || target.app != nil || target.pid != nil {
             let resolved = try await target.resolve()
             _ = try InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+            usleep(200_000) // 200ms for the window to fully come to foreground
         }
 
         InteractionManager.click(x: Double(x), y: Double(y))

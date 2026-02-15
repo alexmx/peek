@@ -30,6 +30,7 @@ enum PeekTools {
         guard args["window_id"] != nil || args["app"] != nil || args["pid"] != nil else { return }
         let (windowID, pid) = try await resolveWindow(from: args)
         _ = try InteractionManager.activate(pid: pid, windowID: windowID)
+        usleep(200_000) // 200ms for the window to fully come to foreground
     }
 
     // MARK: - Shared Schema Fragments
