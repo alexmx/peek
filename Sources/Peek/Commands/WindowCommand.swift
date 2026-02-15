@@ -30,14 +30,7 @@ struct WindowCommand: AsyncParsableCommand {
 
     private func printNode(_ node: AXNode, prefix: String = "", isLast: Bool = true, isRoot: Bool = true) {
         let connector = isRoot ? "" : (isLast ? "└── " : "├── ")
-        var line = "\(prefix)\(connector)\(node.role)"
-        if let title = node.title, !title.isEmpty { line += "  \"\(title)\"" }
-        if let value = node.value, !value.isEmpty { line += "  value=\"\(value)\"" }
-        if let desc = node.description, !desc.isEmpty { line += "  desc=\"\(desc)\"" }
-        if let f = node.frame {
-            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
-        }
-        print(line)
+        print("\(prefix)\(connector)\(node.formatted)")
 
         let childPrefix = isRoot ? "" : (prefix + (isLast ? "    " : "│   "))
         for (index, child) in node.children.enumerated() {

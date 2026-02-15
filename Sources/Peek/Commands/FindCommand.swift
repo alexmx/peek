@@ -71,7 +71,7 @@ struct FindCommand: AsyncParsableCommand {
         if format == .json {
             try printJSON(node)
         } else {
-            printNode(node)
+            print(node.formatted)
         }
     }
 
@@ -92,21 +92,11 @@ struct FindCommand: AsyncParsableCommand {
                 print("No matching elements found.")
             } else {
                 for node in results {
-                    printNode(node)
+                    print(node.formatted)
                 }
                 print("\n\(results.count) element(s) found.")
             }
         }
     }
 
-    private func printNode(_ node: AXNode) {
-        var line = node.role
-        if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
-        if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
-        if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
-        if let f = node.frame {
-            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
-        }
-        print(line)
-    }
 }

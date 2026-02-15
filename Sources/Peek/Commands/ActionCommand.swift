@@ -57,11 +57,7 @@ struct ActionCommand: AsyncParsableCommand {
                 try printJSON(nodes)
             } else {
                 for node in nodes {
-                    var line = "Performed '\(stripAXPrefix(action))' on: \(node.role)"
-                    if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
-                    if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
-                    if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
-                    print(line)
+                    print("Performed '\(stripAXPrefix(action))' on: \(node.formatted)")
                 }
                 print("\(nodes.count) element(s) affected.")
             }
@@ -79,11 +75,7 @@ struct ActionCommand: AsyncParsableCommand {
             if format == .json {
                 try printJSON(node)
             } else {
-                var line = "Performed '\(stripAXPrefix(action))' on: \(node.role)"
-                if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
-                if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
-                if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
-                print(line)
+                print("Performed '\(stripAXPrefix(action))' on: \(node.formatted)")
             }
         }
     }

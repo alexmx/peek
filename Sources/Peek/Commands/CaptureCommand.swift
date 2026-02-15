@@ -47,8 +47,7 @@ struct CaptureCommand: AsyncParsableCommand {
         if format == .json {
             try printJSON(result)
         } else {
-            print("Saved screenshot to \(result.path)")
-            print("Size: \(result.width)x\(result.height) pixels")
+            print("Saved \(result.path) (\(result.width)x\(result.height) pixels)")
         }
     }
 }

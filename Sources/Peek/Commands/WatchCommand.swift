@@ -54,14 +54,14 @@ struct WatchCommand: AsyncParsableCommand {
         if !diff.added.isEmpty {
             print("\n+ Added (\(diff.added.count)):")
             for node in diff.added {
-                print("  + \(formatNode(node))")
+                print("  + \(node.formatted)")
             }
         }
 
         if !diff.removed.isEmpty {
             print("\n- Removed (\(diff.removed.count)):")
             for node in diff.removed {
-                print("  - \(formatNode(node))")
+                print("  - \(node.formatted)")
             }
         }
 
@@ -86,14 +86,4 @@ struct WatchCommand: AsyncParsableCommand {
         print("\n\(total) change(s) detected.")
     }
 
-    private func formatNode(_ node: AXNode) -> String {
-        var line = node.role
-        if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
-        if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
-        if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
-        if let f = node.frame {
-            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
-        }
-        return line
-    }
 }

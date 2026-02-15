@@ -15,6 +15,18 @@ struct AXNode: Encodable, Equatable {
         let height: Int
     }
 
+    /// Single-line text representation: `Role  "title"  value="val"  desc="desc"  (x, y) WxH`
+    var formatted: String {
+        var line = role
+        if let t = title, !t.isEmpty { line += "  \"\(t)\"" }
+        if let v = value, !v.isEmpty { line += "  value=\"\(v)\"" }
+        if let d = description, !d.isEmpty { line += "  desc=\"\(d)\"" }
+        if let f = frame {
+            line += "  (\(f.x), \(f.y)) \(f.width)x\(f.height)"
+        }
+        return line
+    }
+
     /// Copy of this node without children (for flat result lists).
     var leaf: AXNode {
         AXNode(role: role, title: title, value: value, description: description, frame: frame, children: [])
