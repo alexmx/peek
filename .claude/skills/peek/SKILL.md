@@ -303,9 +303,9 @@ Two modes: **streaming** (default) or **snapshot**.
 
 ```bash
 $ peek watch --app Xcode
-[0.000s] AXValueChanged StaticText "Build Succeeded"
-[0.120s] AXLayoutChanged Group
-[1.500s] AXValueChanged StaticText "Indexing..."
+[0.000s] ValueChanged StaticText "Build Succeeded"
+[0.120s] LayoutChanged Group
+[1.500s] ValueChanged StaticText "Indexing..."
 ^C
 ```
 

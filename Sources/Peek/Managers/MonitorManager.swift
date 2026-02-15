@@ -85,7 +85,7 @@ private func watchCallback(
         let formatter = ISO8601DateFormatter()
         let event = WatchEvent(
             timestamp: formatter.string(from: Date()),
-            notification: notification as String,
+            notification: stripAXPrefix(notification as String),
             role: role,
             title: title,
             value: value,
@@ -100,7 +100,7 @@ private func watchCallback(
         }
     } else {
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        var line = "[\(timestamp)] \(notification as String): \(role)"
+        var line = "[\(timestamp)] \(stripAXPrefix(notification as String)): \(role)"
         if let title, !title.isEmpty { line += " \"\(title)\"" }
         if let value, !value.isEmpty { line += " value=\"\(value)\"" }
         if let description, !description.isEmpty { line += " desc=\"\(description)\"" }
