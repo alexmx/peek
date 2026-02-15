@@ -21,7 +21,7 @@ enum PeekError: LocalizedError {
         case .accessibilityNotTrusted:
             "Accessibility permission not granted. Enable it in System Settings > Privacy & Security > Accessibility."
         case .noWindows:
-            "No accessible windows found for this application."
+            "No accessible windows found for this application. If the app is on another Space, bring it to the foreground first with 'peek activate'."
         case .failedToWrite(let path):
             "Failed to write to \(path)"
         case .elementNotFound:

@@ -6,6 +6,8 @@ import Foundation
 enum InteractionManager {
     private static let maxDepth = 50
     /// Activate an app and raise its window.
+    /// When the app is on another Space, `NSRunningApplication.activate()` triggers a Space switch.
+    /// We poll until the AX tree becomes accessible before raising the window.
     static func activate(pid: pid_t, windowID: CGWindowID) throws -> ActivateResult {
         try PermissionManager.requireAccessibility()
 
@@ -15,7 +17,20 @@ enum InteractionManager {
 
         app.activate()
 
-        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
+        // Poll for the AX tree to become accessible (Space switch can take a moment)
+        var window: AXUIElement?
+        for _ in 0..<20 {
+            if let w = try? AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID) {
+                window = w
+                break
+            }
+            usleep(100_000) // 100ms
+        }
+
+        guard let window else {
+            throw PeekError.noWindows
+        }
+
         AXUIElementPerformAction(window, kAXRaiseAction as CFString)
 
         return ActivateResult(
