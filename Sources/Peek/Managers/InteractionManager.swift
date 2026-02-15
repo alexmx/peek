@@ -75,7 +75,7 @@ enum InteractionManager {
         let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
         guard let element = findFirstElement(
             in: window,
-            role: role.map(ensureAXPrefix),
+            role: role.map(stripAXPrefix),
             title: title,
             value: value,
             description: description,
@@ -113,7 +113,7 @@ enum InteractionManager {
         var elements: [ElementMatch] = []
         findAllElements(
             in: window,
-            role: role.map(ensureAXPrefix),
+            role: role.map(stripAXPrefix),
             title: title,
             value: value,
             description: description,
@@ -142,6 +142,17 @@ enum InteractionManager {
         let node: AXNode
     }
 
+    private static func nodeFromElement(_ element: AXUIElement) -> AXNode {
+        AXNode(
+            role: stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown"),
+            title: axString(of: element, key: kAXTitleAttribute),
+            value: axString(of: element, key: kAXValueAttribute),
+            description: axString(of: element, key: kAXDescriptionAttribute),
+            frame: axFrameInfo(of: element),
+            children: []
+        )
+    }
+
     private static func findFirstElement(
         in element: AXUIElement,
         role: String?,
@@ -152,26 +163,8 @@ enum InteractionManager {
     ) -> ElementMatch? {
         guard depth < maxDepth else { return nil }
 
-        let currentRole = axString(of: element, key: kAXRoleAttribute)
-        let currentTitle = axString(of: element, key: kAXTitleAttribute)
-        let currentValue = axString(of: element, key: kAXValueAttribute)
-        let currentDesc = axString(of: element, key: kAXDescriptionAttribute)
-
-        var matches = true
-        if let role, currentRole != role { matches = false }
-        if let title, currentTitle?.localizedCaseInsensitiveContains(title) != true { matches = false }
-        if let value, currentValue?.localizedCaseInsensitiveContains(value) != true { matches = false }
-        if let description, currentDesc?.localizedCaseInsensitiveContains(description) != true { matches = false }
-
-        if matches {
-            let node = AXNode(
-                role: stripAXPrefix(currentRole ?? "unknown"),
-                title: currentTitle,
-                value: currentValue,
-                description: currentDesc,
-                frame: axFrameInfo(of: element),
-                children: []
-            )
+        let node = nodeFromElement(element)
+        if node.matches(role: role, title: title, value: value, description: description) {
             return ElementMatch(ref: element, node: node)
         }
 
@@ -204,26 +197,8 @@ enum InteractionManager {
     ) {
         guard depth < maxDepth else { return }
 
-        let currentRole = axString(of: element, key: kAXRoleAttribute)
-        let currentTitle = axString(of: element, key: kAXTitleAttribute)
-        let currentValue = axString(of: element, key: kAXValueAttribute)
-        let currentDesc = axString(of: element, key: kAXDescriptionAttribute)
-
-        var matches = true
-        if let role, currentRole != role { matches = false }
-        if let title, currentTitle?.localizedCaseInsensitiveContains(title) != true { matches = false }
-        if let value, currentValue?.localizedCaseInsensitiveContains(value) != true { matches = false }
-        if let description, currentDesc?.localizedCaseInsensitiveContains(description) != true { matches = false }
-
-        if matches {
-            let node = AXNode(
-                role: stripAXPrefix(currentRole ?? "unknown"),
-                title: currentTitle,
-                value: currentValue,
-                description: currentDesc,
-                frame: axFrameInfo(of: element),
-                children: []
-            )
+        let node = nodeFromElement(element)
+        if node.matches(role: role, title: title, value: value, description: description) {
             results.append(ElementMatch(ref: element, node: node))
         }
 

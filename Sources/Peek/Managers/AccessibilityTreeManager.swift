@@ -93,13 +93,7 @@ enum AccessibilityTreeManager {
         description: String?,
         results: inout [AXNode]
     ) {
-        var matches = true
-        if let role, node.role != role { matches = false }
-        if let title, node.title?.localizedCaseInsensitiveContains(title) != true { matches = false }
-        if let value, node.value?.localizedCaseInsensitiveContains(value) != true { matches = false }
-        if let description, node.description?.localizedCaseInsensitiveContains(description) != true { matches = false }
-
-        if matches {
+        if node.matches(role: role, title: title, value: value, description: description) {
             results.append(node.leaf)
         }
 
