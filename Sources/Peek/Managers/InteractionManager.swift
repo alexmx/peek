@@ -47,12 +47,19 @@ enum InteractionManager {
     /// Type a string by posting key events for each character.
     static func type(text: String) {
         for char in text {
-            let str = String(char) as CFString
-            let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true)
-            let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false)
+            let (keyCode, shift) = KeyMapping.lookup(char)
+            let utf16 = Array(String(char).utf16)
 
-            keyDown?.keyboardSetUnicodeString(stringLength: 1, unicodeString: Array(str as String).map { $0.utf16.first! })
-            keyUp?.keyboardSetUnicodeString(stringLength: 1, unicodeString: Array(str as String).map { $0.utf16.first! })
+            let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
+            let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
+
+            keyDown?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+            keyUp?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+
+            if shift {
+                keyDown?.flags = .maskShift
+                keyUp?.flags = .maskShift
+            }
 
             keyDown?.post(tap: .cghidEventTap)
             keyUp?.post(tap: .cghidEventTap)
