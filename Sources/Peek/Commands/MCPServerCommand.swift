@@ -32,58 +32,10 @@ struct MCPServerCommand: AsyncParsableCommand {
         print("""
         Add peek as an MCP server to your AI coding agent:
 
-        ── Claude Code ──────────────────────────────────────
-
-          claude mcp add peek -- \(path) mcp
-
-          Or add to .mcp.json:
-
-          {
-            "mcpServers": {
-              "peek": {
-                "type": "stdio",
-                "command": "\(path)",
-                "args": ["mcp"]
-              }
-            }
-          }
-
-        ── Codex CLI ────────────────────────────────────────
-
-          codex mcp add peek -- \(path) mcp
-
-          Or add to ~/.codex/config.toml:
-
-          [mcp_servers.peek]
-          command = "\(path)"
-          args = ["mcp"]
-
-        ── VS Code / GitHub Copilot ─────────────────────────
-
-          Add to .vscode/mcp.json:
-
-          {
-            "servers": {
-              "peek": {
-                "type": "stdio",
-                "command": "\(path)",
-                "args": ["mcp"]
-              }
-            }
-          }
-
-        ── Cursor ───────────────────────────────────────────
-
-          Add to .cursor/mcp.json:
-
-          {
-            "mcpServers": {
-              "peek": {
-                "command": "\(path)",
-                "args": ["mcp"]
-              }
-            }
-          }
+          Claude Code:          claude mcp add peek -- \(path) mcp
+          Codex CLI:            codex mcp add peek -- \(path) mcp
+          VS Code / Copilot:    code --add-mcp '{"name":"peek","command":"\(path)","args":["mcp"]}'
+          Cursor:               cursor --add-mcp '{"name":"peek","command":"\(path)","args":["mcp"]}'
         """)
     }
 }
