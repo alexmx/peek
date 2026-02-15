@@ -25,13 +25,13 @@ peek apps
 peek window --app Xcode --depth 3
 
 # 3. Search for a specific element
-peek find --app Xcode --role AXButton --desc "Run"
+peek find --app Xcode --role Button --desc "Run"
 
 # 4. Hit-test at coordinates
 peek find --app Xcode --at 280 50
 
 # 5. Interact with it
-peek action --app Xcode AXPress --role AXButton --desc "Run"
+peek action --app Xcode AXPress --role Button --desc "Run"
 
 # 6. Click a menu item
 peek menu --app Xcode --click "Paste"
@@ -117,12 +117,12 @@ $ peek window 21121 --depth 1 --format json
 ```
 ```json
 {
-  "role" : "AXWindow",
+  "role" : "Window",
   "title" : "peek — MenuBarManager.swift",
   "frame" : { "x" : 0, "y" : 33, "width" : 1512, "height" : 882 },
   "children" : [
-    { "role" : "AXSplitGroup", "title" : "peek", "description" : "/Users/alexmx/Projects/peek", "frame" : { ... }, "children" : [] },
-    { "role" : "AXToolbar", "frame" : { ... }, "children" : [] }
+    { "role" : "SplitGroup", "title" : "peek", "description" : "/Users/alexmx/Projects/peek", "frame" : { ... }, "children" : [] },
+    { "role" : "Toolbar", "frame" : { ... }, "children" : [] }
   ]
 }
 ```
@@ -134,21 +134,21 @@ Two modes: **attribute search** or **hit-test**.
 **Attribute search** — filter by `--role`, `--title`, `--value`, `--desc` (at least one required):
 
 ```bash
-$ peek find --app Xcode --role AXButton --desc "Run"
-AXButton  desc="Run"  (276, 45) 28x28
+$ peek find --app Xcode --role Button --desc "Run"
+Button  desc="Run"  (276, 45) 28x28
 
 1 element(s) found.
 ```
 
 ```bash
-$ peek find --app Xcode --role AXButton --desc "Run" --format json
+$ peek find --app Xcode --role Button --desc "Run" --format json
 ```
 ```json
 [
   {
     "description" : "Run",
     "frame" : { "height" : 28, "width" : 28, "x" : 276, "y" : 45 },
-    "role" : "AXButton",
+    "role" : "Button",
     "children" : []
   }
 ]
@@ -158,7 +158,7 @@ $ peek find --app Xcode --role AXButton --desc "Run" --format json
 
 ```bash
 $ peek find --app Xcode --at 280 50
-AXGroup  desc="navigator"  (8, 41) 300x866
+Group  desc="navigator"  (8, 41) 300x866
 ```
 
 ```bash
@@ -168,7 +168,7 @@ $ peek find --app Xcode --at 280 50 --format json
 {
   "description" : "navigator",
   "frame" : { "height" : 866, "width" : 300, "x" : 8, "y" : 41 },
-  "role" : "AXGroup",
+  "role" : "Group",
   "children" : []
 }
 ```
@@ -205,17 +205,17 @@ $ peek menu --app Xcode --format json
 ```
 ```json
 {
-  "role" : "AXMenuBar",
+  "role" : "MenuBar",
   "title" : "",
   "enabled" : true,
   "children" : [
     {
-      "role" : "AXMenuBarItem",
+      "role" : "MenuBarItem",
       "title" : "File",
       "enabled" : true,
       "children" : [
-        { "role" : "AXMenuItem", "title" : "New File…", "enabled" : true, "shortcut" : "⌘N", "children" : [] },
-        { "role" : "AXMenuItem", "title" : "Open…", "enabled" : true, "shortcut" : "⌘O", "children" : [] }
+        { "role" : "MenuItem", "title" : "New File…", "enabled" : true, "shortcut" : "⌘N", "children" : [] },
+        { "role" : "MenuItem", "title" : "Open…", "enabled" : true, "shortcut" : "⌘O", "children" : [] }
       ]
     }
   ]
@@ -261,18 +261,18 @@ Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
 Use `--all` to act on every matching element (default: first match only).
 
 ```bash
-$ peek action --app Xcode AXPress --role AXButton --desc "Run"
-Performed 'AXPress' on: AXButton  desc="Run"
+$ peek action --app Xcode AXPress --role Button --desc "Run"
+Performed 'AXPress' on: Button  desc="Run"
 ```
 
 ```bash
-$ peek action --app Xcode AXPress --role AXButton --desc "Run" --format json
+$ peek action --app Xcode AXPress --role Button --desc "Run" --format json
 ```
 ```json
 {
   "description" : "Run",
   "frame" : { "height" : 28, "width" : 28, "x" : 276, "y" : 45 },
-  "role" : "AXButton",
+  "role" : "Button",
   "children" : []
 }
 ```
@@ -303,9 +303,9 @@ Two modes: **streaming** (default) or **snapshot**.
 
 ```bash
 $ peek watch --app Xcode
-[0.000s] AXValueChanged AXStaticText "Build Succeeded"
-[0.120s] AXLayoutChanged AXGroup
-[1.500s] AXValueChanged AXStaticText "Indexing..."
+[0.000s] AXValueChanged StaticText "Build Succeeded"
+[0.120s] AXLayoutChanged Group
+[1.500s] AXValueChanged StaticText "Indexing..."
 ^C
 ```
 
@@ -317,7 +317,7 @@ Taking first snapshot...
 Waiting 5.0s...
 
 ~ Changed (1):
-  ~ AXStaticText [AXStaticText|Build Succeeded||608,47]
+  ~ StaticText [StaticText|Build Succeeded||608,47]
     value: "Build Succeeded" -> "Indexing"
 
 1 change(s) detected.
@@ -333,8 +333,8 @@ $ peek watch --app Xcode --snapshot --format json
     {
       "after" : { "frame" : { ... }, "title" : null, "value" : "Indexing" },
       "before" : { "frame" : { ... }, "title" : null, "value" : "Build Succeeded" },
-      "identity" : "AXStaticText|||608,47",
-      "role" : "AXStaticText"
+      "identity" : "StaticText|||608,47",
+      "role" : "StaticText"
     }
   ],
   "removed" : []
@@ -389,7 +389,14 @@ $ peek doctor --format json
 - Use `--app` or `--pid` to target windows by name instead of looking up IDs manually.
 - Use `peek activate --app <name>` to bring an app to the foreground before clicking or typing.
 - Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches.
-- `--role` is an exact match. Common roles: `AXButton`, `AXStaticText`, `AXTextField`, `AXCheckBox`, `AXRadioButton`, `AXPopUpButton`, `AXMenuItem`, `AXTable`, `AXRow`, `AXCell`.
+- `--role` is an exact match (without the `AX` prefix). Common roles:
+  - **Containers:** `Window`, `Group`, `SplitGroup`, `ScrollArea`, `TabGroup`, `Sheet`, `Drawer`
+  - **Controls:** `Button`, `CheckBox`, `RadioButton`, `PopUpButton`, `MenuButton`, `Slider`, `Stepper`, `ColorWell`
+  - **Text:** `StaticText`, `TextField`, `TextArea`, `Link`
+  - **Tables:** `Table`, `Row`, `Cell`, `Column`, `Outline`, `OutlineRow`
+  - **Menus:** `MenuBar`, `MenuBarItem`, `Menu`, `MenuItem`
+  - **Toolbars:** `Toolbar`, `ToolbarButton`
+  - **Other:** `Image`, `ProgressIndicator`, `Splitter`, `ValueIndicator`, `WebArea`
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
 - `peek click` and `peek type` operate at the system level (not window-scoped).
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
