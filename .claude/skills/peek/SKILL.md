@@ -353,10 +353,20 @@ $ peek watch --app Xcode --snapshot --format json
 
 ### `peek capture` — Screenshot a window
 
+Options: `-o <path>` for output file, `--x`, `--y`, `--width`, `--height` to crop a region (window-relative points).
+
 ```bash
 $ peek capture --app Xcode -o screenshot.png
 Saved screenshot to screenshot.png
 Size: 3024x1764 pixels
+```
+
+Crop a specific region within the window:
+
+```bash
+$ peek capture --app Xcode -o toolbar.png --x 0 --y 0 --width 400 --height 50
+Saved screenshot to toolbar.png
+Size: 800x100 pixels
 ```
 
 ```bash
