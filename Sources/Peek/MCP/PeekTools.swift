@@ -218,14 +218,24 @@ enum PeekTools {
         {
             "properties": {
                 \(windowTargetSchema),
-                "output": { "type": "string", "description": "Output file path (default: window_<id>.png)" }
+                "output": { "type": "string", "description": "Output file path (default: window_<id>.png)" },
+                "x": { "type": "integer", "description": "Crop region X offset (window-relative pixels)" },
+                "y": { "type": "integer", "description": "Crop region Y offset (window-relative pixels)" },
+                "width": { "type": "integer", "description": "Crop region width" },
+                "height": { "type": "integer", "description": "Crop region height" }
             }
         }
         """
     ) { args in
         let (windowID, _) = try resolveWindow(from: args)
         let path = args["output"] as? String ?? "window_\(windowID).png"
-        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path)
+        let crop: CGRect? = if let x = args["x"] as? Int, let y = args["y"] as? Int,
+                               let w = args["width"] as? Int, let h = args["height"] as? Int {
+            CGRect(x: x, y: y, width: w, height: h)
+        } else {
+            nil
+        }
+        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
         return try jsonString(result)
     }
 

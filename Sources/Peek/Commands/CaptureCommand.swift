@@ -12,13 +12,38 @@ struct CaptureCommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Output file path (default: window_<id>.png)")
     var output: String?
 
+    @Option(name: .long, help: "Crop region X offset (window-relative pixels)")
+    var x: Int?
+
+    @Option(name: .long, help: "Crop region Y offset (window-relative pixels)")
+    var y: Int?
+
+    @Option(name: .long, help: "Crop region width")
+    var width: Int?
+
+    @Option(name: .long, help: "Crop region height")
+    var height: Int?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
+
+    func validate() throws {
+        let parts = [x, y, width, height]
+        let provided = parts.compactMap { $0 }.count
+        if provided != 0 && provided != 4 {
+            throw ValidationError("Crop requires all four options: --x, --y, --width, --height")
+        }
+    }
 
     func run() throws {
         let windowID = try target.resolve()
         let path = output ?? "window_\(windowID).png"
-        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path)
+        let crop: CGRect? = if let x, let y, let width, let height {
+            CGRect(x: x, y: y, width: width, height: height)
+        } else {
+            nil
+        }
+        let result = try ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
         if format == .json {
             try printJSON(result)
         } else {

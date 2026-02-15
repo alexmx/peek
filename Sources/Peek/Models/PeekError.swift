@@ -12,6 +12,7 @@ enum PeekError: LocalizedError {
     case noMenuBar(pid_t)
     case menuItemNotFound(String)
     case screenCaptureNotGranted
+    case invalidCropRegion
 
     var errorDescription: String? {
         switch self {
@@ -33,6 +34,8 @@ enum PeekError: LocalizedError {
             "No enabled menu item matching '\(title)' found."
         case .screenCaptureNotGranted:
             "Screen Recording permission not granted. Enable it in System Settings > Privacy & Security > Screen Recording."
+        case .invalidCropRegion:
+            "Crop region is outside the window bounds."
         }
     }
 }

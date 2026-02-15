@@ -103,6 +103,21 @@ enum WindowManager {
         return nil
     }
 
+    /// Get the bounds (in points) of a window by ID.
+    static func windowBounds(forWindowID windowID: CGWindowID) -> CGSize? {
+        for entry in windowListEntries() {
+            if let id = entry[kCGWindowNumber as String] as? CGWindowID,
+               id == windowID,
+               let bounds = entry[kCGWindowBounds as String] as? [String: Any],
+               let width = bounds["Width"] as? CGFloat,
+               let height = bounds["Height"] as? CGFloat
+            {
+                return CGSize(width: width, height: height)
+            }
+        }
+        return nil
+    }
+
     // MARK: - Private
 
     private static func windowListEntries() -> [[String: Any]] {

@@ -11,11 +11,27 @@ enum ScreenCaptureManager {
     }
 
     /// Capture a window to a PNG file and return the result.
-    static func capture(windowID: CGWindowID, outputPath: String) throws -> CaptureResult {
+    static func capture(windowID: CGWindowID, outputPath: String, crop: CGRect? = nil) throws -> CaptureResult {
         try PermissionManager.requireScreenCapture()
 
-        guard let image = captureWindowImage(windowID) else {
+        guard var image = captureWindowImage(windowID) else {
             throw PeekError.windowNotFound(windowID)
+        }
+
+        if let crop {
+            // Scale crop rect to account for Retina (image pixels vs point coordinates)
+            let scaleX = CGFloat(image.width) / CGFloat(WindowManager.windowBounds(forWindowID: windowID)?.width ?? CGFloat(image.width))
+            let scaleY = CGFloat(image.height) / CGFloat(WindowManager.windowBounds(forWindowID: windowID)?.height ?? CGFloat(image.height))
+            let scaledRect = CGRect(
+                x: crop.origin.x * scaleX,
+                y: crop.origin.y * scaleY,
+                width: crop.size.width * scaleX,
+                height: crop.size.height * scaleY
+            )
+            guard let cropped = image.cropping(to: scaledRect) else {
+                throw PeekError.invalidCropRegion
+            }
+            image = cropped
         }
 
         let url = URL(fileURLWithPath: outputPath)
