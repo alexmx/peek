@@ -115,8 +115,13 @@ extension MonitorManager {
         let after = AXElement.buildTree(from: window)
         let afterFlat = flattenNodes(after)
 
-        let beforeByID = Dictionary(grouping: beforeFlat, by: { $0.identity })
-        let afterByID = Dictionary(grouping: afterFlat, by: { $0.identity })
+        return computeDiff(before: beforeFlat, after: afterFlat)
+    }
+
+    /// Compute diff between two flattened node lists.
+    static func computeDiff(before: [AXNode], after: [AXNode]) -> TreeDiff {
+        let beforeByID = Dictionary(grouping: before, by: { $0.identity })
+        let afterByID = Dictionary(grouping: after, by: { $0.identity })
 
         let beforeKeys = Set(beforeByID.keys)
         let afterKeys = Set(afterByID.keys)
@@ -154,7 +159,8 @@ extension MonitorManager {
         return TreeDiff(added: added, removed: removed, changed: changed)
     }
 
-    private static func flattenNodes(_ node: AXNode) -> [AXNode] {
+    /// Flatten a node tree into a list.
+    static func flattenNodes(_ node: AXNode) -> [AXNode] {
         var result = [node.withoutChildren]
         for child in node.children {
             result.append(contentsOf: flattenNodes(child))

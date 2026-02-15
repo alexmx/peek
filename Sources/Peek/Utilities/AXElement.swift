@@ -15,7 +15,7 @@ enum AXElement {
     }
 
     /// Ensure a role has the "AX" prefix for AX API comparison (e.g. "Button" → "AXButton").
-    private static func ensureAXPrefix(_ role: String) -> String {
+    static func ensureAXPrefix(_ role: String) -> String {
         role.hasPrefix("AX") ? role : "AX\(role)"
     }
 
@@ -188,7 +188,14 @@ enum AXElement {
         value: String?,
         description: String?
     ) -> ElementMatch? {
-        searchFirst(in: element, role: role.map(stripAXPrefix), title: title, value: value, description: description, depth: 0)
+        searchFirst(
+            in: element,
+            role: role.map(stripAXPrefix),
+            title: title,
+            value: value,
+            description: description,
+            depth: 0
+        )
     }
 
     /// DFS to find all elements matching filters.
@@ -201,7 +208,15 @@ enum AXElement {
         description: String?
     ) -> [ElementMatch] {
         var results: [ElementMatch] = []
-        searchAll(in: element, role: role.map(stripAXPrefix), title: title, value: value, description: description, depth: 0, results: &results)
+        searchAll(
+            in: element,
+            role: role.map(stripAXPrefix),
+            title: title,
+            value: value,
+            description: description,
+            depth: 0,
+            results: &results
+        )
         return results
     }
 
@@ -222,7 +237,14 @@ enum AXElement {
 
         if let children = children(of: element) {
             for child in children {
-                if let found = searchFirst(in: child, role: role, title: title, value: value, description: description, depth: depth + 1) {
+                if let found = searchFirst(
+                    in: child,
+                    role: role,
+                    title: title,
+                    value: value,
+                    description: description,
+                    depth: depth + 1
+                ) {
                     return found
                 }
             }
@@ -249,7 +271,15 @@ enum AXElement {
 
         if let children = children(of: element) {
             for child in children {
-                searchAll(in: child, role: role, title: title, value: value, description: description, depth: depth + 1, results: &results)
+                searchAll(
+                    in: child,
+                    role: role,
+                    title: title,
+                    value: value,
+                    description: description,
+                    depth: depth + 1,
+                    results: &results
+                )
             }
         }
     }

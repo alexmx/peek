@@ -30,7 +30,8 @@ enum AccessibilityTreeManager {
         return results
     }
 
-    private static func searchNode(
+    /// Search recursively through a node tree for matches.
+    static func searchNode(
         _ node: AXNode,
         role: String?,
         title: String?,
@@ -59,7 +60,8 @@ enum AccessibilityTreeManager {
         return deepestNode(in: tree, x: x, y: y)
     }
 
-    private static func deepestNode(in node: AXNode, x: Int, y: Int) -> AXNode? {
+    /// Find the deepest node containing the given point.
+    static func deepestNode(in node: AXNode, x: Int, y: Int) -> AXNode? {
         guard let f = node.frame,
               x >= f.x, x < f.x + f.width,
               y >= f.y, y < f.y + f.height

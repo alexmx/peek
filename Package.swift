@@ -17,6 +17,10 @@ let package = Package(
                 .product(name: "SwiftCliMcp", package: "swift-cli-mcp")
             ],
             path: "Sources/Peek"
+        ),
+        .testTarget(
+            name: "PeekTests",
+            dependencies: ["peek"]
         )
     ]
 )

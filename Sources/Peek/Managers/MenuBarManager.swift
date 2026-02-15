@@ -55,7 +55,8 @@ enum MenuBarManager {
         return nil
     }
 
-    private static func searchMenuNode(_ node: MenuNode, title: String, path: [String], results: inout [MenuNode]) {
+    /// Search recursively through menu tree for matching items.
+    static func searchMenuNode(_ node: MenuNode, title: String, path: [String], results: inout [MenuNode]) {
         let currentPath = node.title.isEmpty ? path : path + [node.title]
 
         if node.role == "MenuItem", !node.title.isEmpty,
@@ -81,6 +82,12 @@ enum MenuBarManager {
             childNodes = children.map { buildMenuNode(from: $0, depth: depth + 1) }
         }
 
-        return MenuNode(title: node.title ?? "", role: node.role, enabled: node.enabled ?? true, shortcut: shortcut, children: childNodes)
+        return MenuNode(
+            title: node.title ?? "",
+            role: node.role,
+            enabled: node.enabled ?? true,
+            shortcut: shortcut,
+            children: childNodes
+        )
     }
 }

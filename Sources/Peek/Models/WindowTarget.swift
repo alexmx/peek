@@ -24,7 +24,16 @@ struct WindowTarget: ParsableArguments {
     /// Core resolution logic shared by CLI commands and MCP tools.
     static func resolve(windowID: UInt32? = nil, app: String? = nil, pid: pid_t? = nil) async throws -> Resolved {
         let windows = try await WindowManager.listWindows()
+        return try findWindow(in: windows, windowID: windowID, app: app, pid: pid)
+    }
 
+    /// Find a window from a list based on search criteria.
+    static func findWindow(
+        in windows: [WindowInfo],
+        windowID: UInt32? = nil,
+        app: String? = nil,
+        pid: pid_t? = nil
+    ) throws -> Resolved {
         if let windowID {
             guard let window = windows.first(where: { $0.windowID == windowID }) else {
                 throw ValidationError("No window found with ID \(windowID). Run 'peek apps' to see available windows.")
