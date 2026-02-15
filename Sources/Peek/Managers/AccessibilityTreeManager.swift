@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import Foundation
 
@@ -12,14 +13,34 @@ enum AccessibilityTreeManager {
     static func findWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
         try PermissionManager.requireAccessibility()
 
-        let appElement = AXUIElementCreateApplication(pid)
+        if let window = axWindow(pid: pid, windowID: windowID) {
+            return window
+        }
 
+        // AX tree inaccessible — app may be on another Space. Activate and retry.
+        guard let app = NSRunningApplication(processIdentifier: pid) else {
+            throw PeekError.noWindows
+        }
+        app.activate()
+
+        for _ in 0..<20 {
+            usleep(100_000) // 100ms
+            if let window = axWindow(pid: pid, windowID: windowID) {
+                return window
+            }
+        }
+
+        throw PeekError.noWindows
+    }
+
+    /// Try to get an AXUIElement for the window. Returns nil if the AX tree is inaccessible.
+    private static func axWindow(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
+        let appElement = AXUIElementCreateApplication(pid)
         var windowsRef: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
         guard result == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty else {
-            throw PeekError.noWindows
+            return nil
         }
-
         return windows.first { win in
             var id: CGWindowID = 0
             return _AXUIElementGetWindow(win, &id) == .success && id == windowID
