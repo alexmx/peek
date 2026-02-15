@@ -10,7 +10,7 @@ struct ActionCommand: ParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Argument(help: "The AX action to perform (e.g. AXPress, AXConfirm, AXCancel, AXShowMenu)")
+    @Argument(help: "The action to perform (e.g. Press, Confirm, Cancel, ShowMenu)")
     var action: String
 
     @Option(name: .long, help: "Filter by role (e.g. Button)")
@@ -58,7 +58,7 @@ struct ActionCommand: ParsableCommand {
                 try printJSON(nodes)
             } else {
                 for node in nodes {
-                    var line = "Performed '\(action)' on: \(node.role)"
+                    var line = "Performed '\(stripAXPrefix(action))' on: \(node.role)"
                     if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
                     if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
                     if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }
@@ -80,7 +80,7 @@ struct ActionCommand: ParsableCommand {
             if format == .json {
                 try printJSON(node)
             } else {
-                var line = "Performed '\(action)' on: \(node.role)"
+                var line = "Performed '\(stripAXPrefix(action))' on: \(node.role)"
                 if let t = node.title, !t.isEmpty { line += "  \"\(t)\"" }
                 if let v = node.value, !v.isEmpty { line += "  value=\"\(v)\"" }
                 if let d = node.description, !d.isEmpty { line += "  desc=\"\(d)\"" }

@@ -154,12 +154,12 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "Perform an accessibility action (e.g. AXPress, AXConfirm) on a UI element matching the given filters.",
+        description: "Perform an accessibility action (e.g. Press, Confirm) on a UI element matching the given filters.",
         schema: """
         {
             "properties": {
                 \(windowTargetSchema),
-                "action": { "type": "string", "description": "AX action (e.g. AXPress, AXConfirm, AXCancel, AXShowMenu)" },
+                "action": { "type": "string", "description": "AX action (e.g. Press, Confirm, Cancel, ShowMenu)" },
                 "role": { "type": "string", "description": "Filter by role" },
                 "title": { "type": "string", "description": "Filter by title" },
                 "value": { "type": "string", "description": "Filter by value" },
