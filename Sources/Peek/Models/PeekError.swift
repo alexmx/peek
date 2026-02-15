@@ -13,6 +13,7 @@ enum PeekError: LocalizedError {
     case menuItemNotFound(String)
     case screenCaptureNotGranted
     case invalidCropRegion
+    case captureFailed
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +37,8 @@ enum PeekError: LocalizedError {
             "Screen Recording permission not granted. Enable it in System Settings > Privacy & Security > Screen Recording."
         case .invalidCropRegion:
             "Crop region is outside the window bounds."
+        case .captureFailed:
+            "Screen capture timed out. Try running 'peek doctor --prompt' to re-grant Screen Recording permission."
         }
     }
 }

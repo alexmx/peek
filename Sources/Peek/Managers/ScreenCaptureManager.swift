@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 enum ScreenCaptureManager {
@@ -15,14 +16,17 @@ enum ScreenCaptureManager {
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {
-            throw PeekError.windowNotFound(windowID)
+            throw PeekError.captureFailed
         }
 
         if let crop {
-            // Scale crop rect to account for Retina (image pixels vs point coordinates)
-            let bounds = try await WindowManager.windowBounds(forWindowID: windowID)
-            let scaleX = CGFloat(image.width) / CGFloat(bounds?.width ?? CGFloat(image.width))
-            let scaleY = CGFloat(image.height) / CGFloat(bounds?.height ?? CGFloat(image.height))
+            // Compute Retina scale from actual image vs window point size
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+            guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
+                throw PeekError.windowNotFound(windowID)
+            }
+            let scaleX = CGFloat(image.width) / scWindow.frame.width
+            let scaleY = CGFloat(image.height) / scWindow.frame.height
             let scaledRect = CGRect(
                 x: crop.origin.x * scaleX,
                 y: crop.origin.y * scaleY,
@@ -35,27 +39,12 @@ enum ScreenCaptureManager {
             image = cropped
         }
 
-        let url = URL(fileURLWithPath: outputPath)
-        guard let destination = CGImageDestinationCreateWithURL(
-            url as CFURL,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ) else {
-            throw PeekError.failedToWrite(outputPath)
-        }
-
-        CGImageDestinationAddImage(destination, image, nil)
-
-        guard CGImageDestinationFinalize(destination) else {
-            throw PeekError.failedToWrite(outputPath)
-        }
-
+        try writePNG(image, to: outputPath)
         return CaptureResult(path: outputPath, width: image.width, height: image.height)
     }
 
-    // CGWindowListCreateImage is marked unavailable in macOS 15 SDK but still works at runtime.
-    // SCScreenshotManager requires a window server connection that CLI tools don't always have.
+    // CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime.
+    // ScreenCaptureKit (SCScreenshotManager/SCStream) requires a RunLoop and hangs in CLI tools.
     @_silgen_name("CGWindowListCreateImage")
     private static func _CGWindowListCreateImage(
         _ screenBounds: CGRect,
@@ -71,5 +60,21 @@ enum ScreenCaptureManager {
             windowID,
             [.boundsIgnoreFraming, .bestResolution]
         )
+    }
+
+    private static func writePNG(_ image: CGImage, to path: String) throws {
+        let url = URL(fileURLWithPath: path)
+        guard let destination = CGImageDestinationCreateWithURL(
+            url as CFURL,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw PeekError.failedToWrite(path)
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw PeekError.failedToWrite(path)
+        }
     }
 }

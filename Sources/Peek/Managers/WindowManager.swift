@@ -41,14 +41,6 @@ enum WindowManager {
         }
     }
 
-    /// Get the bounds (in points) of a window by ID.
-    static func windowBounds(forWindowID windowID: CGWindowID) async throws -> CGSize? {
-        let windows = try await listWindows()
-        return windows.first { $0.windowID == windowID }.map {
-            CGSize(width: $0.frame.width, height: $0.frame.height)
-        }
-    }
-
     // MARK: - Private
 
     /// On-screen window IDs via CGWindowList (lightweight, no permissions needed).
