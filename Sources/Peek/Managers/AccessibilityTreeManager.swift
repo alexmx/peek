@@ -3,7 +3,7 @@ import ApplicationServices
 import Foundation
 
 enum AccessibilityTreeManager {
-    private static let maxDepth = 50
+    static let maxDepth = 50
 
     static func inspect(pid: pid_t, windowID: CGWindowID, maxDepth: Int? = nil) throws -> AXNode {
         let window = try findWindow(pid: pid, windowID: windowID)

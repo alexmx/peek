@@ -4,7 +4,7 @@ import CoreGraphics
 import Foundation
 
 enum InteractionManager {
-    private static let maxDepth = 50
+    private static let maxDepth = AccessibilityTreeManager.maxDepth
     /// Activate an app and raise its window.
     static func activate(pid: pid_t, windowID: CGWindowID) throws -> ActivateResult {
         try PermissionManager.requireAccessibility()
