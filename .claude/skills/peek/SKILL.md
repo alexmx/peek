@@ -329,9 +329,9 @@ $ peek activate --app Claude --format json
 
 ### `peek watch` — Monitor accessibility changes
 
-Two modes: **streaming** (default) or **snapshot**.
+Two modes: **streaming** (CLI only) or **snapshot** (CLI and MCP).
 
-**Streaming** — real-time notifications until Ctrl+C:
+**Streaming** — real-time notifications until Ctrl+C (CLI only):
 
 ```bash
 $ peek watch --app Xcode
@@ -341,7 +341,7 @@ $ peek watch --app Xcode
 ^C
 ```
 
-**Snapshot** — take two snapshots and show differences with `--snapshot`:
+**Snapshot** — take two snapshots and show differences with `--snapshot`. This is the mode used by the MCP tool (`peek_watch`). Use it to monitor the effect of actions (e.g. check build status after triggering a build, verify UI updates after a click).
 
 ```bash
 $ peek watch --app Xcode --snapshot -d 5
@@ -443,3 +443,4 @@ $ peek doctor --format json
 - `peek click` and `peek type` operate at the system level (posting CGEvents, not via accessibility).
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
 - Use `peek find --x <x> --y <y>` for coordinate-based hit-testing — it returns the single deepest element at that point.
+- Use `peek watch` (MCP: `peek_watch`) to detect UI changes after triggering an action — it takes two snapshots with a configurable delay and returns added, removed, and changed elements.
