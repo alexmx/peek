@@ -17,8 +17,7 @@ enum MenuBarManager {
         }
 
         let pressResult = AXUIElementPerformAction(element, kAXPressAction as CFString)
-        let toleratedErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
-        if pressResult != .success, !toleratedErrors.contains(pressResult) {
+        if pressResult != .success, !toleratedActionErrors.contains(pressResult) {
             throw PeekError.actionFailed("AXPress", pressResult)
         }
 

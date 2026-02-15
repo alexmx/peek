@@ -86,11 +86,7 @@ enum InteractionManager {
 
         let axAction = ensureAXPrefix(action)
         let result = AXUIElementPerformAction(element.ref, axAction as CFString)
-        // SwiftUI apps often return errors even when the action succeeds,
-        // because the element gets recreated during the state change.
-        // Only fail on truly fatal errors.
-        let toleratedErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
-        if result != .success, !toleratedErrors.contains(result) {
+        if result != .success, !toleratedActionErrors.contains(result) {
             throw PeekError.actionFailed(axAction, result)
         }
 
@@ -126,10 +122,9 @@ enum InteractionManager {
         }
 
         let axAction = ensureAXPrefix(action)
-        let toleratedErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
         for element in elements {
             let result = AXUIElementPerformAction(element.ref, axAction as CFString)
-            if result != .success, !toleratedErrors.contains(result) {
+            if result != .success, !toleratedActionErrors.contains(result) {
                 throw PeekError.actionFailed(axAction, result)
             }
         }

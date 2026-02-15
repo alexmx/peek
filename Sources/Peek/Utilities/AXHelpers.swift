@@ -60,6 +60,10 @@ func axFrame(of element: AXUIElement) -> CGRect? {
     return CGRect(origin: point, size: size)
 }
 
+/// AX errors tolerated when performing actions — SwiftUI apps often return these
+/// even when the action succeeds because the element gets recreated during state changes.
+let toleratedActionErrors: Set<AXError> = [.cannotComplete, .attributeUnsupported, .invalidUIElement]
+
 func axFrameInfo(of element: AXUIElement) -> AXNode.FrameInfo? {
     axFrame(of: element).map {
         AXNode.FrameInfo(
