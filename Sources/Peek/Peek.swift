@@ -24,4 +24,15 @@ struct Peek: AsyncParsableCommand {
             MCPServerCommand.self
         ]
     )
+
+    @Flag(name: .shortAndLong, help: "Show version")
+    var version = false
+
+    mutating func run() throws {
+        if version {
+            print(peekVersion)
+        } else {
+            throw CleanExit.helpRequest(self)
+        }
+    }
 }
