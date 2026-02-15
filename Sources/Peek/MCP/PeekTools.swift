@@ -7,7 +7,7 @@ enum PeekTools {
 
     private static func jsonString(_ value: some Encodable) throws -> String {
         let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(value)
         guard let json = String(data: data, encoding: .utf8) else {
             throw PeekError.encodingFailed
