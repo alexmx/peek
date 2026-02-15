@@ -4,32 +4,15 @@ import Foundation
 enum MenuBarManager {
     private static let maxDepth = 20
     static func menuBar(pid: pid_t) throws -> MenuNode {
-        try PermissionManager.requireAccessibility()
-
-        let app = AXUIElementCreateApplication(pid)
-
-        var menuBarRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &menuBarRef)
-        guard result == .success, let menuBar = menuBarRef else {
-            throw PeekError.noMenuBar(pid)
-        }
-
-        return buildMenuNode(from: menuBar as! AXUIElement)
+        let menuBar = try getMenuBar(pid: pid)
+        return buildMenuNode(from: menuBar)
     }
 
     /// Find and press a menu item by title (case-insensitive substring match).
     static func clickMenuItem(pid: pid_t, title: String) throws -> String {
-        try PermissionManager.requireAccessibility()
+        let menuBar = try getMenuBar(pid: pid)
 
-        let app = AXUIElementCreateApplication(pid)
-
-        var menuBarRef: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &menuBarRef)
-        guard result == .success, let menuBar = menuBarRef else {
-            throw PeekError.noMenuBar(pid)
-        }
-
-        guard let element = findMenuItem(in: menuBar as! AXUIElement, title: title, depth: 0) else {
+        guard let element = findMenuItem(in: menuBar, title: title, depth: 0) else {
             throw PeekError.menuItemNotFound(title)
         }
 
@@ -40,6 +23,19 @@ enum MenuBarManager {
         }
 
         return axString(of: element, key: kAXTitleAttribute) ?? title
+    }
+
+    private static func getMenuBar(pid: pid_t) throws -> AXUIElement {
+        try PermissionManager.requireAccessibility()
+
+        let app = AXUIElementCreateApplication(pid)
+        var ref: AnyObject?
+        let result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
+        guard result == .success, let ref else {
+            throw PeekError.noMenuBar(pid)
+        }
+        // swiftlint:disable:next force_cast
+        return ref as! AXUIElement
     }
 
     private static func findMenuItem(in element: AXUIElement, title: String, depth: Int) -> AXUIElement? {
