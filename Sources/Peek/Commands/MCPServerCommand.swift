@@ -3,7 +3,7 @@ import SwiftCliMcp
 
 struct MCPServerCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "mcp-server",
+        commandName: "mcp",
         abstract: "Start an MCP server for AI tool integration"
     )
 
