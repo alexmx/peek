@@ -255,12 +255,12 @@ Clicked menu item: Paste
 Accepts optional `--app`/`--pid` to auto-activate the target app before clicking.
 
 ```bash
-$ peek click --app Xcode 276 50
+$ peek click --app Xcode --x 276 --y 50
 Clicked at (276, 50)
 ```
 
 ```bash
-$ peek click 276 50 --format json
+$ peek click --x 276 --y 50 --format json
 ```
 ```json
 { "x" : 276, "y" : 50 }
@@ -271,12 +271,12 @@ $ peek click 276 50 --format json
 Accepts optional `--app`/`--pid` to auto-activate the target app before typing.
 
 ```bash
-$ peek type --app Xcode "hello world"
+$ peek type --app Xcode --text "hello world"
 Typed 11 character(s)
 ```
 
 ```bash
-$ peek type "hello" --format json
+$ peek type --text "hello" --format json
 ```
 ```json
 { "characters" : 5 }

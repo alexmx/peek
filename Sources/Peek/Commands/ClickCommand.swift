@@ -9,10 +9,10 @@ struct ClickCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Argument(help: "X coordinate")
+    @Option(name: .long, help: "X screen coordinate")
     var x: Int
 
-    @Argument(help: "Y coordinate")
+    @Option(name: .long, help: "Y screen coordinate")
     var y: Int
 
     @Option(name: .long, help: "Output format")

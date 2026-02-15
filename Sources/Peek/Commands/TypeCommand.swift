@@ -9,7 +9,7 @@ struct TypeCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Argument(help: "The text to type")
+    @Option(name: .long, help: "The text to type")
     var text: String
 
     @Option(name: .long, help: "Output format")
