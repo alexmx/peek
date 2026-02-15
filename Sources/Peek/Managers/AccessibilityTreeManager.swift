@@ -53,6 +53,7 @@ enum AccessibilityTreeManager {
         let title = axString(of: element, key: kAXTitleAttribute)
         let value = axString(of: element, key: kAXValueAttribute)
         let description = axString(of: element, key: kAXDescriptionAttribute)
+        let enabled = axBool(of: element, key: kAXEnabledAttribute)
 
         var childNodes: [AXNode] = []
         if depth < limit, let children = axChildren(of: element) {
@@ -64,6 +65,7 @@ enum AccessibilityTreeManager {
             title: title,
             value: value,
             description: description,
+            enabled: enabled,
             frame: axFrameInfo(of: element),
             children: childNodes
         )

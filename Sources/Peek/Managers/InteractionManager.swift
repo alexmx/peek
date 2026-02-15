@@ -143,6 +143,7 @@ enum InteractionManager {
             title: axString(of: element, key: kAXTitleAttribute),
             value: axString(of: element, key: kAXValueAttribute),
             description: axString(of: element, key: kAXDescriptionAttribute),
+            enabled: axBool(of: element, key: kAXEnabledAttribute),
             frame: axFrameInfo(of: element),
             children: []
         )
