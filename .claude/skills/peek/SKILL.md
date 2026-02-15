@@ -22,7 +22,7 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 peek apps
 
 # 2. Inspect the UI tree of a window (by ID or app name)
-peek window --app Xcode --depth 3
+peek tree --app Xcode --depth 3
 
 # 3. Search for a specific element
 peek find --app Xcode --role Button --desc "Run"
@@ -46,11 +46,11 @@ Most commands accept a window target. You can specify it three ways:
 
 | Method | Example | Description |
 |--------|---------|-------------|
-| Window ID | `peek window 21121` | Direct window ID (from `peek apps`) |
-| `--app` | `peek window --app Xcode` | First window matching app name (case-insensitive substring) |
-| `--pid` | `peek window --pid 53051` | First window for the given process ID |
+| Window ID | `peek tree 21121` | Direct window ID (from `peek apps`) |
+| `--app` | `peek tree --app Xcode` | First window matching app name (case-insensitive substring) |
+| `--pid` | `peek tree --pid 53051` | First window for the given process ID |
 
-Applies to: `window`, `find`, `action`, `activate`, `capture`, `watch`, `menu`.
+Applies to: `tree`, `find`, `action`, `activate`, `capture`, `watch`, `menu`.
 
 ## Commands Reference
 
@@ -90,12 +90,12 @@ $ peek apps --format json
 ]
 ```
 
-### `peek window` — Inspect the accessibility tree
+### `peek tree` — Inspect the accessibility tree
 
 Options: `--depth <n>` to limit tree depth.
 
 ```bash
-$ peek window --app Xcode --depth 3
+$ peek tree --app Xcode --depth 3
 Window  "peek — MenuBarManager.swift"  (0, 33) 1512x882
 ├── SplitGroup  "peek"  desc="/Users/alexmx/Projects/peek"  (0, 33) 1512x882
 │   ├── Group  desc="navigator"  (8, 41) 300x866
@@ -113,7 +113,7 @@ Window  "peek — MenuBarManager.swift"  (0, 33) 1512x882
 ```
 
 ```bash
-$ peek window 21121 --depth 1 --format json
+$ peek tree 21121 --depth 1 --format json
 ```
 ```json
 {

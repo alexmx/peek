@@ -4,7 +4,7 @@ import Foundation
 
 struct WindowCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
-        commandName: "window",
+        commandName: "tree",
         abstract: "Inspect the accessibility tree of a window"
     )
 

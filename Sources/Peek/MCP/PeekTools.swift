@@ -60,7 +60,7 @@ enum PeekTools {
     }
 
     static let window = MCPTool(
-        name: "peek_window",
+        name: "peek_tree",
         description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy.",
         schema: """
         {
