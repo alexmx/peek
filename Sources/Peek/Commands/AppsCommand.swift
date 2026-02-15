@@ -8,12 +8,19 @@ struct AppsCommand: AsyncParsableCommand {
         abstract: "List running applications and their windows"
     )
 
+    @Option(name: .long, help: "Filter by app name (case-insensitive substring)")
+    var app: String?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
     func run() async throws {
         let windows = try await WindowManager.listWindows()
-        let apps = AppManager.listApps(windows: windows)
+        var apps = AppManager.listApps(windows: windows)
+
+        if let app {
+            apps = apps.filter { $0.name.localizedCaseInsensitiveContains(app) }
+        }
 
         if format == .json {
             try printJSON(apps)
