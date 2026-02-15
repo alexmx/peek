@@ -185,7 +185,8 @@ $ peek find --app Xcode --x 280 --y 50 --format json
 
 ### `peek menu` — Inspect the menu bar structure
 
-Without `--click`: shows the full menu bar structure.
+Without options: shows the full menu bar structure (can be very large for apps like Xcode).
+With `--find <title>`: searches for menu items matching a title and returns matches with their full menu path.
 With `--click <title>`: finds and presses a menu item by title (case-insensitive substring).
 
 ```bash
@@ -232,6 +233,18 @@ $ peek menu --app Xcode --format json
 }
 ```
 
+**Search** for menu items with `--find` (preferred over dumping the full tree):
+
+```bash
+$ peek menu --app Xcode --find "Run"
+Run  ⌘R  [Product > Run]
+Run…  ⌥⌘R  [Product > Run…]
+Running  ⇧⌘R  [Product > Build For > Running]
+Run Without Building  ⌃⌘R  [Product > Perform Action > Run Without Building]
+
+4 item(s) found.
+```
+
 ```bash
 $ peek menu --app Xcode --click "Paste"
 Clicked menu item: Paste
@@ -239,8 +252,10 @@ Clicked menu item: Paste
 
 ### `peek click` — Click at screen coordinates
 
+Accepts optional `--app`/`--pid` to auto-activate the target app before clicking.
+
 ```bash
-$ peek click 276 50
+$ peek click --app Xcode 276 50
 Clicked at (276, 50)
 ```
 
@@ -253,8 +268,10 @@ $ peek click 276 50 --format json
 
 ### `peek type` — Type text via keyboard events
 
+Accepts optional `--app`/`--pid` to auto-activate the target app before typing.
+
 ```bash
-$ peek type "hello world"
+$ peek type --app Xcode "hello world"
 Typed 11 character(s)
 ```
 
@@ -287,7 +304,12 @@ $ peek action --app Xcode --do Press --role Button --desc "Run" --format json
 }
 ```
 
-Common actions: `Press`, `Confirm`, `Cancel`, `ShowMenu`, `Increment`, `Decrement`, `Raise`.
+Common actions by element role:
+- **Button, MenuItem, CheckBox, RadioButton:** `Press`
+- **TextField, TextArea:** `Confirm` (to submit), or use `peek click` to focus
+- **Slider, Stepper:** `Increment`, `Decrement`
+- **PopUpButton, MenuButton:** `ShowMenu`
+- **Window:** `Raise`
 
 ### `peek activate` — Bring an app to the foreground
 
