@@ -13,7 +13,7 @@ struct ActionCommand: ParsableCommand {
     @Argument(help: "The AX action to perform (e.g. AXPress, AXConfirm, AXCancel, AXShowMenu)")
     var action: String
 
-    @Option(name: .long, help: "Filter by role (e.g. AXButton)")
+    @Option(name: .long, help: "Filter by role (e.g. Button)")
     var role: String?
 
     @Option(name: .long, help: "Filter by title (case-insensitive substring)")

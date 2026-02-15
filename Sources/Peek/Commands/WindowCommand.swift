@@ -33,8 +33,7 @@ struct WindowCommand: ParsableCommand {
 
     private func printNode(_ node: AXNode, prefix: String = "", isLast: Bool = true, isRoot: Bool = true) {
         let connector = isRoot ? "" : (isLast ? "└── " : "├── ")
-        let role = node.role.hasPrefix("AX") ? String(node.role.dropFirst(2)) : node.role
-        var line = "\(prefix)\(connector)\(role)"
+        var line = "\(prefix)\(connector)\(node.role)"
         if let title = node.title, !title.isEmpty { line += "  \"\(title)\"" }
         if let value = node.value, !value.isEmpty { line += "  value=\"\(value)\"" }
         if let desc = node.description, !desc.isEmpty { line += "  desc=\"\(desc)\"" }

@@ -74,7 +74,7 @@ enum InteractionManager {
         let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
         guard let element = findFirstElement(
             in: window,
-            role: role,
+            role: role.map(ensureAXPrefix),
             title: title,
             value: value,
             description: description,
@@ -111,7 +111,7 @@ enum InteractionManager {
         var elements: [ElementMatch] = []
         findAllElements(
             in: window,
-            role: role,
+            role: role.map(ensureAXPrefix),
             title: title,
             value: value,
             description: description,
@@ -162,7 +162,7 @@ enum InteractionManager {
 
         if matches {
             let node = AXNode(
-                role: currentRole ?? "unknown",
+                role: stripAXPrefix(currentRole ?? "unknown"),
                 title: currentTitle,
                 value: currentValue,
                 description: currentDesc,
@@ -214,7 +214,7 @@ enum InteractionManager {
 
         if matches {
             let node = AXNode(
-                role: currentRole ?? "unknown",
+                role: stripAXPrefix(currentRole ?? "unknown"),
                 title: currentTitle,
                 value: currentValue,
                 description: currentDesc,

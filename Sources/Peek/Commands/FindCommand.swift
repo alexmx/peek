@@ -10,7 +10,7 @@ struct FindCommand: ParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .long, help: "Filter by role (e.g. AXButton, AXStaticText)")
+    @Option(name: .long, help: "Filter by role (e.g. Button, StaticText)")
     var role: String?
 
     @Option(name: .long, help: "Filter by title (case-insensitive substring)")

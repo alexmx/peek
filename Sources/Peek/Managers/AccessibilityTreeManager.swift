@@ -28,7 +28,7 @@ enum AccessibilityTreeManager {
 
     /// Build an AXNode tree from an AXUIElement.
     static func buildNode(from element: AXUIElement, depth: Int = 0, limit: Int = maxDepth) -> AXNode {
-        let role = axString(of: element, key: kAXRoleAttribute) ?? "unknown"
+        let role = stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown")
         let title = axString(of: element, key: kAXTitleAttribute)
         let value = axString(of: element, key: kAXValueAttribute)
         let description = axString(of: element, key: kAXDescriptionAttribute)
@@ -60,7 +60,7 @@ enum AccessibilityTreeManager {
         let window = try findWindow(pid: pid, windowID: windowID)
         let tree = buildNode(from: window, depth: 0)
         var results: [AXNode] = []
-        searchNode(tree, role: role, title: title, value: value, description: description, results: &results)
+        searchNode(tree, role: role.map(stripAXPrefix), title: title, value: value, description: description, results: &results)
         return results
     }
 

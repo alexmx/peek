@@ -67,7 +67,7 @@ private func watchCallback(
     guard let context else { return }
     let watchCtx = Unmanaged<WatchContext>.fromOpaque(context).takeUnretainedValue()
 
-    let role = axString(of: element, key: kAXRoleAttribute) ?? "unknown"
+    let role = stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown")
     let title = axString(of: element, key: kAXTitleAttribute)
     let value = axString(of: element, key: kAXValueAttribute)
     let description = axString(of: element, key: kAXDescriptionAttribute)

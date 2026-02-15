@@ -2,6 +2,18 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
+// MARK: - Role helpers
+
+/// Strip the "AX" prefix from a role name for display (e.g. "AXButton" → "Button").
+func stripAXPrefix(_ role: String) -> String {
+    role.hasPrefix("AX") ? String(role.dropFirst(2)) : role
+}
+
+/// Ensure a role has the "AX" prefix for AX API comparison (e.g. "Button" → "AXButton").
+func ensureAXPrefix(_ role: String) -> String {
+    role.hasPrefix("AX") ? role : "AX\(role)"
+}
+
 // MARK: - AXUIElement attribute helpers
 
 func axString(of element: AXUIElement, key: String) -> String? {

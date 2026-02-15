@@ -51,7 +51,7 @@ struct MenuCommand: ParsableCommand {
     }
 
     private func printMenuItem(_ node: MenuNode, depth: Int) {
-        if node.role == "AXMenu" {
+        if node.role == "Menu" {
             for child in node.children {
                 printMenuItem(child, depth: depth)
             }
@@ -60,7 +60,7 @@ struct MenuCommand: ParsableCommand {
 
         let indent = String(repeating: "  ", count: depth)
 
-        if node.title.isEmpty, node.role == "AXMenuItem" {
+        if node.title.isEmpty, node.role == "MenuItem" {
             print("\(indent)---")
             return
         }
@@ -70,7 +70,7 @@ struct MenuCommand: ParsableCommand {
         var line = "\(indent)\(node.title)"
         if !node.enabled { line += "  (disabled)" }
         if let shortcut = node.shortcut { line += "  \(shortcut)" }
-        if !node.children.isEmpty, node.role != "AXMenuBarItem" {
+        if !node.children.isEmpty, node.role != "MenuBarItem" {
             line += "  >"
         }
         print(line)

@@ -84,7 +84,7 @@ enum PeekTools {
         {
             "properties": {
                 \(windowTargetSchema),
-                "role": { "type": "string", "description": "Filter by role (exact match, e.g. AXButton)" },
+                "role": { "type": "string", "description": "Filter by role (exact match, e.g. Button)" },
                 "title": { "type": "string", "description": "Filter by title (case-insensitive substring)" },
                 "value": { "type": "string", "description": "Filter by value (case-insensitive substring)" },
                 "desc": { "type": "string", "description": "Filter by description (case-insensitive substring)" },

@@ -70,7 +70,7 @@ enum MenuBarManager {
             return MenuNode(title: "", role: "unknown", enabled: false, shortcut: nil, children: [])
         }
 
-        let role = axString(of: element, key: kAXRoleAttribute) ?? "unknown"
+        let role = stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown")
         let title = axString(of: element, key: kAXTitleAttribute) ?? ""
         let enabled = axBool(of: element, key: kAXEnabledAttribute) ?? true
         let shortcut = menuShortcut(of: element)
