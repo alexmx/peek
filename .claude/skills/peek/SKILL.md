@@ -56,6 +56,8 @@ Applies to: `tree`, `find`, `action`, `activate`, `capture`, `watch`, `menu`.
 
 ### `peek apps` — List running applications
 
+Options: `--app <name>` to filter by app name.
+
 ```bash
 $ peek apps
 Finder (21162)  com.apple.finder
@@ -65,6 +67,14 @@ Xcode (53051)  com.apple.dt.Xcode
   21121   peek — MenuBarManager.swift    (0, 33) 1512x882
 
 9 app(s), 17 window(s).
+```
+
+```bash
+$ peek apps --app Xcode
+Xcode (53051)  com.apple.dt.Xcode
+  21121   peek — MenuBarManager.swift    (0, 33) 1512x882
+
+1 app(s), 1 window(s).
 ```
 
 ```bash
