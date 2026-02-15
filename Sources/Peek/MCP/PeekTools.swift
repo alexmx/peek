@@ -214,7 +214,8 @@ enum PeekTools {
             "click": .string("Menu item title to click (case-insensitive substring)"),
         ]))
     ) { args in
-        let (_, pid) = try await resolveWindow(from: args)
+        let (windowID, pid) = try await resolveWindow(from: args)
+        _ = try InteractionManager.activate(pid: pid, windowID: windowID)
         if let clickTitle = args["click"] as? String {
             let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
             return try jsonString(["title": title])

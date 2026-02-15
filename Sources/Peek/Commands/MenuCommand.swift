@@ -21,6 +21,7 @@ struct MenuCommand: AsyncParsableCommand {
 
     func run() async throws {
         let resolved = try await target.resolve()
+        _ = try InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
 
         if let click {
             let title = try MenuBarManager.clickMenuItem(pid: resolved.pid, title: click)
