@@ -5,32 +5,30 @@ import SwiftCliMcp
 enum PeekTools {
     // MARK: - Helpers
 
-    private static func jsonString(_ value: some Encodable) throws -> String {
+    private static func json(_ value: some Encodable) throws -> MCPToolResult {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(value)
-        guard let json = String(data: data, encoding: .utf8) else {
+        guard let string = String(data: data, encoding: .utf8) else {
             throw PeekError.encodingFailed
         }
-        return json
+        return .text(string)
     }
 
-    private static func resolveWindow(from args: [String: Any]) async throws -> (windowID: CGWindowID, pid: pid_t) {
+    private static func resolveWindow(windowID: Int?, app: String?, pid: Int?) async throws -> (windowID: CGWindowID, pid: pid_t) {
         let resolved = try await WindowTarget.resolve(
-            windowID: (args["window_id"] as? Int).map { UInt32($0) },
-            app: args["app"] as? String,
-            pid: (args["pid"] as? Int).map { pid_t($0) }
+            windowID: windowID.map { UInt32($0) },
+            app: app,
+            pid: pid.map { pid_t($0) }
         )
         return (resolved.windowID, resolved.pid)
     }
 
-    /// Activate the target app if window targeting args are provided.
-    /// Used by click/type which operate at screen level and need the window in foreground.
-    private static func activateIfTargeted(_ args: [String: Any]) async throws {
-        guard args["window_id"] != nil || args["app"] != nil || args["pid"] != nil else { return }
-        let (windowID, pid) = try await resolveWindow(from: args)
-        _ = try InteractionManager.activate(pid: pid, windowID: windowID)
-        usleep(200_000) // 200ms for the window to fully come to foreground
+    private static func activateIfTargeted(windowID: Int?, app: String?, pid: Int?) async throws {
+        guard windowID != nil || app != nil || pid != nil else { return }
+        let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
+        _ = try InteractionManager.activate(pid: p, windowID: wid)
+        usleep(200_000)
     }
 
     // MARK: - Shared Schema Fragments
@@ -41,33 +39,118 @@ enum PeekTools {
         "pid": .integer("Process ID"),
     ])
 
+    // MARK: - Argument Types
+
+    struct WindowArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+    }
+
+    struct TreeArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let depth: Int?
+    }
+
+    struct FindArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let role: String?
+        let title: String?
+        let value: String?
+        let desc: String?
+        let x: Int?
+        let y: Int?
+    }
+
+    struct ClickArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let x: Int
+        let y: Int
+    }
+
+    struct TypeArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let text: String
+    }
+
+    struct ActionArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let action: String
+        let role: String?
+        let title: String?
+        let value: String?
+        let desc: String?
+        let all: Bool?
+    }
+
+    struct CaptureArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let output: String?
+        let x: Int?
+        let y: Int?
+        let width: Int?
+        let height: Int?
+    }
+
+    struct MenuArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let click: String?
+        let find: String?
+    }
+
+    struct WatchArgs: Codable {
+        let window_id: Int?
+        let app: String?
+        let pid: Int?
+        let delay: Double?
+    }
+
+    struct DoctorArgs: Codable {
+        let prompt: Bool?
+    }
+
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, window, find, click, type, action, activate, capture, menu, watch, doctor]
+        [apps, tree, find, click, type, action, activate, capture, menu, watch, doctor]
     }
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs."
-    ) { _ in
-        let windows = try await WindowManager.listWindows()
-        let entries = AppManager.listApps(windows: windows)
-        return try jsonString(entries)
-    }
+        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs.",
+        handler: { (_: WindowArgs) in
+            let windows = try await WindowManager.listWindows()
+            let entries = AppManager.listApps(windows: windows)
+            return try json(entries)
+        }
+    )
 
-    static let window = MCPTool(
+    static let tree = MCPTool(
         name: "peek_tree",
         description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy.",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "depth": .integer("Maximum tree depth to traverse"),
-        ]))
-    ) { args in
-        let (windowID, pid) = try await resolveWindow(from: args)
-        let depth = args["depth"] as? Int
-        let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: depth)
-        return try jsonString(tree)
-    }
+        ])),
+        handler: { (args: TreeArgs) in
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+            return try json(tree)
+        }
+    )
 
     static let find = MCPTool(
         name: "peek_find",
@@ -79,26 +162,25 @@ enum PeekTools {
             "desc": .string("Filter by description (case-insensitive substring)"),
             "x": .integer("Hit-test X screen coordinate (use with y instead of filters)"),
             "y": .integer("Hit-test Y screen coordinate (use with x instead of filters)"),
-        ]))
-    ) { args in
-        let (windowID, pid) = try await resolveWindow(from: args)
+        ])),
+        handler: { (args: FindArgs) in
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
 
-        if let x = args["x"] as? Int, let y = args["y"] as? Int {
-            guard let node = try AccessibilityTreeManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
-                return "No element found at (\(x), \(y))."
+            if let x = args.x, let y = args.y {
+                guard let node = try AccessibilityTreeManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
+                    return .text("No element found at (\(x), \(y)).")
+                }
+                return try json(node)
+            } else {
+                let results = try AccessibilityTreeManager.find(
+                    pid: pid, windowID: windowID,
+                    role: args.role, title: args.title,
+                    value: args.value, description: args.desc
+                )
+                return try json(results)
             }
-            return try jsonString(node)
-        } else {
-            let results = try AccessibilityTreeManager.find(
-                pid: pid, windowID: windowID,
-                role: args["role"] as? String,
-                title: args["title"] as? String,
-                value: args["value"] as? String,
-                description: args["desc"] as? String
-            )
-            return try jsonString(results)
         }
-    }
+    )
 
     static let click = MCPTool(
         name: "peek_click",
@@ -109,15 +191,13 @@ enum PeekTools {
                 "y": .integer("Y coordinate"),
             ],
             required: ["x", "y"]
-        ))
-    ) { args in
-        guard let x = args["x"] as? Int, let y = args["y"] as? Int else {
-            throw PeekError.elementNotFound
+        )),
+        handler: { (args: ClickArgs) in
+            try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
+            InteractionManager.click(x: Double(args.x), y: Double(args.y))
+            return try json(["x": args.x, "y": args.y])
         }
-        try await activateIfTargeted(args)
-        InteractionManager.click(x: Double(x), y: Double(y))
-        return try jsonString(["x": x, "y": y])
-    }
+    )
 
     static let type = MCPTool(
         name: "peek_type",
@@ -125,15 +205,13 @@ enum PeekTools {
         schema: windowTargetSchema.merging(MCPSchema(
             properties: ["text": .string("The text to type")],
             required: ["text"]
-        ))
-    ) { args in
-        guard let text = args["text"] as? String else {
-            throw PeekError.elementNotFound
+        )),
+        handler: { (args: TypeArgs) in
+            try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
+            InteractionManager.type(text: args.text)
+            return try json(["characters": args.text.count])
         }
-        try await activateIfTargeted(args)
-        InteractionManager.type(text: text)
-        return try jsonString(["characters": text.count])
-    }
+    )
 
     static let action = MCPTool(
         name: "peek_action",
@@ -148,42 +226,37 @@ enum PeekTools {
                 "all": .boolean("Perform on all matches (default: first only)"),
             ],
             required: ["action"]
-        ))
-    ) { args in
-        let (windowID, pid) = try await resolveWindow(from: args)
-        guard let actionName = args["action"] as? String else {
-            throw PeekError.elementNotFound
-        }
-        let role = args["role"] as? String
-        let title = args["title"] as? String
-        let value = args["value"] as? String
-        let desc = args["desc"] as? String
-        let all = args["all"] as? Bool ?? false
+        )),
+        handler: { (args: ActionArgs) in
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let all = args.all ?? false
 
-        if all {
-            let nodes = try InteractionManager.performActionOnAll(
-                pid: pid, windowID: windowID, action: actionName,
-                role: role, title: title, value: value, description: desc
-            )
-            return try jsonString(nodes)
-        } else {
-            let node = try InteractionManager.performAction(
-                pid: pid, windowID: windowID, action: actionName,
-                role: role, title: title, value: value, description: desc
-            )
-            return try jsonString(node)
+            if all {
+                let nodes = try InteractionManager.performActionOnAll(
+                    pid: pid, windowID: windowID, action: args.action,
+                    role: args.role, title: args.title, value: args.value, description: args.desc
+                )
+                return try json(nodes)
+            } else {
+                let node = try InteractionManager.performAction(
+                    pid: pid, windowID: windowID, action: args.action,
+                    role: args.role, title: args.title, value: args.value, description: args.desc
+                )
+                return try json(node)
+            }
         }
-    }
+    )
 
     static let activate = MCPTool(
         name: "peek_activate",
         description: "Bring an app to the foreground and raise its window.",
-        schema: windowTargetSchema
-    ) { args in
-        let (windowID, pid) = try await resolveWindow(from: args)
-        let result = try InteractionManager.activate(pid: pid, windowID: windowID)
-        return try jsonString(result)
-    }
+        schema: windowTargetSchema,
+        handler: { (args: WindowArgs) in
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let result = try InteractionManager.activate(pid: pid, windowID: windowID)
+            return try json(result)
+        }
+    )
 
     static let capture = MCPTool(
         name: "peek_capture",
@@ -194,19 +267,20 @@ enum PeekTools {
             "y": .integer("Crop region Y offset (window-relative pixels)"),
             "width": .integer("Crop region width"),
             "height": .integer("Crop region height"),
-        ]))
-    ) { args in
-        let (windowID, _) = try await resolveWindow(from: args)
-        let path = args["output"] as? String ?? "window_\(windowID).png"
-        let crop: CGRect? = if let x = args["x"] as? Int, let y = args["y"] as? Int,
-                               let w = args["width"] as? Int, let h = args["height"] as? Int {
-            CGRect(x: x, y: y, width: w, height: h)
-        } else {
-            nil
+        ])),
+        handler: { (args: CaptureArgs) in
+            let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let path = args.output ?? "window_\(windowID).png"
+            let crop: CGRect? = if let x = args.x, let y = args.y,
+                                   let w = args.width, let h = args.height {
+                CGRect(x: x, y: y, width: w, height: h)
+            } else {
+                nil
+            }
+            let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
+            return try json(result)
         }
-        let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
-        return try jsonString(result)
-    }
+    )
 
     static let menu = MCPTool(
         name: "peek_menu",
@@ -214,44 +288,47 @@ enum PeekTools {
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "click": .string("Menu item title to click (case-insensitive substring)"),
             "find": .string("Search for menu items by title (case-insensitive substring) — returns matches with their menu path"),
-        ]))
-    ) { args in
-        let (windowID, pid) = try await resolveWindow(from: args)
-        _ = try InteractionManager.activate(pid: pid, windowID: windowID)
-        if let clickTitle = args["click"] as? String {
-            let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
-            return try jsonString(["title": title])
-        } else if let findTitle = args["find"] as? String {
-            let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
-            return try jsonString(items)
-        } else {
-            let tree = try MenuBarManager.menuBar(pid: pid)
-            return try jsonString(tree)
+        ])),
+        handler: { (args: MenuArgs) in
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            _ = try InteractionManager.activate(pid: pid, windowID: windowID)
+            if let clickTitle = args.click {
+                let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
+                return try json(["title": title])
+            } else if let findTitle = args.find {
+                let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
+                return try json(items)
+            } else {
+                let tree = try MenuBarManager.menuBar(pid: pid)
+                return try json(tree)
+            }
         }
-    }
+    )
 
     static let watch = MCPTool(
         name: "peek_watch",
         description: "Detect UI changes in a window. Takes two accessibility snapshots separated by a delay and returns what was added, removed, or changed. Use this to monitor the effect of an action (e.g. build status after triggering a build, UI updates after a click).",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "delay": .number("Seconds to wait between snapshots (default: 3)"),
-        ]))
-    ) { args in
-        let (windowID, pid) = try await resolveWindow(from: args)
-        let delay = (args["delay"] as? Double) ?? (args["delay"] as? Int).map(Double.init) ?? 3.0
-        let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
-        return try jsonString(diff)
-    }
+        ])),
+        handler: { (args: WatchArgs) in
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let delay = args.delay ?? 3.0
+            let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
+            return try json(diff)
+        }
+    )
 
     static let doctor = MCPTool(
         name: "peek_doctor",
         description: "Check if required permissions (Accessibility, Screen Recording) are granted.",
         schema: MCPSchema(properties: [
             "prompt": .boolean("Prompt for missing permissions via System Settings"),
-        ])
-    ) { args in
-        let prompt = args["prompt"] as? Bool ?? false
-        let status = PermissionManager.checkAll(prompt: prompt)
-        return try jsonString(status)
-    }
+        ]),
+        handler: { (args: DoctorArgs) in
+            let prompt = args.prompt ?? false
+            let status = PermissionManager.checkAll(prompt: prompt)
+            return try json(status)
+        }
+    )
 }
