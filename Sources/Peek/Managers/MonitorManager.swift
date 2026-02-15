@@ -155,7 +155,7 @@ extension MonitorManager {
     }
 
     private static func flattenNodes(_ node: AXNode) -> [AXNode] {
-        var result = [node.leaf]
+        var result = [node.withoutChildren]
         for child in node.children {
             result.append(contentsOf: flattenNodes(child))
         }

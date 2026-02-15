@@ -94,7 +94,7 @@ enum AccessibilityTreeManager {
         results: inout [AXNode]
     ) {
         if node.matches(role: role, title: title, value: value, description: description) {
-            results.append(node.leaf)
+            results.append(node.withoutChildren)
         }
 
         for child in node.children {
@@ -128,7 +128,7 @@ enum AccessibilityTreeManager {
         }
 
         // This node contains the point but no child does — it's the deepest
-        return node.leaf
+        return node.withoutChildren
     }
 }
 

@@ -37,7 +37,7 @@ struct AXNode: Encodable, Equatable {
     }
 
     /// Copy of this node without children (for flat result lists).
-    var leaf: AXNode {
+    var withoutChildren: AXNode {
         AXNode(role: role, title: title, value: value, description: description, frame: frame, children: [])
     }
 
