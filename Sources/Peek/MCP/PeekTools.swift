@@ -26,11 +26,11 @@ enum PeekTools {
 
     // MARK: - Shared Schema Fragments
 
-    private static let windowTargetSchema = """
-    "window_id": { "type": "integer", "description": "Window ID (from peek_apps)" },
-    "app": { "type": "string", "description": "App name (case-insensitive substring)" },
-    "pid": { "type": "integer", "description": "Process ID" }
-    """
+    private static let windowTargetSchema = MCPSchema(properties: [
+        "window_id": .integer("Window ID (from peek_apps)"),
+        "app": .string("App name (case-insensitive substring)"),
+        "pid": .integer("Process ID"),
+    ])
 
     // MARK: - All Tools
 
@@ -50,14 +50,9 @@ enum PeekTools {
     static let window = MCPTool(
         name: "peek_tree",
         description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy.",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema),
-                "depth": { "type": "integer", "description": "Maximum tree depth to traverse" }
-            }
-        }
-        """
+        schema: windowTargetSchema.merging(MCPSchema(properties: [
+            "depth": .integer("Maximum tree depth to traverse"),
+        ]))
     ) { args in
         let (windowID, pid) = try await resolveWindow(from: args)
         let depth = args["depth"] as? Int
@@ -68,19 +63,14 @@ enum PeekTools {
     static let find = MCPTool(
         name: "peek_find",
         description: "Search for UI elements by attributes or coordinates. Use role/title/value/desc for attribute search, or x/y for hit-test.",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema),
-                "role": { "type": "string", "description": "Filter by role (exact match, e.g. Button)" },
-                "title": { "type": "string", "description": "Filter by title (case-insensitive substring)" },
-                "value": { "type": "string", "description": "Filter by value (case-insensitive substring)" },
-                "desc": { "type": "string", "description": "Filter by description (case-insensitive substring)" },
-                "x": { "type": "integer", "description": "Hit-test X screen coordinate (use with y instead of filters)" },
-                "y": { "type": "integer", "description": "Hit-test Y screen coordinate (use with x instead of filters)" }
-            }
-        }
-        """
+        schema: windowTargetSchema.merging(MCPSchema(properties: [
+            "role": .string("Filter by role (exact match, e.g. Button)"),
+            "title": .string("Filter by title (case-insensitive substring)"),
+            "value": .string("Filter by value (case-insensitive substring)"),
+            "desc": .string("Filter by description (case-insensitive substring)"),
+            "x": .integer("Hit-test X screen coordinate (use with y instead of filters)"),
+            "y": .integer("Hit-test Y screen coordinate (use with x instead of filters)"),
+        ]))
     ) { args in
         let (windowID, pid) = try await resolveWindow(from: args)
 
@@ -104,15 +94,13 @@ enum PeekTools {
     static let click = MCPTool(
         name: "peek_click",
         description: "Click at screen coordinates.",
-        schema: """
-        {
-            "properties": {
-                "x": { "type": "integer", "description": "X coordinate" },
-                "y": { "type": "integer", "description": "Y coordinate" }
-            },
-            "required": ["x", "y"]
-        }
-        """
+        schema: MCPSchema(
+            properties: [
+                "x": .integer("X coordinate"),
+                "y": .integer("Y coordinate"),
+            ],
+            required: ["x", "y"]
+        )
     ) { args in
         guard let x = args["x"] as? Int, let y = args["y"] as? Int else {
             throw PeekError.elementNotFound
@@ -124,14 +112,10 @@ enum PeekTools {
     static let type = MCPTool(
         name: "peek_type",
         description: "Type text via keyboard events.",
-        schema: """
-        {
-            "properties": {
-                "text": { "type": "string", "description": "The text to type" }
-            },
-            "required": ["text"]
-        }
-        """
+        schema: MCPSchema(
+            properties: ["text": .string("The text to type")],
+            required: ["text"]
+        )
     ) { args in
         guard let text = args["text"] as? String else {
             throw PeekError.elementNotFound
@@ -143,20 +127,17 @@ enum PeekTools {
     static let action = MCPTool(
         name: "peek_action",
         description: "Perform an accessibility action (e.g. Press, Confirm) on a UI element matching the given filters.",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema),
-                "action": { "type": "string", "description": "AX action (e.g. Press, Confirm, Cancel, ShowMenu)" },
-                "role": { "type": "string", "description": "Filter by role" },
-                "title": { "type": "string", "description": "Filter by title" },
-                "value": { "type": "string", "description": "Filter by value" },
-                "desc": { "type": "string", "description": "Filter by description" },
-                "all": { "type": "boolean", "description": "Perform on all matches (default: first only)" }
-            },
-            "required": ["action"]
-        }
-        """
+        schema: windowTargetSchema.merging(MCPSchema(
+            properties: [
+                "action": .string("AX action (e.g. Press, Confirm, Cancel, ShowMenu)"),
+                "role": .string("Filter by role"),
+                "title": .string("Filter by title"),
+                "value": .string("Filter by value"),
+                "desc": .string("Filter by description"),
+                "all": .boolean("Perform on all matches (default: first only)"),
+            ],
+            required: ["action"]
+        ))
     ) { args in
         let (windowID, pid) = try await resolveWindow(from: args)
         guard let actionName = args["action"] as? String else {
@@ -186,13 +167,7 @@ enum PeekTools {
     static let activate = MCPTool(
         name: "peek_activate",
         description: "Bring an app to the foreground and raise its window.",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema)
-            }
-        }
-        """
+        schema: windowTargetSchema
     ) { args in
         let (windowID, pid) = try await resolveWindow(from: args)
         let result = try InteractionManager.activate(pid: pid, windowID: windowID)
@@ -202,18 +177,13 @@ enum PeekTools {
     static let capture = MCPTool(
         name: "peek_capture",
         description: "Capture a screenshot of a window to a PNG file.",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema),
-                "output": { "type": "string", "description": "Output file path (default: window_<id>.png)" },
-                "x": { "type": "integer", "description": "Crop region X offset (window-relative pixels)" },
-                "y": { "type": "integer", "description": "Crop region Y offset (window-relative pixels)" },
-                "width": { "type": "integer", "description": "Crop region width" },
-                "height": { "type": "integer", "description": "Crop region height" }
-            }
-        }
-        """
+        schema: windowTargetSchema.merging(MCPSchema(properties: [
+            "output": .string("Output file path (default: window_<id>.png)"),
+            "x": .integer("Crop region X offset (window-relative pixels)"),
+            "y": .integer("Crop region Y offset (window-relative pixels)"),
+            "width": .integer("Crop region width"),
+            "height": .integer("Crop region height"),
+        ]))
     ) { args in
         let (windowID, _) = try await resolveWindow(from: args)
         let path = args["output"] as? String ?? "window_\(windowID).png"
@@ -230,14 +200,9 @@ enum PeekTools {
     static let menu = MCPTool(
         name: "peek_menu",
         description: "Inspect or click menu bar items. Without 'click', returns the full menu structure. With 'click', triggers a menu item by title.",
-        schema: """
-        {
-            "properties": {
-                \(windowTargetSchema),
-                "click": { "type": "string", "description": "Menu item title to click (case-insensitive substring)" }
-            }
-        }
-        """
+        schema: windowTargetSchema.merging(MCPSchema(properties: [
+            "click": .string("Menu item title to click (case-insensitive substring)"),
+        ]))
     ) { args in
         let (_, pid) = try await resolveWindow(from: args)
         if let clickTitle = args["click"] as? String {
@@ -252,13 +217,9 @@ enum PeekTools {
     static let doctor = MCPTool(
         name: "peek_doctor",
         description: "Check if required permissions (Accessibility, Screen Recording) are granted.",
-        schema: """
-        {
-            "properties": {
-                "prompt": { "type": "boolean", "description": "Prompt for missing permissions via System Settings" }
-            }
-        }
-        """
+        schema: MCPSchema(properties: [
+            "prompt": .boolean("Prompt for missing permissions via System Settings"),
+        ])
     ) { args in
         let prompt = args["prompt"] as? Bool ?? false
         let status = PermissionManager.checkAll(prompt: prompt)
