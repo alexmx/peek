@@ -8,13 +8,7 @@ enum MonitorManager {
     static func watch(pid: pid_t, windowID: CGWindowID, format: OutputFormat) throws {
         try PermissionManager.requireAccessibility()
 
-        let appElement = AXUIElementCreateApplication(pid)
-
-        var observer: AXObserver?
-        let result = AXObserverCreate(pid, watchCallback, &observer)
-        guard result == .success, let observer else {
-            throw PeekError.actionFailed("AXObserverCreate", result)
-        }
+        let appElement = AXElement.application(pid: pid)
 
         let context = WatchContext(format: format)
         let contextPtr = Unmanaged.passRetained(context).toOpaque()
@@ -32,15 +26,14 @@ enum MonitorManager {
             kAXResizedNotification
         ]
 
-        for notification in notifications {
-            AXObserverAddNotification(observer, appElement, notification as CFString, contextPtr)
-        }
-
-        CFRunLoopAddSource(
-            CFRunLoopGetCurrent(),
-            AXObserverGetRunLoopSource(observer),
-            .defaultMode
+        let observer = try AXElement.createObserver(
+            pid: pid,
+            callback: watchCallback,
+            element: appElement,
+            notifications: notifications,
+            context: contextPtr
         )
+        AXElement.attachToRunLoop(observer)
 
         if format != .json {
             print("Watching window \(windowID) (pid \(pid)) for changes... (Ctrl+C to stop)")
@@ -67,10 +60,8 @@ private func watchCallback(
     guard let context else { return }
     let watchCtx = Unmanaged<WatchContext>.fromOpaque(context).takeUnretainedValue()
 
-    let role = stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown")
-    let title = axString(of: element, key: kAXTitleAttribute)
-    let value = axString(of: element, key: kAXValueAttribute)
-    let description = axString(of: element, key: kAXDescriptionAttribute)
+    let node = AXElement.nodeFromElement(element)
+    let notificationName = AXElement.stripAXPrefix(notification as String)
 
     if watchCtx.format == .json {
         struct WatchEvent: Encodable {
@@ -85,11 +76,11 @@ private func watchCallback(
         let formatter = ISO8601DateFormatter()
         let event = WatchEvent(
             timestamp: formatter.string(from: Date()),
-            notification: stripAXPrefix(notification as String),
-            role: role,
-            title: title,
-            value: value,
-            description: description
+            notification: notificationName,
+            role: node.role,
+            title: node.title,
+            value: node.value,
+            description: node.description
         )
 
         if let data = try? JSONEncoder().encode(event),
@@ -99,10 +90,10 @@ private func watchCallback(
         }
     } else {
         let timestamp = ISO8601DateFormatter().string(from: Date())
-        var line = "[\(timestamp)] \(stripAXPrefix(notification as String)): \(role)"
-        if let title, !title.isEmpty { line += " \"\(title)\"" }
-        if let value, !value.isEmpty { line += " value=\"\(value)\"" }
-        if let description, !description.isEmpty { line += " desc=\"\(description)\"" }
+        var line = "[\(timestamp)] \(notificationName): \(node.role)"
+        if let title = node.title, !title.isEmpty { line += " \"\(title)\"" }
+        if let value = node.value, !value.isEmpty { line += " value=\"\(value)\"" }
+        if let description = node.description, !description.isEmpty { line += " desc=\"\(description)\"" }
         print(line)
         fflush(stdout)
     }
@@ -114,14 +105,14 @@ extension MonitorManager {
     static func diff(pid: pid_t, windowID: CGWindowID, delay: Double) throws -> TreeDiff {
         try PermissionManager.requireAccessibility()
 
-        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
+        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
 
-        let before = AccessibilityTreeManager.buildNode(from: window)
+        let before = AXElement.buildTree(from: window)
         let beforeFlat = flattenNodes(before)
 
         Thread.sleep(forTimeInterval: delay)
 
-        let after = AccessibilityTreeManager.buildNode(from: window)
+        let after = AXElement.buildTree(from: window)
         let afterFlat = flattenNodes(after)
 
         let beforeByID = Dictionary(grouping: beforeFlat, by: { $0.identity })

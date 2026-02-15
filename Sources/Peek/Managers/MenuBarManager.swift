@@ -3,15 +3,16 @@ import Foundation
 
 enum MenuBarManager {
     private static let maxDepth = 20
+
     static func menuBar(pid: pid_t) throws -> MenuNode {
-        let menuBar = try getMenuBar(pid: pid)
-        return buildMenuNode(from: menuBar)
+        let menuBarEl = try AXElement.menuBar(pid: pid)
+        return buildMenuNode(from: menuBarEl)
     }
 
     /// Search for menu items matching a title (case-insensitive substring).
     static func findMenuItems(pid: pid_t, title: String) throws -> [MenuNode] {
-        let menuBar = try getMenuBar(pid: pid)
-        let tree = buildMenuNode(from: menuBar)
+        let menuBarEl = try AXElement.menuBar(pid: pid)
+        let tree = buildMenuNode(from: menuBarEl)
         var results: [MenuNode] = []
         searchMenuNode(tree, title: title, path: [], results: &results)
         guard !results.isEmpty else {
@@ -22,46 +23,28 @@ enum MenuBarManager {
 
     /// Find and press a menu item by title (case-insensitive substring match).
     static func clickMenuItem(pid: pid_t, title: String) throws -> String {
-        let menuBar = try getMenuBar(pid: pid)
+        let menuBarEl = try AXElement.menuBar(pid: pid)
 
-        guard let element = findMenuItem(in: menuBar, title: title, depth: 0) else {
+        guard let element = findMenuItem(in: menuBarEl, title: title, depth: 0) else {
             throw PeekError.menuItemNotFound(title)
         }
 
-        let pressResult = AXUIElementPerformAction(element, kAXPressAction as CFString)
-        if pressResult != .success, !toleratedActionErrors.contains(pressResult) {
-            throw PeekError.actionFailed("AXPress", pressResult)
-        }
-
-        return axString(of: element, key: kAXTitleAttribute) ?? title
-    }
-
-    private static func getMenuBar(pid: pid_t) throws -> AXUIElement {
-        try PermissionManager.requireAccessibility()
-
-        let app = AXUIElementCreateApplication(pid)
-        var ref: AnyObject?
-        let result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
-        guard result == .success, let ref else {
-            throw PeekError.noMenuBar(pid)
-        }
-        // swiftlint:disable:next force_cast
-        return ref as! AXUIElement
+        try AXElement.performAction("Press", on: element)
+        return AXElement.nodeFromElement(element).title ?? title
     }
 
     private static func findMenuItem(in element: AXUIElement, title: String, depth: Int) -> AXUIElement? {
         guard depth < maxDepth else { return nil }
 
-        let role = axString(of: element, key: kAXRoleAttribute) ?? ""
-        let itemTitle = axString(of: element, key: kAXTitleAttribute) ?? ""
+        let node = AXElement.nodeFromElement(element)
 
-        if role == "AXMenuItem", !itemTitle.isEmpty,
+        if node.role == "MenuItem", let itemTitle = node.title, !itemTitle.isEmpty,
            itemTitle.localizedCaseInsensitiveContains(title),
-           axBool(of: element, key: kAXEnabledAttribute) != false {
+           node.enabled != false {
             return element
         }
 
-        if let children = axChildren(of: element) {
+        if let children = AXElement.children(of: element) {
             for child in children {
                 if let found = findMenuItem(in: child, title: title, depth: depth + 1) {
                     return found
@@ -90,41 +73,14 @@ enum MenuBarManager {
             return MenuNode(title: "", role: "unknown", enabled: false, shortcut: nil, children: [])
         }
 
-        let role = stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown")
-        let title = axString(of: element, key: kAXTitleAttribute) ?? ""
-        let enabled = axBool(of: element, key: kAXEnabledAttribute) ?? true
-        let shortcut = menuShortcut(of: element)
+        let node = AXElement.nodeFromElement(element)
+        let shortcut = AXElement.menuShortcut(of: element)
 
         var childNodes: [MenuNode] = []
-        if let children = axChildren(of: element) {
+        if let children = AXElement.children(of: element) {
             childNodes = children.map { buildMenuNode(from: $0, depth: depth + 1) }
         }
 
-        return MenuNode(title: title, role: role, enabled: enabled, shortcut: shortcut, children: childNodes)
-    }
-
-    private static func menuShortcut(of element: AXUIElement) -> String? {
-        var cmdCharRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXMenuItemCmdCharAttribute as CFString, &cmdCharRef) == .success,
-              let cmdChar = cmdCharRef as? String, !cmdChar.isEmpty
-        else {
-            return nil
-        }
-
-        var modRef: CFTypeRef?
-        var mods = 0
-        if AXUIElementCopyAttributeValue(element, kAXMenuItemCmdModifiersAttribute as CFString, &modRef) == .success,
-           let modNum = modRef as? NSNumber {
-            mods = modNum.intValue
-        }
-
-        var result = ""
-        if mods & (1 << 2) != 0 { result += "⌃" }
-        if mods & (1 << 1) != 0 { result += "⌥" }
-        if mods & (1 << 0) != 0 { result += "⇧" }
-        if mods & (1 << 3) == 0 { result += "⌘" } // No command modifier flag
-        result += cmdChar
-
-        return result
+        return MenuNode(title: node.title ?? "", role: node.role, enabled: node.enabled ?? true, shortcut: shortcut, children: childNodes)
     }
 }

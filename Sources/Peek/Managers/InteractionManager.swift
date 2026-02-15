@@ -4,7 +4,6 @@ import CoreGraphics
 import Foundation
 
 enum InteractionManager {
-    private static let maxDepth = AccessibilityTreeManager.maxDepth
     /// Activate an app and raise its window.
     static func activate(pid: pid_t, windowID: CGWindowID) throws -> ActivateResult {
         try PermissionManager.requireAccessibility()
@@ -15,9 +14,8 @@ enum InteractionManager {
 
         app.activate()
 
-        // findWindow() handles cross-Space polling automatically
-        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
-        AXUIElementPerformAction(window, kAXRaiseAction as CFString)
+        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
+        AXElement.raise(window)
 
         return ActivateResult(
             pid: pid,
@@ -89,25 +87,19 @@ enum InteractionManager {
     ) throws -> AXNode {
         try PermissionManager.requireAccessibility()
 
-        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
-        guard let element = findFirstElement(
+        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
+        guard let match = AXElement.findFirst(
             in: window,
-            role: role.map(stripAXPrefix),
+            role: role,
             title: title,
             value: value,
-            description: description,
-            depth: 0
+            description: description
         ) else {
             throw PeekError.elementNotFound
         }
 
-        let axAction = ensureAXPrefix(action)
-        let result = AXUIElementPerformAction(element.ref, axAction as CFString)
-        if result != .success, !toleratedActionErrors.contains(result) {
-            throw PeekError.actionFailed(axAction, result)
-        }
-
-        return element.node
+        try AXElement.performAction(action, on: match.ref)
+        return match.node
     }
 
     /// Perform an AX action on all elements matching the given filters.
@@ -122,111 +114,23 @@ enum InteractionManager {
     ) throws -> [AXNode] {
         try PermissionManager.requireAccessibility()
 
-        let window = try AccessibilityTreeManager.findWindow(pid: pid, windowID: windowID)
-        var elements: [ElementMatch] = []
-        findAllElements(
+        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
+        let matches = AXElement.findAll(
             in: window,
-            role: role.map(stripAXPrefix),
+            role: role,
             title: title,
             value: value,
-            description: description,
-            depth: 0,
-            results: &elements
+            description: description
         )
 
-        guard !elements.isEmpty else {
+        guard !matches.isEmpty else {
             throw PeekError.elementNotFound
         }
 
-        let axAction = ensureAXPrefix(action)
-        for element in elements {
-            let result = AXUIElementPerformAction(element.ref, axAction as CFString)
-            if result != .success, !toleratedActionErrors.contains(result) {
-                throw PeekError.actionFailed(axAction, result)
-            }
+        for match in matches {
+            try AXElement.performAction(action, on: match.ref)
         }
 
-        return elements.map(\.node)
-    }
-
-    private struct ElementMatch {
-        let ref: AXUIElement
-        let node: AXNode
-    }
-
-    private static func nodeFromElement(_ element: AXUIElement) -> AXNode {
-        AXNode(
-            role: stripAXPrefix(axString(of: element, key: kAXRoleAttribute) ?? "unknown"),
-            title: axString(of: element, key: kAXTitleAttribute),
-            value: axString(of: element, key: kAXValueAttribute),
-            description: axString(of: element, key: kAXDescriptionAttribute),
-            enabled: axBool(of: element, key: kAXEnabledAttribute),
-            frame: axFrameInfo(of: element),
-            children: []
-        )
-    }
-
-    private static func findFirstElement(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        depth: Int
-    ) -> ElementMatch? {
-        guard depth < maxDepth else { return nil }
-
-        let node = nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description) {
-            return ElementMatch(ref: element, node: node)
-        }
-
-        if let children = axChildren(of: element) {
-            for child in children {
-                if let found = findFirstElement(
-                    in: child,
-                    role: role,
-                    title: title,
-                    value: value,
-                    description: description,
-                    depth: depth + 1
-                ) {
-                    return found
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private static func findAllElements(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        depth: Int,
-        results: inout [ElementMatch]
-    ) {
-        guard depth < maxDepth else { return }
-
-        let node = nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description) {
-            results.append(ElementMatch(ref: element, node: node))
-        }
-
-        if let children = axChildren(of: element) {
-            for child in children {
-                findAllElements(
-                    in: child,
-                    role: role,
-                    title: title,
-                    value: value,
-                    description: description,
-                    depth: depth + 1,
-                    results: &results
-                )
-            }
-        }
+        return matches.map(\.node)
     }
 }

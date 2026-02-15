@@ -57,7 +57,7 @@ struct ActionCommand: AsyncParsableCommand {
                 try printJSON(nodes)
             } else {
                 for node in nodes {
-                    print("Performed '\(stripAXPrefix(action))' on: \(node.formatted)")
+                    print("Performed '\(AXElement.stripAXPrefix(action))' on: \(node.formatted)")
                 }
                 print("\(nodes.count) element(s) affected.")
             }
@@ -75,7 +75,7 @@ struct ActionCommand: AsyncParsableCommand {
             if format == .json {
                 try printJSON(node)
             } else {
-                print("Performed '\(stripAXPrefix(action))' on: \(node.formatted)")
+                print("Performed '\(AXElement.stripAXPrefix(action))' on: \(node.formatted)")
             }
         }
     }
