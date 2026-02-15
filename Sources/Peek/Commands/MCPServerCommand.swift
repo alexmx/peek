@@ -1,6 +1,6 @@
 import ArgumentParser
 import Foundation
-import SwiftCliMcp
+import SwiftMCP
 
 struct MCPServerCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

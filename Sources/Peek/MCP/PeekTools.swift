@@ -1,6 +1,6 @@
 import CoreGraphics
 import Foundation
-import SwiftCliMcp
+import SwiftMCP
 
 enum PeekTools {
     // MARK: - Helpers
