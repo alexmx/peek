@@ -28,7 +28,7 @@ peek tree --app Xcode --depth 3
 peek find --app Xcode --role Button --desc "Run"
 
 # 4. Hit-test at coordinates
-peek find --app Xcode --at 280 50
+peek find --app Xcode --x 280 --y 50
 
 # 5. Interact with it
 peek action --app Xcode --do Press --role Button --desc "Run"
@@ -154,15 +154,15 @@ $ peek find --app Xcode --role Button --desc "Run" --format json
 ]
 ```
 
-**Hit-test** — find the deepest element at screen coordinates with `--at <x> <y>`:
+**Hit-test** — find the deepest element at screen coordinates with `--x` and `--y`:
 
 ```bash
-$ peek find --app Xcode --at 280 50
+$ peek find --app Xcode --x 280 --y 50
 Group  desc="navigator"  (8, 41) 300x866
 ```
 
 ```bash
-$ peek find --app Xcode --at 280 50 --format json
+$ peek find --app Xcode --x 280 --y 50 --format json
 ```
 ```json
 {
@@ -400,4 +400,4 @@ $ peek doctor --format json
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
 - `peek click` and `peek type` operate at the system level (not window-scoped).
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
-- Use `peek find --at <x> <y>` for coordinate-based hit-testing — it returns the single deepest element at that point.
+- Use `peek find --x <x> --y <y>` for coordinate-based hit-testing — it returns the single deepest element at that point.

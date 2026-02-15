@@ -22,24 +22,27 @@ struct FindCommand: ParsableCommand {
     @Option(name: .long, help: "Filter by description (case-insensitive substring)")
     var desc: String?
 
-    @Option(name: .long, parsing: .upToNextOption, help: "Hit-test at screen coordinates (x y)")
-    var at: [Int] = []
+    @Option(name: .long, help: "Hit-test X screen coordinate (use with --y)")
+    var x: Int?
+
+    @Option(name: .long, help: "Hit-test Y screen coordinate (use with --x)")
+    var y: Int?
 
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
     func validate() throws {
         let hasFilters = role != nil || title != nil || value != nil || desc != nil
-        let hasAt = !at.isEmpty
+        let hasCoords = x != nil || y != nil
 
-        if !hasFilters && !hasAt {
-            throw ValidationError("Provide --at <x> <y> or at least one filter: --role, --title, --value, or --desc")
+        if !hasFilters && !hasCoords {
+            throw ValidationError("Provide --x/--y or at least one filter: --role, --title, --value, or --desc")
         }
-        if hasFilters && hasAt {
-            throw ValidationError("--at cannot be combined with --role, --title, --value, or --desc")
+        if hasFilters && hasCoords {
+            throw ValidationError("--x/--y cannot be combined with --role, --title, --value, or --desc")
         }
-        if hasAt && at.count != 2 {
-            throw ValidationError("--at requires exactly two values: --at <x> <y>")
+        if hasCoords && (x == nil || y == nil) {
+            throw ValidationError("Both --x and --y are required for hit-testing")
         }
     }
 
@@ -49,16 +52,14 @@ struct FindCommand: ParsableCommand {
             throw PeekError.windowNotFound(windowID)
         }
 
-        if !at.isEmpty {
-            try runHitTest(pid: pid, windowID: windowID)
+        if let x, let y {
+            try runHitTest(pid: pid, windowID: windowID, x: x, y: y)
         } else {
             try runSearch(pid: pid, windowID: windowID)
         }
     }
 
-    private func runHitTest(pid: pid_t, windowID: CGWindowID) throws {
-        let x = at[0]
-        let y = at[1]
+    private func runHitTest(pid: pid_t, windowID: CGWindowID, x: Int, y: Int) throws {
 
         guard let node = try AccessibilityTreeManager.elementAt(
             pid: pid,
