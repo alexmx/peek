@@ -7,14 +7,14 @@ let package = Package(
     platforms: [.macOS(.v15)],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
-        .package(path: "../swift-cli-mcp"),
+        .package(path: "../swift-cli-mcp")
     ],
     targets: [
         .executableTarget(
             name: "peek",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                .product(name: "SwiftCliMcp", package: "swift-cli-mcp"),
+                .product(name: "SwiftCliMcp", package: "swift-cli-mcp")
             ],
             path: "Sources/Peek"
         )

@@ -40,7 +40,7 @@ struct ActionCommand: AsyncParsableCommand {
     func run() async throws {
         let resolved = try await target.resolve()
 
-        let action = self.`do`
+        let action = self.do
 
         if all {
             let nodes = try InteractionManager.performActionOnAll(

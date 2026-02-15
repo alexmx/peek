@@ -29,7 +29,7 @@ enum MonitorManager {
             kAXLayoutChangedNotification,
             kAXCreatedNotification,
             kAXMovedNotification,
-            kAXResizedNotification,
+            kAXResizedNotification
         ]
 
         for notification in notifications {
@@ -93,8 +93,7 @@ private func watchCallback(
         )
 
         if let data = try? JSONEncoder().encode(event),
-           let str = String(data: data, encoding: .utf8)
-        {
+           let str = String(data: data, encoding: .utf8) {
             print(str)
             fflush(stdout)
         }
@@ -145,8 +144,18 @@ extension MonitorManager {
                 changed.append(TreeDiff.NodeChange(
                     identity: key,
                     role: a.role,
-                    before: TreeDiff.ChangeValues(title: b.title, value: b.value, description: b.description, frame: b.frame),
-                    after: TreeDiff.ChangeValues(title: a.title, value: a.value, description: a.description, frame: a.frame)
+                    before: TreeDiff.ChangeValues(
+                        title: b.title,
+                        value: b.value,
+                        description: b.description,
+                        frame: b.frame
+                    ),
+                    after: TreeDiff.ChangeValues(
+                        title: a.title,
+                        value: a.value,
+                        description: a.description,
+                        frame: a.frame
+                    )
                 ))
             }
         }

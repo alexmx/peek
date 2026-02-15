@@ -15,7 +15,11 @@ enum PeekTools {
         return .text(string)
     }
 
-    private static func resolveWindow(windowID: Int?, app: String?, pid: Int?) async throws -> (windowID: CGWindowID, pid: pid_t) {
+    private static func resolveWindow(
+        windowID: Int?,
+        app: String?,
+        pid: Int?
+    ) async throws -> (windowID: CGWindowID, pid: pid_t) {
         let resolved = try await WindowTarget.resolve(
             windowID: windowID.map { UInt32($0) },
             app: app,
@@ -36,7 +40,7 @@ enum PeekTools {
     private static let windowTargetSchema = MCPSchema(properties: [
         "window_id": .integer("Window ID (from peek_apps)"),
         "app": .string("App name (case-insensitive substring)"),
-        "pid": .integer("Process ID"),
+        "pid": .integer("Process ID")
     ])
 
     // MARK: - Argument Types
@@ -143,7 +147,7 @@ enum PeekTools {
         name: "peek_tree",
         description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy.",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
-            "depth": .integer("Maximum tree depth to traverse"),
+            "depth": .integer("Maximum tree depth to traverse")
         ])),
         handler: { (args: TreeArgs) in
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -161,7 +165,7 @@ enum PeekTools {
             "value": .string("Filter by value (case-insensitive substring)"),
             "desc": .string("Filter by description (case-insensitive substring)"),
             "x": .integer("Hit-test X screen coordinate (use with y instead of filters)"),
-            "y": .integer("Hit-test Y screen coordinate (use with x instead of filters)"),
+            "y": .integer("Hit-test Y screen coordinate (use with x instead of filters)")
         ])),
         handler: { (args: FindArgs) in
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -188,7 +192,7 @@ enum PeekTools {
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
                 "x": .integer("X coordinate"),
-                "y": .integer("Y coordinate"),
+                "y": .integer("Y coordinate")
             ],
             required: ["x", "y"]
         )),
@@ -218,12 +222,14 @@ enum PeekTools {
         description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items), Confirm (text fields), ShowMenu (popups), Increment/Decrement (sliders).",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
-                "action": .string("AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise"),
+                "action": .string(
+                    "AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise"
+                ),
                 "role": .string("Filter by role"),
                 "title": .string("Filter by title"),
                 "value": .string("Filter by value"),
                 "desc": .string("Filter by description"),
-                "all": .boolean("Perform on all matches (default: first only)"),
+                "all": .boolean("Perform on all matches (default: first only)")
             ],
             required: ["action"]
         )),
@@ -266,7 +272,7 @@ enum PeekTools {
             "x": .integer("Crop region X offset (window-relative pixels)"),
             "y": .integer("Crop region Y offset (window-relative pixels)"),
             "width": .integer("Crop region width"),
-            "height": .integer("Crop region height"),
+            "height": .integer("Crop region height")
         ])),
         handler: { (args: CaptureArgs) in
             let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -287,7 +293,9 @@ enum PeekTools {
         description: "Interact with an app's menu bar. Use 'find' to search for menu items by title (returns matches with full path). Use 'click' to trigger a menu item. Avoid calling without find/click — the full menu tree can be very large.",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
             "click": .string("Menu item title to click (case-insensitive substring)"),
-            "find": .string("Search for menu items by title (case-insensitive substring) — returns matches with their menu path"),
+            "find": .string(
+                "Search for menu items by title (case-insensitive substring) — returns matches with their menu path"
+            )
         ])),
         handler: { (args: MenuArgs) in
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -309,7 +317,7 @@ enum PeekTools {
         name: "peek_watch",
         description: "Detect UI changes in a window. Takes two accessibility snapshots separated by a delay and returns what was added, removed, or changed. Use this to monitor the effect of an action (e.g. build status after triggering a build, UI updates after a click).",
         schema: windowTargetSchema.merging(MCPSchema(properties: [
-            "delay": .number("Seconds to wait between snapshots (default: 3)"),
+            "delay": .number("Seconds to wait between snapshots (default: 3)")
         ])),
         handler: { (args: WatchArgs) in
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -323,7 +331,7 @@ enum PeekTools {
         name: "peek_doctor",
         description: "Check if required permissions (Accessibility, Screen Recording) are granted.",
         schema: MCPSchema(properties: [
-            "prompt": .boolean("Prompt for missing permissions via System Settings"),
+            "prompt": .boolean("Prompt for missing permissions via System Settings")
         ]),
         handler: { (args: DoctorArgs) in
             let prompt = args.prompt ?? false

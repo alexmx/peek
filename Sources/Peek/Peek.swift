@@ -21,7 +21,7 @@ struct Peek: AsyncParsableCommand {
             CaptureCommand.self,
             // System
             DoctorCommand.self,
-            MCPServerCommand.self,
+            MCPServerCommand.self
         ]
     )
 }

@@ -16,7 +16,7 @@ enum KeyMapping {
         return (0, false)
     }
 
-    // Virtual key codes from Carbon HIToolbox/Events.h (US keyboard layout)
+    /// Virtual key codes from Carbon HIToolbox/Events.h (US keyboard layout)
     private static let table: [Character: (keyCode: CGKeyCode, shift: Bool)] = [
         // Letters (lowercase, unshifted)
         "a": (0x00, false), "s": (0x01, false), "d": (0x02, false), "f": (0x03, false),
@@ -46,8 +46,8 @@ enum KeyMapping {
         "~": (0x32, true),
 
         // Whitespace / control
-        " ": (0x31, false),   // Space
-        "\t": (0x30, false),  // Tab
-        "\n": (0x24, false),  // Return
+        " ": (0x31, false), // Space
+        "\t": (0x30, false), // Tab
+        "\n": (0x24, false) // Return
     ]
 }

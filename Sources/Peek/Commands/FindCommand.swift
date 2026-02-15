@@ -57,7 +57,6 @@ struct FindCommand: AsyncParsableCommand {
     }
 
     private func runHitTest(pid: pid_t, windowID: CGWindowID, x: Int, y: Int) throws {
-
         guard let node = try AccessibilityTreeManager.elementAt(
             pid: pid,
             windowID: windowID,
@@ -98,5 +97,4 @@ struct FindCommand: AsyncParsableCommand {
             }
         }
     }
-
 }

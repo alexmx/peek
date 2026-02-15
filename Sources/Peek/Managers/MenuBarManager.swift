@@ -114,8 +114,7 @@ enum MenuBarManager {
         var modRef: CFTypeRef?
         var mods = 0
         if AXUIElementCopyAttributeValue(element, kAXMenuItemCmdModifiersAttribute as CFString, &modRef) == .success,
-           let modNum = modRef as? NSNumber
-        {
+           let modNum = modRef as? NSNumber {
             mods = modNum.intValue
         }
 

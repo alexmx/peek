@@ -77,7 +77,9 @@ struct WatchCommand: AsyncParsableCommand {
                 }
                 if change.before.frame != change.after.frame {
                     if let bf = change.before.frame, let af = change.after.frame {
-                        print("    frame: (\(bf.x), \(bf.y)) \(bf.width)x\(bf.height) -> (\(af.x), \(af.y)) \(af.width)x\(af.height)")
+                        print(
+                            "    frame: (\(bf.x), \(bf.y)) \(bf.width)x\(bf.height) -> (\(af.x), \(af.y)) \(af.width)x\(af.height)"
+                        )
                     }
                 }
             }
@@ -85,5 +87,4 @@ struct WatchCommand: AsyncParsableCommand {
 
         print("\n\(total) change(s) detected.")
     }
-
 }

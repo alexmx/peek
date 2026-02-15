@@ -83,7 +83,14 @@ enum AccessibilityTreeManager {
         let window = try findWindow(pid: pid, windowID: windowID)
         let tree = buildNode(from: window, depth: 0)
         var results: [AXNode] = []
-        searchNode(tree, role: role.map(stripAXPrefix), title: title, value: value, description: description, results: &results)
+        searchNode(
+            tree,
+            role: role.map(stripAXPrefix),
+            title: title,
+            value: value,
+            description: description,
+            results: &results
+        )
         return results
     }
 

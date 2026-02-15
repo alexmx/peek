@@ -29,7 +29,7 @@ struct MCPServerCommand: AsyncParsableCommand {
     private func printSetup() {
         print("""
         Add peek as an MCP server to your AI coding agent:
-
+        
           Claude Code:          claude mcp add --transport stdio peek -- peek mcp
           Codex CLI:            codex mcp add peek -- peek mcp
           VS Code / Copilot:    code --add-mcp '{"name":"peek","command":"peek","args":["mcp"]}'

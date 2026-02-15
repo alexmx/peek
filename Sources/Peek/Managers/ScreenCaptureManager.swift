@@ -43,8 +43,8 @@ enum ScreenCaptureManager {
         return CaptureResult(path: outputPath, width: image.width, height: image.height)
     }
 
-    // CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime.
-    // ScreenCaptureKit (SCScreenshotManager/SCStream) requires a RunLoop and hangs in CLI tools.
+    /// CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime.
+    /// ScreenCaptureKit (SCScreenshotManager/SCStream) requires a RunLoop and hangs in CLI tools.
     @_silgen_name("CGWindowListCreateImage")
     private static func _CGWindowListCreateImage(
         _ screenBounds: CGRect,

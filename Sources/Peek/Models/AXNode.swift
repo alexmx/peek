@@ -16,7 +16,7 @@ struct AXNode: Encodable, Equatable {
         let height: Int
     }
 
-    // Only encode `enabled` when false to keep output clean.
+    /// Only encode `enabled` when false to keep output clean.
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(role, forKey: .role)
@@ -58,7 +58,15 @@ struct AXNode: Encodable, Equatable {
 
     /// Copy of this node without children (for flat result lists).
     var withoutChildren: AXNode {
-        AXNode(role: role, title: title, value: value, description: description, enabled: enabled, frame: frame, children: [])
+        AXNode(
+            role: role,
+            title: title,
+            value: value,
+            description: description,
+            enabled: enabled,
+            frame: frame,
+            children: []
+        )
     }
 
     /// A unique-ish identity for diffing: role + title + description + frame position.
