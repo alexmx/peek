@@ -101,7 +101,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates.",
+        description: "Click at screen coordinates. Requires the app to be in the foreground — always provide app/pid/window_id to auto-activate. Prefer peek_action for clicking UI elements like buttons.",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
                 "x": .integer("X coordinate"),
@@ -120,7 +120,7 @@ enum PeekTools {
 
     static let type = MCPTool(
         name: "peek_type",
-        description: "Type text via keyboard events.",
+        description: "Type text via keyboard events. Requires the app to be in the foreground — always provide app/pid/window_id to auto-activate.",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: ["text": .string("The text to type")],
             required: ["text"]
@@ -136,7 +136,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "Perform an accessibility action (e.g. Press, Confirm) on a UI element matching the given filters.",
+        description: "Perform an accessibility action on a UI element matching the given filters. Preferred over peek_click for interacting with UI elements — finds and acts on elements by role/title/desc without needing coordinates.",
         schema: windowTargetSchema.merging(MCPSchema(
             properties: [
                 "action": .string("AX action (e.g. Press, Confirm, Cancel, ShowMenu)"),

@@ -406,7 +406,8 @@ $ peek doctor --format json
 - All commands support `--format json` for structured output — prefer this for programmatic use.
 - Use `--app` or `--pid` to target windows by name instead of looking up IDs manually.
 - Commands that need the accessibility tree (`tree`, `find`, `action`, `watch`, `menu`) will **auto-activate** apps on other Spaces — no need to manually run `peek activate` first.
-- Use `peek activate --app <name>` to bring an app to the foreground before clicking or typing (these operate at screen level, not via accessibility).
+- **Prefer `peek action --do Press`** over `peek find` + `peek click` for clicking UI elements — it finds and acts in one step, no coordinates needed.
+- `peek click` and `peek type` now accept `--app`/`--pid` to auto-activate the target app before interacting. Always provide a target to ensure the window is in the foreground.
 - Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches.
 - `--role` is an exact match (without the `AX` prefix). Common roles:
   - **Containers:** `Window`, `Group`, `SplitGroup`, `ScrollArea`, `TabGroup`, `Sheet`, `Drawer`
@@ -417,6 +418,6 @@ $ peek doctor --format json
   - **Toolbars:** `Toolbar`, `ToolbarButton`
   - **Other:** `Image`, `ProgressIndicator`, `Splitter`, `ValueIndicator`, `WebArea`
 - `peek action` tolerates SwiftUI error codes that occur when elements are recreated during state changes.
-- `peek click` and `peek type` operate at the system level (not window-scoped).
+- `peek click` and `peek type` operate at the system level (posting CGEvents, not via accessibility).
 - Use `peek find` to narrow down elements before using `peek action` — combine `--role` with `--title` or `--desc` for precise targeting.
 - Use `peek find --x <x> --y <y>` for coordinate-based hit-testing — it returns the single deepest element at that point.
