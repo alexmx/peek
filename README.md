@@ -35,34 +35,16 @@ Run `peek doctor --prompt` to check and request permissions.
 ### List all running applications and windows
 
 ```bash
-peek apps --format toon
+peek apps
 ```
-```yaml
-[2]:
-  - name: Xcode
-    bundleID: com.apple.dt.Xcode
-    pid: 9450
-    windows[1]:
-      - windowID: 956
-        title: peek — PeekTools.swift
-        frame:
-          x: -7
-          y: 44
-          width: 1512
-          height: 882
-        isOnScreen: true
-  - name: Simulator
-    bundleID: com.apple.iphonesimulator
-    pid: 11673
-    windows[1]:
-      - windowID: 1067
-        title: iPhone 16e
-        frame:
-          x: 901
-          y: 52
-          width: 408
-          height: 862
-        isOnScreen: true
+```
+Xcode (9450)  com.apple.dt.Xcode
+  956   peek — PeekTools.swift    (-7, 44) 1512x882
+
+Simulator (11673)  com.apple.iphonesimulator
+  1067   iPhone 16e    (901, 52) 408x862
+
+2 app(s), 2 window(s).
 ```
 
 ### Inspect a window's accessibility tree
@@ -170,12 +152,10 @@ peek menu --app Xcode --click "Build"
 
 ```bash
 # Full window screenshot
-peek capture --app Simulator --output simulator.png --format toon
-```
-```yaml
-path: simulator.png
-width: 816
-height: 1724
+peek capture --app Simulator --output simulator.png
+
+# Capture a specific region
+peek capture --app Xcode --output toolbar.png --x 0 --y 0 --width 400 --height 50
 ```
 
 ### Monitor UI changes
@@ -243,7 +223,7 @@ All commands support structured output via the `--format` flag:
 
 - **`text` (default)** — Human-readable output with formatting and colors
 - **`json`** — Standard JSON for programmatic use and scripting
-- **`toon`** — Token-Optimized Object Notation, a specialized format designed for LLM consumption that reduces token usage by 30-50% compared to JSON while maintaining full structure. Uses YAML-like syntax with compact array notation (`[count]:`) and inline frames. Ideal for AI agents processing large accessibility trees or search results. Recommended for all MCP workflows via CLI.
+- **`toon`** — Token-Optimized Object Notation for LLM consumption. YAML-like syntax that reduces token usage by 30-50% compared to JSON. Ideal for AI agents processing large outputs.
 
 ## MCP Server Integration
 
@@ -253,13 +233,13 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 
 1. Install Peek via Homebrew
 2. Run `peek mcp --setup` for configuration instructions
-3. Add Peek to your MCP client config:
+3. If your AI agent is not listed, configure manually:
 
 ```json
 {
   "mcpServers": {
     "peek": {
-      "command": "/usr/local/bin/peek",
+      "command": "peek",
       "args": ["mcp"]
     }
   }
@@ -276,8 +256,6 @@ All Peek commands are exposed as MCP tools with the `peek_` prefix:
 - `peek_watch`, `peek_capture`, `peek_doctor`
 
 MCP tools return JSON format by default (as required by the MCP protocol). For token-optimized output, use the CLI with `--format toon`.
-
-AI agents can now inspect, interact with, and automate any native macOS application.
 
 ## License
 
