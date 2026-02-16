@@ -44,9 +44,12 @@ struct CaptureCommand: AsyncParsableCommand {
             nil
         }
         let result = try await ScreenCaptureManager.capture(windowID: resolved.windowID, outputPath: path, crop: crop)
-        if format == .json {
+        switch format {
+        case .json:
             try printJSON(result)
-        } else {
+        case .toon:
+            try printTOON(result)
+        case .default:
             print("Saved \(result.path) (\(result.width)x\(result.height) pixels)")
         }
     }

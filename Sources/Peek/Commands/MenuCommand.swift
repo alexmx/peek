@@ -28,9 +28,12 @@ struct MenuCommand: AsyncParsableCommand {
 
         if let click {
             let title = try MenuBarManager.clickMenuItem(pid: resolved.pid, title: click)
-            if format == .json {
+            switch format {
+            case .json:
                 try printJSON(ClickResult(title: title))
-            } else {
+            case .toon:
+                try printTOON(ClickResult(title: title))
+            case .default:
                 print("Clicked menu item: \(title)")
             }
             return
@@ -38,9 +41,12 @@ struct MenuCommand: AsyncParsableCommand {
 
         if let find {
             let items = try MenuBarManager.findMenuItems(pid: resolved.pid, title: find)
-            if format == .json {
+            switch format {
+            case .json:
                 try printJSON(items)
-            } else {
+            case .toon:
+                try printTOON(items)
+            case .default:
                 for item in items {
                     var line = item.title
                     if !item.enabled { line += "  (disabled)" }
@@ -55,9 +61,12 @@ struct MenuCommand: AsyncParsableCommand {
 
         let tree = try MenuBarManager.menuBar(pid: resolved.pid)
 
-        if format == .json {
+        switch format {
+        case .json:
             try printJSON(tree)
-        } else {
+        case .toon:
+            try printTOON(tree)
+        case .default:
             printMenu(tree)
         }
     }

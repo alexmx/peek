@@ -16,9 +16,12 @@ struct DoctorCommand: ParsableCommand {
     func run() throws {
         let status = PermissionManager.checkAll(prompt: prompt)
 
-        if format == .json {
+        switch format {
+        case .json:
             try printJSON(status)
-        } else {
+        case .toon:
+            try printTOON(status)
+        case .default:
             print("Accessibility:    \(status.accessibility ? "granted" : "not granted")")
             print("Screen Recording: \(status.screenRecording ? "granted" : "not granted")")
 

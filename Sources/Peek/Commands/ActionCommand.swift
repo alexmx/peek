@@ -53,9 +53,12 @@ struct ActionCommand: AsyncParsableCommand {
                 description: desc
             )
 
-            if format == .json {
+            switch format {
+            case .json:
                 try printJSON(nodes)
-            } else {
+            case .toon:
+                try printTOON(nodes)
+            case .default:
                 for node in nodes {
                     print("Performed '\(AXElement.stripAXPrefix(action))' on: \(node.formatted)")
                 }
@@ -72,9 +75,12 @@ struct ActionCommand: AsyncParsableCommand {
                 description: desc
             )
 
-            if format == .json {
+            switch format {
+            case .json:
                 try printJSON(node)
-            } else {
+            case .toon:
+                try printTOON(node)
+            case .default:
                 print("Performed '\(AXElement.stripAXPrefix(action))' on: \(node.formatted)")
             }
         }

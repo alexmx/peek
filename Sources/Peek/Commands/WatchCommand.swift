@@ -30,16 +30,19 @@ struct WatchCommand: AsyncParsableCommand {
     }
 
     private func runSnapshot(pid: pid_t, windowID: CGWindowID) throws {
-        if format != .json {
+        if format == .default {
             print("Taking first snapshot...")
             print("Waiting \(String(format: "%.1f", delay))s...")
         }
 
         let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
 
-        if format == .json {
+        switch format {
+        case .json:
             try printJSON(diff)
-        } else {
+        case .toon:
+            try printTOON(diff)
+        case .default:
             printDiff(diff)
         }
     }

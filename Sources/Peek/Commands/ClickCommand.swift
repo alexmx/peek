@@ -32,9 +32,12 @@ struct ClickCommand: AsyncParsableCommand {
 
         InteractionManager.click(x: Double(x), y: Double(y))
 
-        if format == .json {
+        switch format {
+        case .json:
             try printJSON(ClickResult(x: x, y: y))
-        } else {
+        case .toon:
+            try printTOON(ClickResult(x: x, y: y))
+        case .default:
             print("Clicked at (\(x), \(y))")
         }
     }

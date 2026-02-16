@@ -28,9 +28,12 @@ struct TypeCommand: AsyncParsableCommand {
 
         InteractionManager.type(text: text)
 
-        if format == .json {
+        switch format {
+        case .json:
             try printJSON(TypeResult(characters: text.count))
-        } else {
+        case .toon:
+            try printTOON(TypeResult(characters: text.count))
+        case .default:
             print("Typed \(text.count) character(s)")
         }
     }
