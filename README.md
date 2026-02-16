@@ -45,18 +45,36 @@ Run `peek doctor` to check and request permissions.
 ### List all running applications and windows
 
 ```bash
-peek apps
+peek apps --format toon
 ```
 
 Output:
-```
-Xcode (9450)  com.apple.dt.Xcode
-  956     peek — PeekTools.swift    (-7, 44) 1512x882
-
-Simulator (11673)  com.apple.iphonesimulator
-  1067    iPhone 16e                (901, 52) 408x862
-
-2 app(s), 2 window(s).
+```yaml
+[2]:
+  - name: Xcode
+    bundleID: com.apple.dt.Xcode
+    pid: 9450
+    windows[1]:
+      - windowID: 956
+        title: peek — PeekTools.swift
+        frame:
+          x: -7
+          y: 44
+          width: 1512
+          height: 882
+        isOnScreen: true
+  - name: Simulator
+    bundleID: com.apple.iphonesimulator
+    pid: 11673
+    windows[1]:
+      - windowID: 1067
+        title: iPhone 16e
+        frame:
+          x: 901
+          y: 52
+          width: 408
+          height: 862
+        isOnScreen: true
 ```
 
 ### Inspect a window's accessibility tree
@@ -73,103 +91,132 @@ peek tree 12345
 
 ```bash
 # Find all buttons in Xcode
-peek find --app Xcode --role Button
+peek find --app Xcode --role Button --format toon
 ```
 
 Output:
-```
-Button  (365, 76) 16x16
-Button  desc="Run"  (276, 45) 28x28
-
-2 element(s) found.
+```yaml
+[2]:
+  - role: Button
+    frame:
+      x: 365
+      y: 76
+      width: 16
+      height: 16
+  - role: Button
+    description: Run
+    frame:
+      x: 276
+      y: 45
+      width: 28
+      height: 28
 ```
 
 ```bash
 # Hit-test at screen coordinates
-peek find --app Simulator --x 500 --y 300
+peek find --app Simulator --x 500 --y 300 --format toon
 ```
 
 Output:
-```
-StaticText  value="Settings"  (450, 280) 100x20
+```yaml
+role: StaticText
+value: Settings
+frame:
+  x: 450
+  y: 280
+  width: 100
+  height: 20
 ```
 
 ### Interact with UI elements
 
 ```bash
 # Click at coordinates
-peek click --app Simulator --x 100 --y 200
+peek click --app Simulator --x 100 --y 200 --format toon
 ```
 
 Output:
-```
-Clicked at (100, 200)
+```yaml
+x: 100
+y: 200
 ```
 
 ```bash
 # Press a button
-peek action --app Xcode --role Button --title "Build" --do Press
+peek action --app Xcode --role Button --title "Build" --do Press --format toon
 ```
 
 Output:
-```
-Performed 'Press' on: Button  desc="Build"  (276, 45) 28x28
+```yaml
+role: Button
+description: Build
+frame:
+  x: 276
+  y: 45
+  width: 28
+  height: 28
 ```
 
 ### Work with menu bars
 
 ```bash
 # Search menu items
-peek menu --app Xcode --find "Run"
+peek menu --app Xcode --find "Run" --format toon
 ```
 
 Output:
-```
-Run  ⌘R  [Product > Run]
-Run Without Building  ⌃⌘R  [Product > Perform Action > Run Without Building]
-
-2 item(s) found.
+```yaml
+[2]:
+  - title: Run
+    shortcut: ⌘R
+    path: Product > Run
+  - title: Run Without Building
+    shortcut: ⌃⌘R
+    path: Product > Perform Action > Run Without Building
 ```
 
 ```bash
 # Click a menu item
-peek menu --app Xcode --click "Build"
+peek menu --app Xcode --click "Build" --format toon
 ```
 
 Output:
-```
-Clicked menu item: Build
+```yaml
+title: Build
 ```
 
 ### Capture screenshots
 
 ```bash
 # Full window screenshot
-peek capture --app Simulator --output simulator.png
+peek capture --app Simulator --output simulator.png --format toon
 ```
 
 Output:
-```
-Saved simulator.png (816x1724 pixels)
+```yaml
+path: simulator.png
+width: 816
+height: 1724
 ```
 
 ### Monitor UI changes
 
 ```bash
 # Watch for changes (3 second delay between snapshots)
-peek watch --app Xcode --snapshot --delay 3
+peek watch --app Xcode --snapshot --delay 3 --format toon
 ```
 
 Output:
-```
-Taking first snapshot...
-Waiting 3.0s...
-
-~ Changed (1):
-  ~ StaticText [StaticText|Build Succeeded||608,47]
-    value: "Build Succeeded" -> "Indexing"
-
-1 change(s) detected.
+```yaml
+changed[1]:
+  - role: StaticText
+    before:
+      value: Build Succeeded
+    after:
+      value: Indexing
+    frame:
+      x: 608
+      y: 47
 ```
 
 ## Command Reference
