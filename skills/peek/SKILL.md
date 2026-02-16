@@ -19,19 +19,19 @@ Use `peek` to inspect and interact with native macOS application windows. It pro
 
 ```bash
 # 1. List apps and their windows to find window IDs and PIDs
-peek apps
+peek apps --format toon
 
 # 2. Inspect the UI tree of a window (by ID or app name)
-peek tree --app Xcode --depth 3
+peek tree --app Xcode --depth 3 --format toon
 
 # 3. Search for a specific element
-peek find --app Xcode --role Button --desc "Run"
+peek find --app Xcode --role Button --desc "Run" --format toon
 
 # 4. Hit-test at coordinates
-peek find --app Xcode --x 280 --y 50
+peek find --app Xcode --x 280 --y 50 --format toon
 
 # 5. Interact with it
-peek action --app Xcode --do Press --role Button --desc "Run"
+peek action --app Xcode --do Press --role Button --desc "Run" --format toon
 
 # 6. Click a menu item
 peek menu --app Xcode --click "Paste"
@@ -59,22 +59,39 @@ Applies to: `tree`, `find`, `action`, `activate`, `capture`, `watch`, `menu`.
 Options: `--app <name>` to filter by app name.
 
 ```bash
-$ peek apps
-Finder (21162)  com.apple.finder
-  (no windows)
-
-Xcode (53051)  com.apple.dt.Xcode
-  21121   peek — MenuBarManager.swift    (0, 33) 1512x882
-
-9 app(s), 17 window(s).
+$ peek apps --format toon
+[2]:
+  - name: Finder
+    bundleID: com.apple.finder
+    pid: 21162
+    windows[0]: []
+  - name: Xcode
+    bundleID: com.apple.dt.Xcode
+    pid: 53051
+    windows[1]:
+      - windowID: 21121
+        title: peek — MenuBarManager.swift
+        frame:
+          x: 0
+          y: 33
+          width: 1512
+          height: 882
 ```
 
 ```bash
-$ peek apps --app Xcode
-Xcode (53051)  com.apple.dt.Xcode
-  21121   peek — MenuBarManager.swift    (0, 33) 1512x882
-
-1 app(s), 1 window(s).
+$ peek apps --app Xcode --format toon
+[1]:
+  - name: Xcode
+    bundleID: com.apple.dt.Xcode
+    pid: 53051
+    windows[1]:
+      - windowID: 21121
+        title: peek — MenuBarManager.swift
+        frame:
+          x: 0
+          y: 33
+          width: 1512
+          height: 882
 ```
 
 
@@ -83,21 +100,56 @@ Xcode (53051)  com.apple.dt.Xcode
 Options: `--depth <n>` to limit tree depth.
 
 ```bash
-$ peek tree --app Xcode --depth 3
-Window  "peek — MenuBarManager.swift"  (0, 33) 1512x882
-├── SplitGroup  "peek"  desc="/Users/alexmx/Projects/peek"  (0, 33) 1512x882
-│   ├── Group  desc="navigator"  (8, 41) 300x866
-│   │   ├── RadioGroup  (15, 84) 286x30
-│   │   ├── ScrollArea  (8, 113) 300x750
-│   │   ├── TextField  desc="Project navigator filter"  (43, 870) 258x30
-│   │   └── MenuButton  (23, 876) 17x18
-│   ├── Splitter  value="308"  (308, 85) 0x830
-│   └── Group  desc="editor area"  (0, 33) 1512x882
-│       ├── SplitGroup  (0, 33) 1512x882
-│       └── Group  desc="debug bar"  (308, 879) 1204x36
-├── Toolbar  (0, 33) 1512x52
-│   └── ...
-└── Button  (18, 51) 16x16
+$ peek tree --app Xcode --depth 3 --format toon
+role: Window
+title: peek — MenuBarManager.swift
+frame:
+  x: 0
+  y: 33
+  width: 1512
+  height: 882
+children[3]:
+  - role: SplitGroup
+    title: peek
+    description: /Users/alexmx/Projects/peek
+    frame:
+      x: 0
+      y: 33
+      width: 1512
+      height: 882
+    children[3]:
+      - role: Group
+        description: navigator
+        frame:
+          x: 8
+          y: 41
+          width: 300
+          height: 866
+        children[4]:
+          - role: RadioGroup
+            frame:
+              x: 15
+              y: 84
+              width: 286
+              height: 30
+          - role: ScrollArea
+            frame:
+              x: 8
+              y: 113
+              width: 300
+              height: 750
+  - role: Toolbar
+    frame:
+      x: 0
+      y: 33
+      width: 1512
+      height: 52
+  - role: Button
+    frame:
+      x: 18
+      y: 51
+      width: 16
+      height: 16
 ```
 
 
@@ -108,18 +160,29 @@ Two modes: **attribute search** or **hit-test**.
 **Attribute search** — filter by `--role`, `--title`, `--value`, `--desc` (at least one required):
 
 ```bash
-$ peek find --app Xcode --role Button --desc "Run"
-Button  desc="Run"  (276, 45) 28x28
-
-1 element(s) found.
+$ peek find --app Xcode --role Button --desc "Run" --format toon
+[1]:
+  - role: Button
+    description: Run
+    frame:
+      x: 276
+      y: 45
+      width: 28
+      height: 28
 ```
 
 
 **Hit-test** — find the deepest element at screen coordinates with `--x` and `--y`:
 
 ```bash
-$ peek find --app Xcode --x 280 --y 50
-Group  desc="navigator"  (8, 41) 300x866
+$ peek find --app Xcode --x 280 --y 50 --format toon
+role: Button
+description: Run
+frame:
+  x: 276
+  y: 45
+  width: 28
+  height: 28
 ```
 
 
@@ -155,13 +218,20 @@ File
 **Search** for menu items with `--find` (preferred over dumping the full tree):
 
 ```bash
-$ peek menu --app Xcode --find "Run"
-Run  ⌘R  [Product > Run]
-Run…  ⌥⌘R  [Product > Run…]
-Running  ⇧⌘R  [Product > Build For > Running]
-Run Without Building  ⌃⌘R  [Product > Perform Action > Run Without Building]
-
-4 item(s) found.
+$ peek menu --app Xcode --find "Run" --format toon
+[4]:
+  - title: Run
+    shortcut: ⌘R
+    path: Product > Run
+  - title: Run…
+    shortcut: ⌥⌘R
+    path: Product > Run…
+  - title: Running
+    shortcut: ⇧⌘R
+    path: Product > Build For > Running
+  - title: Run Without Building
+    shortcut: ⌃⌘R
+    path: Product > Perform Action > Run Without Building
 ```
 
 ```bash
@@ -195,8 +265,14 @@ Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
 Use `--all` to act on every matching element (default: first match only).
 
 ```bash
-$ peek action --app Xcode --do Press --role Button --desc "Run"
-Performed 'Press' on: Button  desc="Run"  (276, 45) 28x28
+$ peek action --app Xcode --do Press --role Button --desc "Run" --format toon
+role: Button
+description: Run
+frame:
+  x: 276
+  y: 45
+  width: 28
+  height: 28
 ```
 
 
@@ -234,15 +310,18 @@ $ peek watch --app Xcode
 **Snapshot** — take two snapshots and show differences with `--snapshot`. This is the mode used by the MCP tool (`peek_watch`). Use it to monitor the effect of actions (e.g. check build status after triggering a build, verify UI updates after a click).
 
 ```bash
-$ peek watch --app Xcode --snapshot -d 5
-Taking first snapshot...
-Waiting 5.0s...
-
-~ Changed (1):
-  ~ StaticText [StaticText|Build Succeeded||608,47]
-    value: "Build Succeeded" -> "Indexing"
-
-1 change(s) detected.
+$ peek watch --app Xcode --snapshot -d 5 --format toon
+changed[1]:
+  - role: StaticText
+    before:
+      value: Build Succeeded
+    after:
+      value: Indexing
+    frame:
+      x: 608
+      y: 47
+      width: 100
+      height: 20
 ```
 
 
@@ -288,16 +367,9 @@ Opening System Settings for missing permissions...
 
 All commands support structured output formats via `--format`:
 - `json` — Standard JSON format for programmatic use
-- `toon` — Token-optimized format for LLM consumption (recommended for AI agents)
+- `toon` — Token-optimized format for LLM consumption (recommended for AI agents, uses 30-50% fewer tokens than JSON)
 
-Examples:
-```bash
-peek apps --format toon
-peek tree --app Xcode --depth 2 --format toon
-peek find --app Xcode --role Button --format toon
-```
-
-TOON format uses fewer tokens while maintaining structured data, making it ideal for AI agent processing.
+**Always use `--format toon` for AI agent workflows.** All examples in this guide use toon format.
 
 ## Tips
 
