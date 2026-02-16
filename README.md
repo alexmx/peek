@@ -362,4 +362,4 @@ Run `peek doctor` to check permissions and get setup instructions.
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License - see [LICENSE](LICENSE) for details.
