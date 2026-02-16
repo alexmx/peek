@@ -28,7 +28,7 @@ brew install peek
 - **Accessibility permissions** (required for most commands)
 - **Screen Recording permissions** (required for screenshots)
 
-Run `peek doctor` to check and request permissions.
+Run `peek doctor --prompt` to check and request permissions.
 
 ## Quick Start
 
