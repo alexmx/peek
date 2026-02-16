@@ -8,15 +8,24 @@ enum OutputFormat: String, ExpressibleByArgument, CaseIterable {
     case toon
 }
 
-func printJSON(_ value: some Encodable) throws {
+// MARK: - Cached Encoders
+
+private let jsonEncoder: JSONEncoder = {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-    let data = try encoder.encode(value)
+    return encoder
+}()
+
+private nonisolated(unsafe) let toonEncoder = TOONEncoder()
+
+// MARK: - Print Functions
+
+func printJSON(_ value: some Encodable) throws {
+    let data = try jsonEncoder.encode(value)
     print(String(data: data, encoding: .utf8)!)
 }
 
 func printTOON(_ value: some Encodable) throws {
-    let encoder = TOONEncoder()
-    let data = try encoder.encode(value)
+    let data = try toonEncoder.encode(value)
     print(String(data: data, encoding: .utf8)!)
 }
