@@ -2,7 +2,7 @@
 
 A macOS CLI tool and MCP server for inspecting and automating native applications.
 
-Peek provides deep access to macOS accessibility APIs, enabling you to inspect UI hierarchies, search for elements, interact with windows, control menu bars, capture screenshots, and monitor real-time UI changes—all from the command line or through AI agents via MCP.
+Peek provides deep access to macOS accessibility APIs, enabling you to inspect UI hierarchies, search for elements, interact with windows, control menu bars, capture screenshots, and monitor real-time UI changes—all from the command line or through a lightweight MCP server optimized for AI agents with token-efficient output formats.
 
 ## Features
 
@@ -15,26 +15,14 @@ Peek provides deep access to macOS accessibility APIs, enabling you to inspect U
 
 ## Installation
 
-### Homebrew (Recommended)
-
 ```bash
 brew tap alexmx/tools
 brew install peek
 ```
 
-### From Source
-
-```bash
-git clone https://github.com/alexmx/peek.git
-cd peek
-swift build -c release
-cp .build/release/peek /usr/local/bin/
-```
-
 ## Requirements
 
 - macOS 15.0 or later
-- Swift 6.2 (for building from source)
 - **Accessibility permissions** (required for most commands)
 - **Screen Recording permissions** (required for screenshots)
 
@@ -47,8 +35,6 @@ Run `peek doctor` to check and request permissions.
 ```bash
 peek apps --format toon
 ```
-
-Output:
 ```yaml
 [2]:
   - name: Xcode
@@ -80,11 +66,23 @@ Output:
 ### Inspect a window's accessibility tree
 
 ```bash
-# By app name
-peek tree --app Xcode
-
-# By window ID (from apps command)
-peek tree 12345
+peek tree --app Xcode --depth 3
+```
+```
+Window  "peek — PeekTools.swift"  (0, 33) 1512x882
+├── SplitGroup  "peek"  (0, 33) 1512x882
+│   ├── Group  desc="navigator"  (8, 41) 300x866
+│   │   ├── RadioGroup  (15, 84) 286x30
+│   │   ├── ScrollArea  (8, 113) 300x750
+│   │   └── TextField  desc="filter"  (43, 870) 258x30
+│   ├── Splitter  value="308"  (308, 85) 0x830
+│   └── Group  desc="editor"  (308, 85) 1204x830
+│       ├── TabGroup  (308, 85) 1204x830
+│       └── ScrollArea  (308, 115) 1204x800
+├── Toolbar  (0, 33) 1512x52
+│   ├── Button  desc="Run"  (276, 45) 28x28
+│   └── Button  desc="Stop"  (304, 45) 28x28
+└── Button  (18, 51) 16x16
 ```
 
 ### Search for UI elements
@@ -93,8 +91,6 @@ peek tree 12345
 # Find all buttons in Xcode
 peek find --app Xcode --role Button --format toon
 ```
-
-Output:
 ```yaml
 [2]:
   - role: Button
@@ -116,8 +112,6 @@ Output:
 # Hit-test at screen coordinates
 peek find --app Simulator --x 500 --y 300 --format toon
 ```
-
-Output:
 ```yaml
 role: StaticText
 value: Settings
@@ -132,21 +126,13 @@ frame:
 
 ```bash
 # Click at coordinates
-peek click --app Simulator --x 100 --y 200 --format toon
-```
-
-Output:
-```yaml
-x: 100
-y: 200
+peek click --app Simulator --x 100 --y 200
 ```
 
 ```bash
 # Press a button
 peek action --app Xcode --role Button --title "Build" --do Press --format toon
 ```
-
-Output:
 ```yaml
 role: Button
 description: Build
@@ -163,8 +149,6 @@ frame:
 # Search menu items
 peek menu --app Xcode --find "Run" --format toon
 ```
-
-Output:
 ```yaml
 [2]:
   - title: Run
@@ -177,12 +161,7 @@ Output:
 
 ```bash
 # Click a menu item
-peek menu --app Xcode --click "Build" --format toon
-```
-
-Output:
-```yaml
-title: Build
+peek menu --app Xcode --click "Build"
 ```
 
 ### Capture screenshots
@@ -191,8 +170,6 @@ title: Build
 # Full window screenshot
 peek capture --app Simulator --output simulator.png --format toon
 ```
-
-Output:
 ```yaml
 path: simulator.png
 width: 816
@@ -205,8 +182,6 @@ height: 1724
 # Watch for changes (3 second delay between snapshots)
 peek watch --app Xcode --snapshot --delay 3 --format toon
 ```
-
-Output:
 ```yaml
 changed[1]:
   - role: StaticText
@@ -262,45 +237,11 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 
 ## Output Formats
 
-Peek supports three output formats via the `--format` flag:
+All commands support structured output via the `--format` flag:
 
-### Text (Default)
-Human-readable output with formatting and colors.
-
-```bash
-peek apps --app Xcode
-```
-
-### JSON
-Standard JSON format for programmatic use and scripting.
-
-```bash
-peek apps --app Xcode --format json
-```
-
-### TOON (Token-Optimized)
-TOON format is optimized for LLM consumption, using significantly fewer tokens while maintaining structured data. Ideal for AI agents processing large outputs.
-
-```bash
-peek apps --app Xcode --format toon
-```
-
-Example TOON output:
-```yaml
-[1]:
-  - name: Xcode
-    pid: 9450
-    windows[1]:
-      - windowID: 956
-        title: peek — PeekTools.swift
-        frame:
-          x: -7
-          y: 44
-          width: 1512
-          height: 882
-```
-
-**Recommendation:** Use `--format toon` when working with AI agents to reduce token usage by 30-50% compared to JSON.
+- **`text` (default)** — Human-readable output with formatting and colors
+- **`json`** — Standard JSON for programmatic use and scripting
+- **`toon`** — Token-Optimized Object Notation, a specialized format designed for LLM consumption that reduces token usage by 30-50% compared to JSON while maintaining full structure. Uses YAML-like syntax with compact array notation (`[count]:`) and inline frames. Ideal for AI agents processing large accessibility trees or search results. Recommended for all MCP workflows via CLI.
 
 ## MCP Server Integration
 
@@ -308,7 +249,7 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 
 ### Setup
 
-1. Install Peek via Homebrew or build from source
+1. Install Peek via Homebrew
 2. Run `peek mcp --setup` for configuration instructions
 3. Add Peek to your MCP client config:
 
@@ -335,18 +276,6 @@ All Peek commands are exposed as MCP tools with the `peek_` prefix:
 MCP tools return JSON format by default (as required by the MCP protocol). For token-optimized output, use the CLI with `--format toon`.
 
 AI agents can now inspect, interact with, and automate any native macOS application.
-
-## Permissions
-
-Peek requires specific macOS permissions to function:
-
-### Accessibility Permission (Required)
-Needed for inspecting UI elements, interacting with windows, and most commands.
-
-### Screen Recording Permission (Required for Screenshots)
-Needed for the `capture` command.
-
-Run `peek doctor` to check permissions and get setup instructions.
 
 ## License
 
