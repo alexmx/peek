@@ -48,6 +48,17 @@ Run `peek doctor` to check and request permissions.
 peek apps
 ```
 
+Output:
+```
+Xcode (9450)  com.apple.dt.Xcode
+  956     peek — PeekTools.swift    (-7, 44) 1512x882
+
+Simulator (11673)  com.apple.iphonesimulator
+  1067    iPhone 16e                (901, 52) 408x862
+
+2 app(s), 2 window(s).
+```
+
 ### Inspect a window's accessibility tree
 
 ```bash
@@ -63,12 +74,24 @@ peek tree 12345
 ```bash
 # Find all buttons in Xcode
 peek find --app Xcode --role Button
+```
 
-# Find element by title
-peek find --app Xcode --title "Run"
+Output:
+```
+Button  (365, 76) 16x16
+Button  desc="Run"  (276, 45) 28x28
 
+2 element(s) found.
+```
+
+```bash
 # Hit-test at screen coordinates
 peek find --app Simulator --x 500 --y 300
+```
+
+Output:
+```
+StaticText  value="Settings"  (450, 280) 100x20
 ```
 
 ### Interact with UI elements
@@ -76,12 +99,21 @@ peek find --app Simulator --x 500 --y 300
 ```bash
 # Click at coordinates
 peek click --app Simulator --x 100 --y 200
+```
 
-# Type text
-peek type --app Simulator --text "test@example.com"
+Output:
+```
+Clicked at (100, 200)
+```
 
+```bash
 # Press a button
 peek action --app Xcode --role Button --title "Build" --do Press
+```
+
+Output:
+```
+Performed 'Press' on: Button  desc="Build"  (276, 45) 28x28
 ```
 
 ### Work with menu bars
@@ -89,9 +121,24 @@ peek action --app Xcode --role Button --title "Build" --do Press
 ```bash
 # Search menu items
 peek menu --app Xcode --find "Run"
+```
 
+Output:
+```
+Run  ⌘R  [Product > Run]
+Run Without Building  ⌃⌘R  [Product > Perform Action > Run Without Building]
+
+2 item(s) found.
+```
+
+```bash
 # Click a menu item
 peek menu --app Xcode --click "Build"
+```
+
+Output:
+```
+Clicked menu item: Build
 ```
 
 ### Capture screenshots
@@ -99,9 +146,11 @@ peek menu --app Xcode --click "Build"
 ```bash
 # Full window screenshot
 peek capture --app Simulator --output simulator.png
+```
 
-# Crop region
-peek capture --app Simulator --x 0 --y 0 --width 800 --height 600 --output screenshot.png
+Output:
+```
+Saved simulator.png (816x1724 pixels)
 ```
 
 ### Monitor UI changes
@@ -111,210 +160,58 @@ peek capture --app Simulator --x 0 --y 0 --width 800 --height 600 --output scree
 peek watch --app Xcode --snapshot --delay 3
 ```
 
+Output:
+```
+Taking first snapshot...
+Waiting 3.0s...
+
+~ Changed (1):
+  ~ StaticText [StaticText|Build Succeeded||608,47]
+    value: "Build Succeeded" -> "Indexing"
+
+1 change(s) detected.
+```
+
 ## Command Reference
 
 All commands support `--format` for structured output: `json` (standard JSON) or `toon` (token-optimized for LLMs). Most accept window targeting via `--app <name>`, `--pid <pid>`, or positional `<window-id>`.
 
 ### Discovery
 
-#### `apps`
-List running applications and their windows.
-
-```bash
-peek apps [--app <name>] [--format json]
-```
-
-**Options:**
-- `--app` — Filter by app name (case-insensitive substring)
-- `--format` — Output format: `text` (default), `json`, or `toon`
-
-**Example:**
-```bash
-peek apps --app Xcode
-```
+| Command | Description | Key Options | Example |
+|---------|-------------|-------------|---------|
+| `apps` | List running applications and their windows | `--app <name>` Filter by app name<br>`--format` Output format | `peek apps --app Xcode` |
 
 ### Inspection
 
-#### `tree`
-Display the accessibility tree of a window.
-
-```bash
-peek tree [<window-id>] [--app <name>] [--pid <pid>] [--depth <n>] [--format json]
-```
-
-**Options:**
-- `--app` — Target app by name
-- `--pid` — Target app by process ID
-- `--depth` — Maximum tree depth to traverse
-- `--format` — Output format: `text` (default), `json`, or `toon`
-
-**Example:**
-```bash
-peek tree --app Xcode --depth 5
-```
-
-#### `find`
-Search for UI elements by attributes or coordinates.
-
-```bash
-peek find [<window-id>] [--app <name>] [--role <role>] [--title <title>]
-          [--value <value>] [--desc <description>] [--x <x> --y <y>] [--format json]
-```
-
-**Options:**
-- `--role` — Filter by accessibility role (e.g., `Button`, `TextField`)
-- `--title` — Filter by title (case-insensitive substring)
-- `--value` — Filter by value (case-insensitive substring)
-- `--desc` — Filter by description (case-insensitive substring)
-- `--x`, `--y` — Hit-test at screen coordinates
-
-**Example:**
-```bash
-peek find --app Xcode --role Button --title "Run"
-```
-
-#### `menu`
-Inspect or interact with application menu bars.
-
-```bash
-peek menu [--app <name>] [--find <query>] [--click <item>] [--format json]
-```
-
-**Options:**
-- `--find` — Search for menu items by title
-- `--click` — Click a menu item by title
-
-**Example:**
-```bash
-peek menu --app Xcode --find "Build"
-peek menu --app Xcode --click "Build"
-```
+| Command | Description | Key Options | Example |
+|---------|-------------|-------------|---------|
+| `tree` | Display the accessibility tree of a window | `--app <name>` Target app<br>`--depth <n>` Max tree depth<br>`--format` Output format | `peek tree --app Xcode --depth 5` |
+| `find` | Search for UI elements by attributes or coordinates | `--role <role>` Filter by role<br>`--title <text>` Filter by title<br>`--x <x> --y <y>` Hit-test at coordinates | `peek find --app Xcode --role Button --title "Run"` |
+| `menu` | Inspect or interact with application menu bars | `--find <query>` Search menu items<br>`--click <item>` Click a menu item | `peek menu --app Xcode --find "Build"` |
 
 ### Interaction
 
-#### `click`
-Click at screen coordinates.
-
-```bash
-peek click --x <x> --y <y> [--app <name>] [--pid <pid>] [--window-id <id>]
-```
-
-**Options:**
-- `--x`, `--y` — Screen coordinates (required)
-- `--app`, `--pid`, `--window-id` — Auto-activate target window
-
-**Example:**
-```bash
-peek click --app Simulator --x 500 --y 300
-```
-
-#### `type`
-Type text via keyboard events.
-
-```bash
-peek type --text <text> [--app <name>] [--pid <pid>] [--window-id <id>]
-```
-
-**Options:**
-- `--text` — Text to type (required)
-- `--app`, `--pid`, `--window-id` — Auto-activate target window
-
-**Example:**
-```bash
-peek type --app Simulator --text "test@example.com"
-```
-
-#### `action`
-Perform accessibility actions on UI elements.
-
-```bash
-peek action --do <action> [--role <role>] [--title <title>] [--value <value>]
-            [--desc <description>] [--all] [--app <name>] [--format json]
-```
-
-**Options:**
-- `--do` — Action to perform: `Press`, `Confirm`, `Cancel`, `ShowMenu`, `Increment`, `Decrement`, `Raise`
-- `--role`, `--title`, `--value`, `--desc` — Element filters
-- `--all` — Perform action on all matching elements (default: first only)
-
-**Example:**
-```bash
-peek action --app Xcode --role Button --title "Run" --do Press
-```
-
-#### `activate`
-Bring an application window to the foreground.
-
-```bash
-peek activate [<window-id>] [--app <name>] [--pid <pid>]
-```
-
-**Example:**
-```bash
-peek activate --app Xcode
-```
+| Command | Description | Key Options | Example |
+|---------|-------------|-------------|---------|
+| `click` | Click at screen coordinates | `--x <x> --y <y>` Coordinates (required)<br>`--app <name>` Auto-activate app | `peek click --app Simulator --x 500 --y 300` |
+| `type` | Type text via keyboard events | `--text <text>` Text to type (required)<br>`--app <name>` Auto-activate app | `peek type --app Simulator --text "test@example.com"` |
+| `action` | Perform accessibility actions on UI elements | `--do <action>` Action: Press, Confirm, etc.<br>`--role <role>` Filter by role<br>`--all` Act on all matches | `peek action --app Xcode --role Button --title "Run" --do Press` |
+| `activate` | Bring an application window to the foreground | `--app <name>` Target app<br>`--pid <pid>` Target by PID | `peek activate --app Xcode` |
 
 ### Monitoring
 
-#### `watch`
-Monitor UI changes in a window.
-
-```bash
-peek watch [<window-id>] [--app <name>] [--snapshot] [--delay <seconds>] [--format json]
-```
-
-**Options:**
-- `--snapshot` — Compare two snapshots and show diff
-- `--delay` — Seconds to wait between snapshots (default: 3)
-
-**Example:**
-```bash
-peek watch --app Xcode --snapshot --delay 5
-```
-
-#### `capture`
-Capture a window screenshot.
-
-```bash
-peek capture [<window-id>] [--app <name>] [--output <path>]
-             [--x <x>] [--y <y>] [--width <w>] [--height <h>]
-```
-
-**Options:**
-- `--output` — Output PNG file path (default: `window_<id>.png`)
-- `--x`, `--y`, `--width`, `--height` — Crop region (window-relative coordinates)
-
-**Example:**
-```bash
-peek capture --app Simulator --output screenshot.png
-```
+| Command | Description | Key Options | Example |
+|---------|-------------|-------------|---------|
+| `watch` | Monitor UI changes in a window | `--snapshot` Compare snapshots<br>`--delay <sec>` Wait time (default: 3) | `peek watch --app Xcode --snapshot --delay 5` |
+| `capture` | Capture a window screenshot | `--output <path>` Output file<br>`--x --y --width --height` Crop region | `peek capture --app Simulator --output screenshot.png` |
 
 ### System
 
-#### `doctor`
-Check system permissions.
-
-```bash
-peek doctor [--prompt]
-```
-
-**Options:**
-- `--prompt` — Open System Settings to grant missing permissions
-
-**Example:**
-```bash
-peek doctor --prompt
-```
-
-#### `mcp`
-Start the MCP server for AI agent integration.
-
-```bash
-peek mcp [--setup]
-```
-
-**Options:**
-- `--setup` — Display integration instructions for MCP clients
+| Command | Description | Key Options | Example |
+|---------|-------------|-------------|---------|
+| `doctor` | Check system permissions | `--prompt` Open System Settings | `peek doctor --prompt` |
+| `mcp` | Start the MCP server for AI agent integration | `--setup` Show integration instructions | `peek mcp --setup` |
 
 ## Output Formats
 
