@@ -122,18 +122,36 @@ enum AXElement {
         throw PeekError.noWindows
     }
 
-    /// Get the menu bar element for an application.
+    /// Get the menu bar element for an application, activating if needed.
     static func menuBar(pid: pid_t) throws -> AXUIElement {
         try PermissionManager.requireAccessibility()
 
+        // Try to get menu bar first
         let app = application(pid: pid)
         var ref: AnyObject?
-        let result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
-        guard result == .success, let ref else {
+        var result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
+
+        if result == .success, let ref {
+            // swiftlint:disable:next force_cast
+            return ref as! AXUIElement
+        }
+
+        // Menu bar not accessible — app may be on another Space. Activate and retry.
+        guard let runningApp = NSRunningApplication(processIdentifier: pid) else {
             throw PeekError.noMenuBar(pid)
         }
-        // swiftlint:disable:next force_cast
-        return ref as! AXUIElement
+        runningApp.activate()
+
+        for _ in 0..<20 {
+            usleep(100_000) // 100ms
+            result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
+            if result == .success, let ref {
+                // swiftlint:disable:next force_cast
+                return ref as! AXUIElement
+            }
+        }
+
+        throw PeekError.noMenuBar(pid)
     }
 
     // MARK: - Node Extraction
