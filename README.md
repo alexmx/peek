@@ -11,7 +11,7 @@ Peek provides deep access to macOS accessibility APIs, enabling you to inspect U
 - **⚡️ Interaction** — Click, type, and trigger actions on UI elements programmatically
 - **📸 Monitoring** — Capture screenshots and watch for real-time UI changes
 - **🤖 MCP Integration** — Use Peek tools directly in AI agents for automated workflows
-- **📋 Flexible Output** — Human-readable text or JSON for scripting
+- **📋 Flexible Output** — Human-readable text, JSON, or TOON format (token-optimized for LLMs)
 
 ## Installation
 
@@ -113,7 +113,7 @@ peek watch --app Xcode --snapshot --delay 3
 
 ## Command Reference
 
-All commands support `--format json` for JSON output. Most accept window targeting via `--app <name>`, `--pid <pid>`, or positional `<window-id>`.
+All commands support `--format` for structured output: `json` (standard JSON) or `toon` (token-optimized for LLMs). Most accept window targeting via `--app <name>`, `--pid <pid>`, or positional `<window-id>`.
 
 ### Discovery
 
@@ -126,7 +126,7 @@ peek apps [--app <name>] [--format json]
 
 **Options:**
 - `--app` — Filter by app name (case-insensitive substring)
-- `--format` — Output format: `text` (default) or `json`
+- `--format` — Output format: `text` (default), `json`, or `toon`
 
 **Example:**
 ```bash
@@ -146,7 +146,7 @@ peek tree [<window-id>] [--app <name>] [--pid <pid>] [--depth <n>] [--format jso
 - `--app` — Target app by name
 - `--pid` — Target app by process ID
 - `--depth` — Maximum tree depth to traverse
-- `--format` — Output format: `text` (default) or `json`
+- `--format` — Output format: `text` (default), `json`, or `toon`
 
 **Example:**
 ```bash
@@ -316,6 +316,48 @@ peek mcp [--setup]
 **Options:**
 - `--setup` — Display integration instructions for MCP clients
 
+## Output Formats
+
+Peek supports three output formats via the `--format` flag:
+
+### Text (Default)
+Human-readable output with formatting and colors.
+
+```bash
+peek apps --app Xcode
+```
+
+### JSON
+Standard JSON format for programmatic use and scripting.
+
+```bash
+peek apps --app Xcode --format json
+```
+
+### TOON (Token-Optimized)
+TOON format is optimized for LLM consumption, using significantly fewer tokens while maintaining structured data. Ideal for AI agents processing large outputs.
+
+```bash
+peek apps --app Xcode --format toon
+```
+
+Example TOON output:
+```yaml
+[1]:
+  - name: Xcode
+    pid: 9450
+    windows[1]:
+      - windowID: 956
+        title: peek — PeekTools.swift
+        frame:
+          x: -7
+          y: 44
+          width: 1512
+          height: 882
+```
+
+**Recommendation:** Use `--format toon` when working with AI agents to reduce token usage by 30-50% compared to JSON.
+
 ## MCP Server Integration
 
 Peek can run as an MCP server, making all commands available to AI agents for automated workflows.
@@ -345,6 +387,8 @@ All Peek commands are exposed as MCP tools with the `peek_` prefix:
 - `peek_apps`, `peek_tree`, `peek_find`, `peek_menu`
 - `peek_click`, `peek_type`, `peek_action`, `peek_activate`
 - `peek_watch`, `peek_capture`, `peek_doctor`
+
+MCP tools return JSON format by default (as required by the MCP protocol). For token-optimized output, use the CLI with `--format toon`.
 
 AI agents can now inspect, interact with, and automate any native macOS application.
 

@@ -423,9 +423,24 @@ $ peek doctor --format json
 { "accessibility" : true, "screenRecording" : false }
 ```
 
+## Output Formats
+
+All commands support structured output formats via `--format`:
+- `json` — Standard JSON format for programmatic use
+- `toon` — Token-optimized format for LLM consumption (recommended for AI agents)
+
+Examples:
+```bash
+peek apps --format toon
+peek tree --app Xcode --depth 2 --format toon
+peek find --app Xcode --role Button --format toon
+```
+
+TOON format uses fewer tokens while maintaining structured data, making it ideal for AI agent processing.
+
 ## Tips
 
-- All commands support `--format json` for structured output — prefer this for programmatic use.
+- Prefer `--format toon` for AI agent workflows to reduce token usage.
 - Use `--app` or `--pid` to target windows by name instead of looking up IDs manually.
 - Commands that need the accessibility tree (`tree`, `find`, `action`, `watch`, `menu`) will **auto-activate** apps on other Spaces — no need to manually run `peek activate` first.
 - **Prefer `peek action --do Press`** over `peek find` + `peek click` for clicking UI elements — it finds and acts in one step, no coordinates needed.
