@@ -257,6 +257,10 @@ All Peek commands are exposed as MCP tools with the `peek_` prefix:
 
 MCP tools return JSON format by default (as required by the MCP protocol). For token-optimized output, use the CLI with `--format toon`.
 
+### AI Agent Skill
+
+A comprehensive skill guide is available in `skills/peek/SKILL.md` that teaches AI agents how to use Peek effectively. The skill includes detailed command examples with TOON format output, common workflows, and best practices optimized for AI agent usage.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
