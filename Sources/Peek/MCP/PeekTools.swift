@@ -43,7 +43,8 @@ enum PeekTools {
         @InputProperty("App name (case-insensitive substring)")
         var app: String?
         @InputProperty("Process ID")
-        var pid: Int?    }
+        var pid: Int?
+    }
 
     struct TreeArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
@@ -53,7 +54,8 @@ enum PeekTools {
         @InputProperty("Process ID")
         var pid: Int?
         @InputProperty("Maximum tree depth to traverse")
-        var depth: Int?    }
+        var depth: Int?
+    }
 
     struct FindArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
@@ -73,7 +75,8 @@ enum PeekTools {
         @InputProperty("Hit-test X screen coordinate (use with y instead of filters)")
         var x: Int?
         @InputProperty("Hit-test Y screen coordinate (use with x instead of filters)")
-        var y: Int?    }
+        var y: Int?
+    }
 
     struct ClickArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
@@ -107,7 +110,9 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty("AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise")
+        @InputProperty(
+            "AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise"
+        )
         var action: String
 
         @InputProperty("Filter by role")
@@ -119,7 +124,8 @@ enum PeekTools {
         @InputProperty("Filter by description")
         var desc: String?
         @InputProperty("Perform on all matches (default: first only)")
-        var all: Bool?    }
+        var all: Bool?
+    }
 
     struct CaptureArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
@@ -137,7 +143,8 @@ enum PeekTools {
         @InputProperty("Crop region width")
         var width: Int?
         @InputProperty("Crop region height")
-        var height: Int?    }
+        var height: Int?
+    }
 
     struct MenuArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
@@ -148,8 +155,11 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Menu item title to click (case-insensitive substring)")
         var click: String?
-        @InputProperty("Search for menu items by title (case-insensitive substring) — returns matches with their menu path")
-        var find: String?    }
+        @InputProperty(
+            "Search for menu items by title (case-insensitive substring) — returns matches with their menu path"
+        )
+        var find: String?
+    }
 
     struct WatchArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
@@ -159,11 +169,13 @@ enum PeekTools {
         @InputProperty("Process ID")
         var pid: Int?
         @InputProperty("Seconds to wait between snapshots (default: 3)")
-        var delay: Double?    }
+        var delay: Double?
+    }
 
     struct DoctorArgs: MCPToolInput {
         @InputProperty("Prompt for missing permissions via System Settings")
-        var prompt: Bool?    }
+        var prompt: Bool?
+    }
 
     // MARK: - All Tools
 
