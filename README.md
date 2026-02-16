@@ -15,6 +15,8 @@ Peek provides deep access to macOS accessibility APIs, enabling you to inspect U
 
 ## Installation
 
+### Homebrew
+
 ```bash
 brew tap alexmx/tools
 brew install peek
