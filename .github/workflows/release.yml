@@ -98,3 +98,32 @@ jobs:
           files: |
             .build/apple/Products/Release/peek-${{ steps.version.outputs.VERSION }}-macos.zip
             .build/apple/Products/Release/peek-${{ steps.version.outputs.VERSION }}-macos.zip.sha256
+
+      - name: Update Homebrew formula
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          # Download source tarball and calculate SHA256
+          curl -sL "https://github.com/alexmx/peek/archive/refs/tags/v${VERSION}.tar.gz" -o peek-source.tar.gz
+          SHA256=$(shasum -a 256 peek-source.tar.gz | awk '{print $1}')
+          echo "📦 Source tarball SHA256: $SHA256"
+
+          # Clone homebrew-tools
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/alexmx/homebrew-tools.git" /tmp/homebrew-tools
+          cd /tmp/homebrew-tools
+
+          # Update formula with new version and SHA256
+          sed -i '' "s|url \".*\"|url \"https://github.com/alexmx/peek/archive/refs/tags/v${VERSION}.tar.gz\"|" Formula/peek.rb
+          sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/peek.rb
+
+          echo "📝 Updated Formula/peek.rb:"
+          cat Formula/peek.rb
+
+          # Commit and push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/peek.rb
+          git commit -m "Update peek to v${VERSION}"
+          git push
