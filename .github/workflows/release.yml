@@ -105,17 +105,16 @@ jobs:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
-          # Download source tarball and calculate SHA256
-          curl -sL "https://github.com/alexmx/peek/archive/refs/tags/v${VERSION}.tar.gz" -o peek-source.tar.gz
-          SHA256=$(shasum -a 256 peek-source.tar.gz | awk '{print $1}')
-          echo "📦 Source tarball SHA256: $SHA256"
+          # Calculate SHA256 of the binary zip we just built
+          SHA256=$(shasum -a 256 .build/apple/Products/Release/peek-${VERSION}-macos.zip | awk '{print $1}')
+          echo "📦 Binary zip SHA256: $SHA256"
 
           # Clone homebrew-tools
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/alexmx/homebrew-tools.git" /tmp/homebrew-tools
           cd /tmp/homebrew-tools
 
           # Update formula with new version and SHA256
-          sed -i '' "s|url \".*\"|url \"https://github.com/alexmx/peek/archive/refs/tags/v${VERSION}.tar.gz\"|" Formula/peek.rb
+          sed -i '' "s|url \".*\"|url \"https://github.com/alexmx/peek/releases/download/v${VERSION}/peek-${VERSION}-macos.zip\"|" Formula/peek.rb
           sed -i '' "s|sha256 \".*\"|sha256 \"${SHA256}\"|" Formula/peek.rb
 
           echo "📝 Updated Formula/peek.rb:"
