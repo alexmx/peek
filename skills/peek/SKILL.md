@@ -371,6 +371,32 @@ All commands support structured output formats via `--format`:
 
 **Always use `--format toon` for AI agent workflows.** All examples in this guide use toon format.
 
+## Search Strategies
+
+When looking for UI elements, use this efficient approach:
+
+1. **Start broad, then narrow**: First search by role only to see what's available, then add filters
+   ```bash
+   # Find all RadioButtons first
+   peek find --app Xcode --role RadioButton --format toon
+   # Then filter by description
+   peek action --app Xcode --role RadioButton --desc "Issues" --do Press --format toon
+   ```
+
+2. **Know common UI patterns**:
+   - **Xcode navigator tabs** (Project, Issues, etc.): `RadioButton` role, description matches tab name
+   - **Toolbar buttons**: `Button` role with description (e.g., "Run", "Stop", "Build")
+   - **Tab bars**: `RadioButton` role grouped in `RadioGroup`
+   - **Sidebars/panels**: `SplitGroup` with `Group` children, use `--desc "navigator"` or `--desc "inspector"`
+   - **Menu items**: Use `peek menu --find "text"` instead of searching the tree
+
+3. **Use the right role**: Don't assume "Button" for everything — tabs are often `RadioButton`, toggles are `CheckBox`
+
+4. **Combine role + description**: Most efficient search pattern
+   ```bash
+   peek action --app Xcode --role RadioButton --desc "Debug" --do Press --format toon
+   ```
+
 ## Tips
 
 - Prefer `--format toon` for AI agent workflows to reduce token usage.

@@ -186,15 +186,20 @@ enum PeekTools {
     static let apps = MCPTool(
         name: "peek_apps",
         description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs."
-    ) { (_: WindowArgs) in
+    ) { (args: WindowArgs) in
         let windows = try await WindowManager.listWindows()
-        let entries = AppManager.listApps(windows: windows)
+        var entries = AppManager.listApps(windows: windows)
+
+        if let app = args.app {
+            entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
+        }
+
         return try json(entries)
     }
 
     static let tree = MCPTool(
         name: "peek_tree",
-        description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy."
+        description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy. Use depth to limit output size."
     ) { (args: TreeArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
@@ -203,7 +208,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements (read-only). Use to discover what's on screen before acting. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click."
+        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title/desc. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click."
     ) { (args: FindArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
 
