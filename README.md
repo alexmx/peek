@@ -1,8 +1,12 @@
 # Peek
 
-A macOS CLI tool and MCP server for inspecting and automating native applications.
+See and control any Mac app from your terminal.
 
-Peek provides deep access to macOS accessibility APIs, enabling you to inspect UI hierarchies, search for elements, interact with windows, control menu bars, capture screenshots, and monitor real-time UI changes—all from the command line or through a lightweight MCP server optimized for AI agents with token-efficient output formats.
+<p align="center">
+  <img src="docs/preview.png" width="700" alt="peek tree output showing Xcode's accessibility hierarchy">
+</p>
+
+A macOS CLI tool and MCP server for inspecting and automating native applications. Peek provides deep access to macOS accessibility APIs, enabling you to inspect UI hierarchies, search for elements, interact with windows, control menu bars, capture screenshots, and monitor real-time UI changes—all from the command line or through a lightweight MCP server optimized for AI agents with token-efficient output formats.
 
 ## Features
 
@@ -127,27 +131,6 @@ frame:
   height: 28
 ```
 
-### Work with menu bars
-
-```bash
-# Search menu items
-peek menu --app Xcode --find "Run" --format toon
-```
-```yaml
-[2]:
-  - title: Run
-    shortcut: ⌘R
-    path: Product > Run
-  - title: Run Without Building
-    shortcut: ⌃⌘R
-    path: Product > Perform Action > Run Without Building
-```
-
-```bash
-# Click a menu item
-peek menu --app Xcode --click "Build"
-```
-
 ### Capture screenshots
 
 ```bash
@@ -221,7 +204,7 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 
 All commands support structured output via the `--format` flag:
 
-- **`text` (default)** — Human-readable output with formatting and colors
+- **`default`** — Human-readable output with formatting
 - **`json`** — Standard JSON for programmatic use and scripting
 - **`toon`** — Token-Optimized Object Notation for LLM consumption. YAML-like syntax that reduces token usage by 30-50% compared to JSON. Ideal for AI agents processing large outputs.
 
@@ -260,6 +243,10 @@ MCP tools return JSON format by default (as required by the MCP protocol). For t
 ### AI Agent Skill
 
 A comprehensive skill guide is available in `skills/peek/SKILL.md` that teaches AI agents how to use Peek effectively. The skill includes detailed command examples with TOON format output, common workflows, and best practices optimized for AI agent usage.
+
+## Contributing
+
+Issues and pull requests are welcome on [GitHub](https://github.com/alexmx/peek).
 
 ## License
 

@@ -27,6 +27,7 @@ struct DoctorCommand: ParsableCommand {
 
             if status.accessibility, status.screenRecording {
                 print("\nAll permissions granted. peek is ready to use.")
+                print("Run 'peek doctor --prompt' to re-request permissions if needed.")
             } else if prompt {
                 print("\nOpening System Settings for missing permissions...")
             } else {
