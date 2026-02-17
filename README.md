@@ -3,7 +3,7 @@
 See and control any Mac app from your terminal.
 
 <p align="center">
-  <img src="docs/preview.png" width="700" alt="peek tree output showing Xcode's accessibility hierarchy">
+  <img width="1011" height="611" alt="peek tree output showing Xcode's accessibility hierarchy" src="https://github.com/user-attachments/assets/242b793f-9995-4d32-ab22-8e1859e8a002" />
 </p>
 
 A macOS CLI tool and MCP server for inspecting and automating native applications. Peek provides deep access to macOS accessibility APIs, enabling you to inspect UI hierarchies, search for elements, interact with windows, control menu bars, capture screenshots, and monitor real-time UI changes—all from the command line or through a lightweight MCP server optimized for AI agents with token-efficient output formats.
