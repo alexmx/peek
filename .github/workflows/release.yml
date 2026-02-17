@@ -1,11 +1,10 @@
 name: Release
 
 on:
-  workflow_dispatch:  # Manual trigger only (change to 'push' when ready)
-  # Uncomment below when ready to auto-release:
-  # push:
-  #   branches: [main]
-  #   paths: ['.peek-version']
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.peek-version']
 
 permissions:
   contents: write  # Needed to create releases and tags
