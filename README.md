@@ -10,12 +10,12 @@ A macOS CLI tool and MCP server for inspecting and automating native application
 
 ## Features
 
-- **🔍 Discovery** — List running apps and their windows
-- **🌳 Inspection** — Explore accessibility trees, search UI elements, inspect menu bars
-- **⚡️ Interaction** — Click, type, and trigger actions on UI elements programmatically
-- **📸 Monitoring** — Capture screenshots and watch for real-time UI changes
-- **🤖 MCP Integration** — Use Peek tools directly in AI agents for automated workflows
-- **📋 Flexible Output** — Human-readable text, JSON, or TOON format (token-optimized for LLMs)
+- **Discovery** — List running apps and their windows
+- **Inspection** — Explore accessibility trees, search UI elements, inspect menu bars
+- **Interaction** — Click, type, and trigger actions on UI elements programmatically
+- **Monitoring** — Capture screenshots and watch for real-time UI changes
+- **MCP Integration** — Use Peek tools directly in AI agents for automated workflows
+- **Flexible Output** — Human-readable text, JSON, or TOON format (token-optimized for LLMs)
 
 ## Installation
 
@@ -243,10 +243,6 @@ MCP tools return JSON format by default (as required by the MCP protocol). For t
 ### AI Agent Skill
 
 A comprehensive skill guide is available in `skills/peek/SKILL.md` that teaches AI agents how to use Peek effectively. The skill includes detailed command examples with TOON format output, common workflows, and best practices optimized for AI agent usage.
-
-## Contributing
-
-Issues and pull requests are welcome on [GitHub](https://github.com/alexmx/peek).
 
 ## License
 
