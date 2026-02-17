@@ -20,6 +20,9 @@ jobs:
         with:
           fetch-depth: 0  # Needed for git operations
 
+      - name: Select Xcode 26
+        run: sudo xcode-select -s /Applications/Xcode_26.2.app
+
       - name: Read version from .peek-version
         id: version
         run: |
