@@ -5,13 +5,13 @@ enum MenuBarManager {
     private static let maxDepth = 20
 
     static func menuBar(pid: pid_t) throws -> MenuNode {
-        let menuBarEl = try AXElement.menuBar(pid: pid)
+        let menuBarEl = try AccessibilityManager.menuBar(pid: pid)
         return buildMenuNode(from: menuBarEl)
     }
 
     /// Search for menu items matching a title (case-insensitive substring).
     static func findMenuItems(pid: pid_t, title: String) throws -> [MenuNode] {
-        let menuBarEl = try AXElement.menuBar(pid: pid)
+        let menuBarEl = try AccessibilityManager.menuBar(pid: pid)
         let tree = buildMenuNode(from: menuBarEl)
         var results: [MenuNode] = []
         searchMenuNode(tree, title: title, path: [], results: &results)
@@ -23,20 +23,20 @@ enum MenuBarManager {
 
     /// Find and press a menu item by title (case-insensitive substring match).
     static func clickMenuItem(pid: pid_t, title: String) throws -> String {
-        let menuBarEl = try AXElement.menuBar(pid: pid)
+        let menuBarEl = try AccessibilityManager.menuBar(pid: pid)
 
         guard let element = findMenuItem(in: menuBarEl, title: title, depth: 0) else {
             throw PeekError.menuItemNotFound(title)
         }
 
-        try AXElement.performAction("Press", on: element)
-        return AXElement.nodeFromElement(element).title ?? title
+        try AXBridge.performAction("Press", on: element)
+        return AXBridge.nodeFromElement(element).title ?? title
     }
 
     private static func findMenuItem(in element: AXUIElement, title: String, depth: Int) -> AXUIElement? {
         guard depth < maxDepth else { return nil }
 
-        let node = AXElement.nodeFromElement(element)
+        let node = AXBridge.nodeFromElement(element)
 
         if node.role == "MenuItem", let itemTitle = node.title, !itemTitle.isEmpty,
            itemTitle.localizedCaseInsensitiveContains(title),
@@ -44,7 +44,7 @@ enum MenuBarManager {
             return element
         }
 
-        if let children = AXElement.children(of: element) {
+        if let children = AXBridge.children(of: element) {
             for child in children {
                 if let found = findMenuItem(in: child, title: title, depth: depth + 1) {
                     return found
@@ -74,11 +74,11 @@ enum MenuBarManager {
             return MenuNode(title: "", role: "unknown", enabled: false, shortcut: nil, children: [])
         }
 
-        let node = AXElement.nodeFromElement(element)
-        let shortcut = AXElement.menuShortcut(of: element)
+        let node = AXBridge.nodeFromElement(element)
+        let shortcut = AXBridge.menuShortcut(of: element)
 
         var childNodes: [MenuNode] = []
-        if let children = AXElement.children(of: element) {
+        if let children = AXBridge.children(of: element) {
             childNodes = children.map { buildMenuNode(from: $0, depth: depth + 1) }
         }
 

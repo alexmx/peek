@@ -3,10 +3,8 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-/// Consolidated Accessibility API abstraction layer.
-enum AXElement {
-    static let maxDepth = 50
-
+/// Low-level bridge to the macOS Accessibility API.
+enum AXBridge {
     // MARK: - Role Helpers
 
     /// Strip the "AX" prefix from a role name for display (e.g. "AXButton" → "Button").
@@ -76,7 +74,7 @@ enum AXElement {
         }
     }
 
-    // MARK: - Application & Window
+    // MARK: - Application
 
     /// Create an AXUIElement for an application by PID.
     static func application(pid: pid_t) -> AXUIElement {
@@ -85,7 +83,7 @@ enum AXElement {
 
     /// Get the AXUIElement for a specific window by CGWindowID.
     /// Returns nil if the AX tree is inaccessible (e.g. app on another Space).
-    private static func window(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
+    static func window(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
         let appElement = application(pid: pid)
         var windowsRef: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsRef)
@@ -96,62 +94,6 @@ enum AXElement {
             var id: CGWindowID = 0
             return _AXUIElementGetWindow(win, &id) == .success && id == windowID
         } ?? windows[0]
-    }
-
-    /// Resolve a window element, activating the app and retrying if needed.
-    static func resolveWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
-        try PermissionManager.requireAccessibility()
-
-        if let w = window(pid: pid, windowID: windowID) {
-            return w
-        }
-
-        // AX tree inaccessible — app may be on another Space. Activate and retry.
-        guard let app = NSRunningApplication(processIdentifier: pid) else {
-            throw PeekError.noWindows
-        }
-        app.activate()
-
-        for _ in 0..<20 {
-            usleep(100_000) // 100ms
-            if let w = window(pid: pid, windowID: windowID) {
-                return w
-            }
-        }
-
-        throw PeekError.noWindows
-    }
-
-    /// Get the menu bar element for an application, activating if needed.
-    static func menuBar(pid: pid_t) throws -> AXUIElement {
-        try PermissionManager.requireAccessibility()
-
-        // Try to get menu bar first
-        let app = application(pid: pid)
-        var ref: AnyObject?
-        var result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
-
-        if result == .success, let ref {
-            // swiftlint:disable:next force_cast
-            return ref as! AXUIElement
-        }
-
-        // Menu bar not accessible — app may be on another Space. Activate and retry.
-        guard let runningApp = NSRunningApplication(processIdentifier: pid) else {
-            throw PeekError.noMenuBar(pid)
-        }
-        runningApp.activate()
-
-        for _ in 0..<20 {
-            usleep(100_000) // 100ms
-            result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
-            if result == .success, let ref {
-                // swiftlint:disable:next force_cast
-                return ref as! AXUIElement
-            }
-        }
-
-        throw PeekError.noMenuBar(pid)
     }
 
     // MARK: - Node Extraction
@@ -167,139 +109,6 @@ enum AXElement {
             frame: frameInfo(of: element),
             children: []
         )
-    }
-
-    /// Recursively build a full AXNode tree from an element.
-    static func buildTree(from element: AXUIElement, depth: Int = 0, limit: Int = maxDepth) -> AXNode {
-        let base = nodeFromElement(element)
-
-        var childNodes: [AXNode] = []
-        if depth < limit, let children = children(of: element) {
-            childNodes = children.map { buildTree(from: $0, depth: depth + 1, limit: limit) }
-        }
-
-        return AXNode(
-            role: base.role,
-            title: base.title,
-            value: base.value,
-            description: base.description,
-            enabled: base.enabled,
-            frame: base.frame,
-            children: childNodes
-        )
-    }
-
-    // MARK: - Element Search
-
-    /// A found element: the live AXUIElement reference plus its AXNode snapshot.
-    struct ElementMatch {
-        let ref: AXUIElement
-        let node: AXNode
-    }
-
-    /// DFS to find the first element matching filters.
-    /// Roles are normalized automatically ("AXButton" → "Button").
-    static func findFirst(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?
-    ) -> ElementMatch? {
-        searchFirst(
-            in: element,
-            role: role.map(stripAXPrefix),
-            title: title,
-            value: value,
-            description: description,
-            depth: 0
-        )
-    }
-
-    /// DFS to find all elements matching filters.
-    /// Roles are normalized automatically ("AXButton" → "Button").
-    static func findAll(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?
-    ) -> [ElementMatch] {
-        var results: [ElementMatch] = []
-        searchAll(
-            in: element,
-            role: role.map(stripAXPrefix),
-            title: title,
-            value: value,
-            description: description,
-            depth: 0,
-            results: &results
-        )
-        return results
-    }
-
-    private static func searchFirst(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        depth: Int
-    ) -> ElementMatch? {
-        guard depth < maxDepth else { return nil }
-
-        let node = nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description) {
-            return ElementMatch(ref: element, node: node)
-        }
-
-        if let children = children(of: element) {
-            for child in children {
-                if let found = searchFirst(
-                    in: child,
-                    role: role,
-                    title: title,
-                    value: value,
-                    description: description,
-                    depth: depth + 1
-                ) {
-                    return found
-                }
-            }
-        }
-
-        return nil
-    }
-
-    private static func searchAll(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        depth: Int,
-        results: inout [ElementMatch]
-    ) {
-        guard depth < maxDepth else { return }
-
-        let node = nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description) {
-            results.append(ElementMatch(ref: element, node: node))
-        }
-
-        if let children = children(of: element) {
-            for child in children {
-                searchAll(
-                    in: child,
-                    role: role,
-                    title: title,
-                    value: value,
-                    description: description,
-                    depth: depth + 1,
-                    results: &results
-                )
-            }
-        }
     }
 
     // MARK: - Actions

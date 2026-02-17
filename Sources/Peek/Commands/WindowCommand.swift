@@ -19,7 +19,7 @@ struct WindowCommand: AsyncParsableCommand {
     func run() async throws {
         let resolved = try await target.resolve()
 
-        let tree = try AccessibilityTreeManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
+        let tree = try AccessibilityManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
 
         switch format {
         case .json:

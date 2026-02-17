@@ -14,8 +14,8 @@ enum InteractionManager {
 
         app.activate()
 
-        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
-        AXElement.raise(window)
+        let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
+        AXBridge.raise(window)
 
         return ActivateResult(
             pid: pid,
@@ -87,8 +87,8 @@ enum InteractionManager {
     ) throws -> AXNode {
         try PermissionManager.requireAccessibility()
 
-        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
-        guard let match = AXElement.findFirst(
+        let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
+        guard let match = AccessibilityManager.findFirst(
             in: window,
             role: role,
             title: title,
@@ -98,7 +98,7 @@ enum InteractionManager {
             throw PeekError.elementNotFound
         }
 
-        try AXElement.performAction(action, on: match.ref)
+        try AXBridge.performAction(action, on: match.ref)
         return match.node
     }
 
@@ -114,8 +114,8 @@ enum InteractionManager {
     ) throws -> [AXNode] {
         try PermissionManager.requireAccessibility()
 
-        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
-        let matches = AXElement.findAll(
+        let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
+        let matches = AccessibilityManager.findAll(
             in: window,
             role: role,
             title: title,
@@ -128,7 +128,7 @@ enum InteractionManager {
         }
 
         for match in matches {
-            try AXElement.performAction(action, on: match.ref)
+            try AXBridge.performAction(action, on: match.ref)
         }
 
         return matches.map(\.node)

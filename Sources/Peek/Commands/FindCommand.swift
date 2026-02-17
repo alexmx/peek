@@ -57,7 +57,7 @@ struct FindCommand: AsyncParsableCommand {
     }
 
     private func runHitTest(pid: pid_t, windowID: CGWindowID, x: Int, y: Int) throws {
-        guard let node = try AccessibilityTreeManager.elementAt(
+        guard let node = try AccessibilityManager.elementAt(
             pid: pid,
             windowID: windowID,
             x: x,
@@ -78,7 +78,7 @@ struct FindCommand: AsyncParsableCommand {
     }
 
     private func runSearch(pid: pid_t, windowID: CGWindowID) throws {
-        let results = try AccessibilityTreeManager.find(
+        let results = try AccessibilityManager.find(
             pid: pid,
             windowID: windowID,
             role: role,

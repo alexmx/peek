@@ -60,7 +60,7 @@ struct ActionCommand: AsyncParsableCommand {
                 try printTOON(nodes)
             case .default:
                 for node in nodes {
-                    print("Performed '\(AXElement.stripAXPrefix(action))' on: \(node.formatted)")
+                    print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
                 }
                 print("\(nodes.count) element(s) affected.")
             }
@@ -81,7 +81,7 @@ struct ActionCommand: AsyncParsableCommand {
             case .toon:
                 try printTOON(node)
             case .default:
-                print("Performed '\(AXElement.stripAXPrefix(action))' on: \(node.formatted)")
+                print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
             }
         }
     }

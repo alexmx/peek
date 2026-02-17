@@ -8,7 +8,7 @@ enum MonitorManager {
     static func watch(pid: pid_t, windowID: CGWindowID, format: OutputFormat) throws {
         try PermissionManager.requireAccessibility()
 
-        let appElement = AXElement.application(pid: pid)
+        let appElement = AXBridge.application(pid: pid)
 
         let context = WatchContext(format: format)
         let contextPtr = Unmanaged.passRetained(context).toOpaque()
@@ -26,14 +26,14 @@ enum MonitorManager {
             kAXResizedNotification
         ]
 
-        let observer = try AXElement.createObserver(
+        let observer = try AXBridge.createObserver(
             pid: pid,
             callback: watchCallback,
             element: appElement,
             notifications: notifications,
             context: contextPtr
         )
-        AXElement.attachToRunLoop(observer)
+        AXBridge.attachToRunLoop(observer)
 
         if format != .json {
             print("Watching window \(windowID) (pid \(pid)) for changes... (Ctrl+C to stop)")
@@ -60,8 +60,8 @@ private func watchCallback(
     guard let context else { return }
     let watchCtx = Unmanaged<WatchContext>.fromOpaque(context).takeUnretainedValue()
 
-    let node = AXElement.nodeFromElement(element)
-    let notificationName = AXElement.stripAXPrefix(notification as String)
+    let node = AXBridge.nodeFromElement(element)
+    let notificationName = AXBridge.stripAXPrefix(notification as String)
 
     if watchCtx.format == .json {
         struct WatchEvent: Encodable {
@@ -105,14 +105,14 @@ extension MonitorManager {
     static func diff(pid: pid_t, windowID: CGWindowID, delay: Double) throws -> TreeDiff {
         try PermissionManager.requireAccessibility()
 
-        let window = try AXElement.resolveWindow(pid: pid, windowID: windowID)
+        let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
 
-        let before = AXElement.buildTree(from: window)
+        let before = AccessibilityManager.buildTree(from: window)
         let beforeFlat = flattenNodes(before)
 
         Thread.sleep(forTimeInterval: delay)
 
-        let after = AXElement.buildTree(from: window)
+        let after = AccessibilityManager.buildTree(from: window)
         let afterFlat = flattenNodes(after)
 
         return computeDiff(before: beforeFlat, after: afterFlat)

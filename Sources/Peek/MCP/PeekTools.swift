@@ -202,7 +202,7 @@ enum PeekTools {
         description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy. Use depth to limit output size."
     ) { (args: TreeArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        let tree = try AccessibilityTreeManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+        let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
         return try json(tree)
     }
 
@@ -213,12 +213,12 @@ enum PeekTools {
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
 
         if let x = args.x, let y = args.y {
-            guard let node = try AccessibilityTreeManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
+            guard let node = try AccessibilityManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
                 return .text("No element found at (\(x), \(y)).")
             }
             return try json(node)
         } else {
-            let results = try AccessibilityTreeManager.find(
+            let results = try AccessibilityManager.find(
                 pid: pid, windowID: windowID,
                 role: args.role, title: args.title,
                 value: args.value, description: args.desc
