@@ -20,7 +20,7 @@ struct MCPServerCommand: AsyncParsableCommand {
         let server = MCPServer(
             name: "peek",
             version: peekVersion,
-            description: "See and control any macOS app — inspect UI elements, read accessibility trees, click buttons, type text, navigate menus, and capture screenshots. Workflow: peek_apps to discover apps, peek_find to explore elements (start broad with role, then narrow with title/desc), peek_action to interact.",
+            description: "See and control any macOS app — inspect UI elements, read accessibility trees, click buttons, type text, navigate menus, and capture screenshots. Workflow: (1) peek_apps to discover the app and its window frame, (2) peek_tree to explore the UI layout, (3) peek_action with resultTree=true to interact and verify the result in one call. Tips: Always filter peek_apps by app name when you know it. Always use depth with peek_tree to control output size. Use peek_watch only for async/delayed changes like loading spinners or build progress, never after peek_action. For peek_capture crop coordinates, tree/find return screen coordinates while capture crop uses window-relative offsets — subtract the window frame origin from peek_apps.",
             tools: PeekTools.all
         )
         await server.run()

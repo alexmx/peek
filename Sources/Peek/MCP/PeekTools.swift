@@ -125,6 +125,12 @@ enum PeekTools {
         var desc: String?
         @InputProperty("Perform on all matches (default: first only)")
         var all: Bool?
+        @InputProperty("Return the accessibility tree after the action (saves a separate peek_tree call)")
+        var resultTree: Bool?
+        @InputProperty("Tree depth limit when resultTree=true (default: full tree)")
+        var depth: Int?
+        @InputProperty("Seconds to wait before capturing the tree when resultTree=true (default: 1)")
+        var delay: Double?
     }
 
     struct CaptureArgs: MCPToolInput {
@@ -136,9 +142,13 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Output file path (default: window_<id>.png)")
         var output: String?
-        @InputProperty("Crop region X offset (window-relative pixels)")
+        @InputProperty(
+            "Crop region X offset in window-relative pixels (subtract window frame x from screen coordinate)"
+        )
         var x: Int?
-        @InputProperty("Crop region Y offset (window-relative pixels)")
+        @InputProperty(
+            "Crop region Y offset in window-relative pixels (subtract window frame y from screen coordinate)"
+        )
         var y: Int?
         @InputProperty("Crop region width")
         var width: Int?
@@ -185,7 +195,7 @@ enum PeekTools {
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs."
+        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs. Always filter by app name when you know it."
     ) { (args: WindowArgs) in
         let windows = try await WindowManager.listWindows()
         var entries = AppManager.listApps(windows: windows)
@@ -199,7 +209,7 @@ enum PeekTools {
 
     static let tree = MCPTool(
         name: "peek_tree",
-        description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy. Use depth to limit output size."
+        description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy. Always use depth to control output size."
     ) { (args: TreeArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
@@ -247,29 +257,41 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items), Confirm (text fields), ShowMenu (popups), Increment/Decrement (sliders)."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items), Confirm (text fields), ShowMenu (popups), Increment/Decrement (sliders). Set resultTree=true to also return the post-action accessibility tree (saves a separate peek_tree call)."
     ) { (args: ActionArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let all = args.all ?? false
+        let includeTree = args.resultTree ?? false
+
+        let nodes: [AXNode] = if all {
+            try InteractionManager.performActionOnAll(
+                pid: pid, windowID: windowID, action: args.action,
+                role: args.role, title: args.title, value: args.value, description: args.desc
+            )
+        } else {
+            try [InteractionManager.performAction(
+                pid: pid, windowID: windowID, action: args.action,
+                role: args.role, title: args.title, value: args.value, description: args.desc
+            )]
+        }
+
+        if includeTree {
+            let settleDelay = args.delay ?? 1.0
+            usleep(UInt32(settleDelay * 1_000_000))
+            let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+            return try json(ActionTreeResult(action: nodes, resultTree: tree))
+        }
 
         if all {
-            let nodes = try InteractionManager.performActionOnAll(
-                pid: pid, windowID: windowID, action: args.action,
-                role: args.role, title: args.title, value: args.value, description: args.desc
-            )
             return try json(nodes)
         } else {
-            let node = try InteractionManager.performAction(
-                pid: pid, windowID: windowID, action: args.action,
-                role: args.role, title: args.title, value: args.value, description: args.desc
-            )
-            return try json(node)
+            return try json(nodes[0])
         }
     }
 
     static let activate = MCPTool(
         name: "peek_activate",
-        description: "Bring an app to the foreground and raise its window."
+        description: "Bring an app to the foreground and raise its window. Rarely needed — most commands (peek_tree, peek_find, peek_action, peek_watch, peek_menu) auto-activate apps."
     ) { (args: WindowArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let result = try InteractionManager.activate(pid: pid, windowID: windowID)
@@ -278,7 +300,7 @@ enum PeekTools {
 
     static let capture = MCPTool(
         name: "peek_capture",
-        description: "Capture a screenshot of a window to a PNG file."
+        description: "Capture a screenshot of a window to a PNG file. For manual crop, provide x/y/width/height in window-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates (from peek_tree/peek_find)."
     ) { (args: CaptureArgs) in
         let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let path = args.output ?? "window_\(windowID).png"
@@ -312,7 +334,7 @@ enum PeekTools {
 
     static let watch = MCPTool(
         name: "peek_watch",
-        description: "Detect UI changes in a window. Takes two accessibility snapshots separated by a delay and returns what was added, removed, or changed. Use this to monitor the effect of an action (e.g. build status after triggering a build, UI updates after a click)."
+        description: "Monitor async/delayed UI changes by taking two accessibility snapshots separated by a delay (default: 3s) and returning what was added, removed, or changed. Best for: waiting on loading spinners, build progress, animations, or other changes that happen over time. NOT for verifying immediate results of peek_action — use peek_action with resultTree=true or peek_tree instead."
     ) { (args: WatchArgs) in
         let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let delay = args.delay ?? 3.0

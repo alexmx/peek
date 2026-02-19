@@ -28,6 +28,15 @@ struct ActionCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Perform the action on all matching elements (default: first match only)")
     var all: Bool = false
 
+    @Flag(name: .long, help: "Also return the accessibility tree after performing the action")
+    var resultTree: Bool = false
+
+    @Option(name: .long, help: "Tree depth limit when --result-tree is used")
+    var depth: Int?
+
+    @Option(name: .long, help: "Seconds to wait before capturing the tree (default: 1)")
+    var delay: Double?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -39,50 +48,47 @@ struct ActionCommand: AsyncParsableCommand {
 
     func run() async throws {
         let resolved = try await target.resolve()
-
         let action = self.do
 
-        if all {
-            let nodes = try InteractionManager.performActionOnAll(
-                pid: resolved.pid,
-                windowID: resolved.windowID,
-                action: action,
-                role: role,
-                title: title,
-                value: value,
-                description: desc
+        let nodes: [AXNode] = if all {
+            try InteractionManager.performActionOnAll(
+                pid: resolved.pid, windowID: resolved.windowID, action: action,
+                role: role, title: title, value: value, description: desc
             )
+        } else {
+            try [InteractionManager.performAction(
+                pid: resolved.pid, windowID: resolved.windowID, action: action,
+                role: role, title: title, value: value, description: desc
+            )]
+        }
 
+        if resultTree {
+            let settleDelay = delay ?? 1.0
+            usleep(UInt32(settleDelay * 1_000_000))
+            let treeNode = try AccessibilityManager.inspect(
+                pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
+            )
             switch format {
-            case .json:
-                try printJSON(nodes)
-            case .toon:
-                try printTOON(nodes)
+            case .json: try printJSON(ActionTreeResult(action: nodes, resultTree: treeNode))
+            case .toon: try printTOON(ActionTreeResult(action: nodes, resultTree: treeNode))
             case .default:
                 for node in nodes {
                     print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
                 }
-                print("\(nodes.count) element(s) affected.")
             }
-        } else {
-            let node = try InteractionManager.performAction(
-                pid: resolved.pid,
-                windowID: resolved.windowID,
-                action: action,
-                role: role,
-                title: title,
-                value: value,
-                description: desc
-            )
+            return
+        }
 
-            switch format {
-            case .json:
-                try printJSON(node)
-            case .toon:
-                try printTOON(node)
-            case .default:
+        switch format {
+        case .json:
+            if all { try printJSON(nodes) } else { try printJSON(nodes[0]) }
+        case .toon:
+            if all { try printTOON(nodes) } else { try printTOON(nodes[0]) }
+        case .default:
+            for node in nodes {
                 print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
             }
+            if all { print("\(nodes.count) element(s) affected.") }
         }
     }
 }

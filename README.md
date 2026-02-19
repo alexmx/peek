@@ -119,7 +119,7 @@ peek click --app Simulator --x 100 --y 200
 
 ```bash
 # Press a button
-peek action --app Xcode --role Button --title "Build" --do Press --format toon
+peek action --app Xcode --role Button --desc "Build" --do Press --format toon
 ```
 ```yaml
 role: Button
@@ -174,7 +174,7 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 | Command | Description | Key Options | Example |
 |---------|-------------|-------------|---------|
 | `tree` | Display the accessibility tree of a window | `--app <name>` Target app<br>`--depth <n>` Max tree depth<br>`--format` Output format | `peek tree --app Xcode --depth 5` |
-| `find` | Search for UI elements by attributes or coordinates | `--role <role>` Filter by role<br>`--title <text>` Filter by title<br>`--x <x> --y <y>` Hit-test at coordinates | `peek find --app Xcode --role Button --title "Run"` |
+| `find` | Search for UI elements by attributes or coordinates | `--role <role>` Filter by role<br>`--desc <text>` Filter by description<br>`--x <x> --y <y>` Hit-test at coordinates | `peek find --app Xcode --role Button --desc "Run"` |
 | `menu` | Inspect or interact with application menu bars | `--find <query>` Search menu items<br>`--click <item>` Click a menu item | `peek menu --app Xcode --find "Build"` |
 
 ### Interaction
@@ -183,7 +183,7 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 |---------|-------------|-------------|---------|
 | `click` | Click at screen coordinates | `--x <x> --y <y>` Coordinates (required)<br>`--app <name>` Auto-activate app | `peek click --app Simulator --x 500 --y 300` |
 | `type` | Type text via keyboard events | `--text <text>` Text to type (required)<br>`--app <name>` Auto-activate app | `peek type --app Simulator --text "test@example.com"` |
-| `action` | Perform accessibility actions on UI elements | `--do <action>` Action: Press, Confirm, etc.<br>`--role <role>` Filter by role<br>`--all` Act on all matches | `peek action --app Xcode --role Button --title "Run" --do Press` |
+| `action` | Perform accessibility actions on UI elements | `--do <action>` Action: Press, Confirm, etc.<br>`--role <role>` Filter by role<br>`--all` Act on all matches<br>`--result-tree` Return post-action tree<br>`--depth <n>` Tree depth (with result-tree)<br>`--delay <sec>` Wait before tree (default: 1) | `peek action --app Xcode --role Button --desc "Run" --do Press` |
 | `activate` | Bring an application window to the foreground | `--app <name>` Target app<br>`--pid <pid>` Target by PID | `peek activate --app Xcode` |
 
 ### Monitoring

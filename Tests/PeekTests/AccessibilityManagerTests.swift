@@ -60,7 +60,7 @@ struct AccessibilityManagerTests {
                 enabled: true,
                 frame: AXNode.FrameInfo(x: 100, y: 50, width: 200, height: 25),
                 children: []
-            ),
+            )
         ]
     )
 
@@ -97,7 +97,7 @@ struct AccessibilityManagerTests {
                         enabled: true,
                         frame: AXNode.FrameInfo(x: 60, y: 10, width: 40, height: 30),
                         children: []
-                    ),
+                    )
                 ]
             ),
             AXNode(
@@ -116,9 +116,9 @@ struct AccessibilityManagerTests {
                         enabled: true,
                         frame: AXNode.FrameInfo(x: 20, y: 70, width: 960, height: 700),
                         children: []
-                    ),
+                    )
                 ]
-            ),
+            )
         ]
     )
 
@@ -146,9 +146,9 @@ struct AccessibilityManagerTests {
                         enabled: true,
                         frame: AXNode.FrameInfo(x: 100, y: 100, width: 100, height: 50),
                         children: []
-                    ),
+                    )
                 ]
-            ),
+            )
         ]
     )
 
@@ -250,7 +250,7 @@ struct AccessibilityManagerTests {
     @Test("matches - accumulates in results array")
     func matchesAccumulates() {
         var results: [AXNode] = [
-            AXNode(role: "Existing", title: nil, value: nil, description: nil, enabled: true, frame: nil, children: []),
+            AXNode(role: "Existing", title: nil, value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
         searchNodes(simpleTree, role: "Button", title: nil, value: nil, description: nil, results: &results)
         #expect(results.count == 3) // 1 existing + 2 buttons
