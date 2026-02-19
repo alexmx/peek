@@ -239,7 +239,7 @@ All Peek commands are exposed as MCP tools with the `peek_` prefix:
 - `peek_click`, `peek_scroll`, `peek_type`, `peek_action`, `peek_activate`
 - `peek_watch`, `peek_capture`, `peek_doctor`
 
-MCP tools return JSON format by default (as required by the MCP protocol). For token-optimized output, use the CLI with `--format toon`.
+MCP tools return JSON format by default. `peek_capture` returns the screenshot image inline when no output path is specified. For token-optimized output, use the CLI with `--format toon`.
 
 ### AI Agent Skill
 

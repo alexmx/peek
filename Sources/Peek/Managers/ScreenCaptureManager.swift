@@ -43,6 +43,37 @@ enum ScreenCaptureManager {
         return CaptureResult(path: outputPath, width: image.width, height: image.height)
     }
 
+    /// Capture a window and return the PNG data in memory (no file written).
+    static func capturePNGData(windowID: CGWindowID, crop: CGRect? = nil) async throws -> (data: Data, width: Int, height: Int) {
+        try PermissionManager.requireScreenCapture()
+
+        guard var image = captureWindowImage(windowID) else {
+            throw PeekError.captureFailed
+        }
+
+        if let crop {
+            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+            guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
+                throw PeekError.windowNotFound(windowID)
+            }
+            let scaleX = CGFloat(image.width) / scWindow.frame.width
+            let scaleY = CGFloat(image.height) / scWindow.frame.height
+            let scaledRect = CGRect(
+                x: crop.origin.x * scaleX,
+                y: crop.origin.y * scaleY,
+                width: crop.size.width * scaleX,
+                height: crop.size.height * scaleY
+            )
+            guard let cropped = image.cropping(to: scaledRect) else {
+                throw PeekError.invalidCropRegion
+            }
+            image = cropped
+        }
+
+        let data = try encodePNG(image)
+        return (data, image.width, image.height)
+    }
+
     /// CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime.
     /// ScreenCaptureKit (SCScreenshotManager/SCStream) requires a RunLoop and hangs in CLI tools.
     @_silgen_name("CGWindowListCreateImage")
@@ -60,6 +91,23 @@ enum ScreenCaptureManager {
             windowID,
             [.boundsIgnoreFraming, .bestResolution]
         )
+    }
+
+    private static func encodePNG(_ image: CGImage) throws -> Data {
+        let mutableData = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(
+            mutableData as CFMutableData,
+            UTType.png.identifier as CFString,
+            1,
+            nil
+        ) else {
+            throw PeekError.captureFailed
+        }
+        CGImageDestinationAddImage(destination, image, nil)
+        guard CGImageDestinationFinalize(destination) else {
+            throw PeekError.captureFailed
+        }
+        return mutableData as Data
     }
 
     private static func writePNG(_ image: CGImage, to path: String) throws {

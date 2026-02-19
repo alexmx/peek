@@ -159,7 +159,7 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty("Output file path (default: window_<id>.png)")
+        @InputProperty("Output file path. If omitted, the image is returned inline")
         var output: String?
         @InputProperty(
             "Crop region X offset in window-relative pixels (subtract window frame x from screen coordinate)"
@@ -337,18 +337,23 @@ enum PeekTools {
 
     static let capture = MCPTool(
         name: "peek_capture",
-        description: "Capture a screenshot of a window to a PNG file. For manual crop, provide x/y/width/height in window-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates (from peek_tree/peek_find)."
+        description: "Capture a screenshot of a window. Returns the image inline unless an output path is specified. For manual crop, provide x/y/width/height in window-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates (from peek_tree/peek_find)."
     ) { (args: CaptureArgs) in
         let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        let path = args.output ?? "window_\(windowID).png"
         let crop: CGRect? = if let x = args.x, let y = args.y,
                                let w = args.width, let h = args.height {
             CGRect(x: x, y: y, width: w, height: h)
         } else {
             nil
         }
-        let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
-        return try json(result)
+
+        if let path = args.output {
+            let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
+            return try json(result)
+        } else {
+            let (data, _, _) = try await ScreenCaptureManager.capturePNGData(windowID: windowID, crop: crop)
+            return .content([.image(data: data, mimeType: "image/png")])
+        }
     }
 
     static let menu = MCPTool(

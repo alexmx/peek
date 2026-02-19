@@ -9,7 +9,7 @@ struct CaptureCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .shortAndLong, help: "Output file path (default: window_<id>.png)")
+    @Option(name: .shortAndLong, help: "Output file path (default: /tmp/peek/window_<id>.png)")
     var output: String?
 
     @Option(name: .long, help: "Crop region X offset (window-relative pixels)")
@@ -37,7 +37,14 @@ struct CaptureCommand: AsyncParsableCommand {
 
     func run() async throws {
         let resolved = try await target.resolve()
-        let path = output ?? "window_\(resolved.windowID).png"
+        let path: String
+        if let output {
+            path = output
+        } else {
+            let dir = "/tmp/peek"
+            try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            path = "\(dir)/window_\(resolved.windowID).png"
+        }
         let crop: CGRect? = if let x, let y, let width, let height {
             CGRect(x: x, y: y, width: width, height: height)
         } else {
