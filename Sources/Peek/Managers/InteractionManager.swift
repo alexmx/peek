@@ -52,6 +52,76 @@ enum InteractionManager {
         mouseUp?.post(tap: .cghidEventTap)
     }
 
+    /// Drag from one point to another (simulates a touch swipe in apps like iOS Simulator).
+    static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
+        let start = CGPoint(x: fromX, y: fromY)
+        let end = CGPoint(x: toX, y: toY)
+
+        let mouseDown = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseDown,
+            mouseCursorPosition: start,
+            mouseButton: .left
+        )
+        mouseDown?.post(tap: .cghidEventTap)
+        usleep(50000)
+
+        // Interpolate in small steps for a smooth drag
+        let steps = 20
+        for i in 1...steps {
+            let t = Double(i) / Double(steps)
+            let x = fromX + (toX - fromX) * t
+            let y = fromY + (toY - fromY) * t
+            let point = CGPoint(x: x, y: y)
+            let drag = CGEvent(
+                mouseEventSource: nil,
+                mouseType: .leftMouseDragged,
+                mouseCursorPosition: point,
+                mouseButton: .left
+            )
+            drag?.post(tap: .cghidEventTap)
+            usleep(10000) // 10ms between steps
+        }
+
+        let mouseUp = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .leftMouseUp,
+            mouseCursorPosition: end,
+            mouseButton: .left
+        )
+        mouseUp?.post(tap: .cghidEventTap)
+    }
+
+    /// Scroll at screen coordinates.
+    /// deltaY: positive = scroll down (content moves up), negative = scroll up.
+    /// deltaX: positive = scroll right (content moves left), negative = scroll left.
+    static func scroll(x: Double, y: Double, deltaX: Int32, deltaY: Int32) {
+        let point = CGPoint(x: x, y: y)
+
+        // Move cursor to target so scroll event reaches the correct view
+        let move = CGEvent(
+            mouseEventSource: nil,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        )
+        move?.post(tap: .cghidEventTap)
+        usleep(50000)
+
+        // CGEvent: positive wheel1 = scroll up, so negate for our convention (positive = down)
+        // Mark as continuous (trackpad-style) for broader app compatibility
+        let event = CGEvent(
+            scrollWheelEvent2Source: nil,
+            units: .pixel,
+            wheelCount: 2,
+            wheel1: -deltaY,
+            wheel2: -deltaX,
+            wheel3: 0
+        )
+        event?.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        event?.post(tap: .cghidEventTap)
+    }
+
     /// Type a string by posting key events for each character.
     static func type(text: String) {
         for char in text {

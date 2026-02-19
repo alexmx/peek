@@ -92,6 +92,25 @@ enum PeekTools {
         var y: Int
     }
 
+    struct ScrollArgs: MCPToolInput {
+        @InputProperty("Window ID (from peek_apps)")
+        var window_id: Int?
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty("X coordinate")
+        var x: Int
+        @InputProperty("Y coordinate")
+        var y: Int
+        @InputProperty("Vertical scroll amount in pixels. Positive = scroll DOWN (reveal content below), negative = scroll UP")
+        var deltaY: Int
+        @InputProperty("Horizontal scroll amount in pixels. Positive = scroll RIGHT (reveal content to the right), negative = scroll LEFT")
+        var deltaX: Int?
+        @InputProperty("Use drag gesture instead of scroll wheel (required for touch-based apps like iOS Simulator)")
+        var drag: Bool?
+    }
+
     struct TypeArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -190,7 +209,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, type, action, activate, capture, menu, watch, doctor]
+        [apps, tree, find, click, scroll, type, action, activate, capture, menu, watch, doctor]
     }
 
     static let apps = MCPTool(
@@ -244,6 +263,24 @@ enum PeekTools {
         try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
         InteractionManager.click(x: Double(args.x), y: Double(args.y))
         return try json(["x": args.x, "y": args.y])
+    }
+
+    static let scroll = MCPTool(
+        name: "peek_scroll",
+        description: "Scroll at screen coordinates. deltaY: use POSITIVE values to scroll DOWN (reveal content below), NEGATIVE to scroll UP. deltaX: positive = right, negative = left. Set drag=true for touch-based apps like iOS Simulator (uses drag gesture instead of scroll wheel). Always provide app/pid/window_id to auto-activate the target app."
+    ) { (args: ScrollArgs) in
+        try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
+        let dx = Int32(args.deltaX ?? 0)
+        let dy = Int32(args.deltaY)
+        if args.drag ?? false {
+            InteractionManager.drag(
+                fromX: Double(args.x), fromY: Double(args.y),
+                toX: Double(args.x - Int(dx)), toY: Double(args.y - Int(dy))
+            )
+        } else {
+            InteractionManager.scroll(x: Double(args.x), y: Double(args.y), deltaX: dx, deltaY: dy)
+        }
+        return try json(["x": args.x, "y": args.y, "deltaX": Int(dx), "deltaY": Int(dy)])
     }
 
     static let type = MCPTool(

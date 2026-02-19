@@ -182,6 +182,7 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 | Command | Description | Key Options | Example |
 |---------|-------------|-------------|---------|
 | `click` | Click at screen coordinates | `--x <x> --y <y>` Coordinates (required)<br>`--app <name>` Auto-activate app | `peek click --app Simulator --x 500 --y 300` |
+| `scroll` | Scroll at screen coordinates | `--x <x> --y <y>` Coordinates (required)<br>`--delta-y <px>` Vertical scroll (required)<br>`--delta-x <px>` Horizontal scroll<br>`--drag` Drag gesture for touch apps | `peek scroll --app Simulator --x 200 --y 500 --delta-y 300 --drag` |
 | `type` | Type text via keyboard events | `--text <text>` Text to type (required)<br>`--app <name>` Auto-activate app | `peek type --app Simulator --text "test@example.com"` |
 | `action` | Perform accessibility actions on UI elements | `--do <action>` Action: Press, Confirm, etc.<br>`--role <role>` Filter by role<br>`--all` Act on all matches<br>`--result-tree` Return post-action tree<br>`--depth <n>` Tree depth (with result-tree)<br>`--delay <sec>` Wait before tree (default: 1) | `peek action --app Xcode --role Button --desc "Run" --do Press` |
 | `activate` | Bring an application window to the foreground | `--app <name>` Target app<br>`--pid <pid>` Target by PID | `peek activate --app Xcode` |
@@ -235,7 +236,7 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 
 All Peek commands are exposed as MCP tools with the `peek_` prefix:
 - `peek_apps`, `peek_tree`, `peek_find`, `peek_menu`
-- `peek_click`, `peek_type`, `peek_action`, `peek_activate`
+- `peek_click`, `peek_scroll`, `peek_type`, `peek_action`, `peek_activate`
 - `peek_watch`, `peek_capture`, `peek_doctor`
 
 MCP tools return JSON format by default (as required by the MCP protocol). For token-optimized output, use the CLI with `--format toon`.

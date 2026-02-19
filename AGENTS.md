@@ -73,6 +73,7 @@ All commands support `--format json` for JSON output (default: text). Most comma
 
 ### Interaction
 - **click** — Click at `--x`/`--y` screen coordinates.
+- **scroll** — Scroll at `--x`/`--y` screen coordinates with `--delta-y` (required) and `--delta-x` (optional). `--drag` for touch-based apps like iOS Simulator.
 - **type** — Type `--text` via keyboard events.
 - **action** — Perform an AX action (`--do Press|Confirm|Cancel|ShowMenu`) on elements matched by `--role`/`--title`/`--value`/`--desc`. `--all` for all matches. `--result-tree` to also return the post-action accessibility tree (with `--depth` and `--delay` options).
 - **activate** — Bring app to foreground.

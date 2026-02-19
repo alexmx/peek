@@ -233,6 +233,23 @@ Clicked at (276, 50)
 ```
 
 
+### `peek scroll` — Scroll at screen coordinates
+
+Scroll using scroll wheel events (works on native macOS apps). Use `--drag` for touch-based apps like iOS Simulator, which simulates a finger swipe instead. Accepts optional `--app`/`--pid` to auto-activate the target app.
+
+`--delta-y`: use **positive** values to scroll **DOWN** (reveal content below), **negative** to scroll **UP**.
+
+```bash
+# Scroll down in a native macOS app
+$ peek scroll --app Safari --x 756 --y 500 --delta-y 300
+Scrolled at (756, 500) by dx=0, dy=300
+
+# Scroll down in iOS Simulator (requires --drag)
+$ peek scroll --app Simulator --x 200 --y 500 --delta-y 300 --drag
+Scrolled at (200, 500) by dx=0, dy=300
+```
+
+
 ### `peek type` — Type text via keyboard events
 
 Types text via keyboard events into the focused element. Focus a text field first with `peek click` or `peek action`. Accepts optional `--app`/`--pid` to auto-activate the target app before typing.
