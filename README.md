@@ -30,6 +30,12 @@ To update:
 brew upgrade alexmx/tools/peek
 ```
 
+### Mise
+
+```bash
+mise use --global github:alexmx/peek
+```
+
 ## Requirements
 
 - macOS 15.0 or later
