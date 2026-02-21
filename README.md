@@ -23,7 +23,7 @@ A macOS CLI tool and MCP server for inspecting and automating native application
 
 ```bash
 brew tap alexmx/tools
-brew install peek
+brew install alexmx/tools/peek
 ```
 
 ## Requirements
