@@ -22,8 +22,12 @@ A macOS CLI tool and MCP server for inspecting and automating native application
 ### Homebrew
 
 ```bash
-brew tap alexmx/tools
 brew install alexmx/tools/peek
+```
+
+To update:
+```bash
+brew upgrade alexmx/tools/peek
 ```
 
 ## Requirements
