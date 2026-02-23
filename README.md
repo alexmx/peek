@@ -225,9 +225,17 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 
 ### Setup
 
-1. Install Peek via Homebrew
-2. Run `peek mcp --setup` for configuration instructions
-3. If your AI agent is not listed, configure manually:
+#### Claude Code (plugin)
+
+```bash
+/plugin marketplace add alexmx/claude-tools
+/plugin install peek@alexmx-tools
+```
+
+#### Other agents
+
+1. Run `peek mcp --setup` for configuration instructions
+2. If your AI agent is not listed, configure manually:
 
 ```json
 {
@@ -240,7 +248,7 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 }
 ```
 
-4. Restart your MCP client
+3. Restart your MCP client
 
 ### Available Tools
 
