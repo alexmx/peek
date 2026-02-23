@@ -1,0 +1,6 @@
+{
+  "peek": {
+    "command": "peek",
+    "args": ["mcp"]
+  }
+}
