@@ -1,6 +1,8 @@
 {
-  "peek": {
-    "command": "peek",
-    "args": ["mcp"]
+  "mcpServers": {
+    "peek": {
+      "command": "peek",
+      "args": ["mcp"]
+    }
   }
 }
