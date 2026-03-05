@@ -225,15 +225,6 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 
 ### Setup
 
-#### Claude Code (plugin)
-
-```bash
-/plugin marketplace add alexmx/claude-tools
-/plugin install peek@alexmx-tools
-```
-
-#### Other agents
-
 1. Run `peek mcp --setup` for configuration instructions
 2. If your AI agent is not listed, configure manually:
 
@@ -249,6 +240,12 @@ Peek can run as an MCP server, making all commands available to AI agents for au
 ```
 
 3. Restart your MCP client
+
+Alternatively, install the [peek skill](skills/peek/SKILL.md) with [Skillman](https://github.com/alexmx/skillman) if you don't need the MCP server and prefer to use the CLI for your AI agent:
+
+```bash
+skillman install github.com/alexmx/peek
+```
 
 ### Available Tools
 
