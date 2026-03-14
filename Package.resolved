@@ -1,5 +1,5 @@
 {
-  "originHash" : "23949ae60f320eb4ad04ddff65f327f7dc063af0298f6d65cadecc9ad4698072",
+  "originHash" : "4941b74af8650bcbeecd1d2c42f54cca02272ba0a4e7a146ac57b1eecd2c7e4e",
   "pins" : [
     {
       "identity" : "swift-argument-parser",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/alexmx/swift-cli-mcp.git",
       "state" : {
-        "revision" : "110979832ccce84dadb7488193cd389f129becb1",
-        "version" : "1.0.1"
+        "revision" : "a8ed43ae006577382c2b9e70a8df1a53ec946e2f",
+        "version" : "1.1.0"
       }
     },
     {
