@@ -231,6 +231,27 @@ enum PeekTools {
         var find: String?
     }
 
+    struct WaitArgs: MCPToolInput {
+        @InputProperty("Window ID (from peek_apps)")
+        var window_id: Int?
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty("Filter by role (exact match, e.g. Button)")
+        var role: String?
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring.")
+        var title: String?
+        @InputProperty("Filter by value (case-insensitive substring)")
+        var value: String?
+        @InputProperty("Strict description-only filter (case-insensitive substring).")
+        var desc: String?
+        @InputProperty("Maximum seconds to wait before failing (default: 30)")
+        var timeout: Double?
+        @InputProperty("Seconds between AX polls (default: 0.5)")
+        var poll: Double?
+    }
+
     struct WatchArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -250,7 +271,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, scroll, type, action, activate, capture, menu, watch, doctor]
+        [apps, tree, find, click, scroll, type, action, activate, capture, menu, watch, wait, doctor]
     }
 
     static let apps = MCPTool(
@@ -459,6 +480,30 @@ enum PeekTools {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
             return try json(diff)
+        }
+    }
+
+    static let wait = MCPTool(
+        name: "peek_wait",
+        description: "Poll for a UI element to appear, returning as soon as it matches. Use this instead of peek_watch when you're waiting on a known element (e.g. a 'Done' button after a save, a dialog to open) rather than diffing arbitrary changes. Same filter shape as peek_find: role/title/desc/value. Errors with timeout if the element doesn't appear within the budget."
+    ) { (args: WaitArgs) in
+        let timeout = args.timeout ?? 30.0
+        let poll = max(args.poll ?? 0.5, 0.1)
+        return try await withTimeout("peek_wait", seconds: timeout + defaultTimeout) {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                let results = try AccessibilityManager.find(
+                    pid: pid, windowID: windowID,
+                    role: args.role, title: args.title,
+                    value: args.value, description: args.desc
+                )
+                if let first = results.first {
+                    return try json(first)
+                }
+                try await Task.sleep(nanoseconds: UInt64(poll * 1_000_000_000))
+            }
+            throw PeekError.timeout("peek_wait", timeout)
         }
     }
 
