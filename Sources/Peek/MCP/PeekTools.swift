@@ -363,7 +363,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title/desc. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click."
+        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title (matches AXTitle OR AXDescription) or value. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click. Best uses: pre-read state to learn what's currently visible (button labels, display values, dialog presence) before peek_wait, peek_click, or peek_action — that way you target labels you've confirmed exist."
     ) { (args: FindArgs) in
         try await withTimeout("peek_find") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -385,7 +385,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (e.g. on images or canvas areas). For UI elements like buttons, use peek_action instead. Always provide app/pid/window_id to auto-activate the target app."
+        description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (images, canvas areas) — for UI elements with labels, use peek_action instead, which finds the element and clicks it in one step. Always provide app/pid/window_id to auto-activate the target. Re-read element/window frames via peek_find or peek_apps when a recent peek_activate, peek_action ShowMenu, or menu click could have shifted them — windows commonly move on activation."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -416,7 +416,7 @@ enum PeekTools {
 
     static let type = MCPTool(
         name: "peek_type",
-        description: "Type text via keyboard events into the focused element. Always provide app/pid/window_id to auto-activate the target app. Focus a text field first with peek_click or peek_action."
+        description: "Type text via keyboard events to the focused element. Many apps accept typed input directly when their main view is focused — prefer one peek_type call over many peek_action Press calls for any digit/operator/character sequence. If keystrokes need to land in a specific text field, focus it first with peek_click or peek_action; for apps with a global key handler (calculators, games, single-document editors) just call peek_type directly. Passing app/pid/window_id auto-activates the target, so a separate peek_activate is not needed."
     ) { (args: TypeArgs) in
         // Generous budget — `type` posts a key event per character with 10ms gaps.
         try await withTimeout("peek_type", seconds: max(defaultTimeout, Double(args.text.count) * 0.05 + 5)) {
@@ -428,7 +428,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items — works without activating the app), Confirm (text fields), ShowMenu (popups — auto-activates the app), Increment/Decrement (sliders). Set resultTree=true to also return the post-action accessibility tree (saves a separate peek_tree call)."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items — works without activating the app), Confirm (text fields), ShowMenu (popups — auto-activates the app), Increment/Decrement (sliders). Prefer resultTree=true when you need to verify the outcome — it captures the post-action accessibility tree (after `delay`, default 1s) and usually eliminates a follow-up peek_find. Caveat: apps that lazy-paint values (computed displays, debounced renders) may still need a follow-up peek_find for the specific value — bump `delay` or fall back when the tree comes back missing the field you care about. Use plain peek_action when you don't need to inspect the result."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 1.0
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
@@ -475,7 +475,7 @@ enum PeekTools {
 
     static let capture = MCPTool(
         name: "peek_capture",
-        description: "Capture a screenshot of a window. Returns the image inline unless an output path is specified. For manual crop, provide x/y/width/height in window-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates (from peek_tree/peek_find)."
+        description: "Capture a screenshot of a window. Returns the image inline unless an output path is specified. For manual crop, provide x/y/width/height in WINDOW-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates returned by peek_tree/peek_find. If capture fails, run peek_doctor: Screen Recording permission is tied to the binary signature and can be revoked after rebuilds even when System Settings shows it as granted."
     ) { (args: CaptureArgs) in
         try await withTimeout("peek_capture") {
             let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -498,7 +498,7 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Interact with an app's menu bar. 'find' and the no-argument tree read are read-only and do NOT steal focus. 'click' triggers a menu item and will activate the target app first because menus must be visible to execute. Avoid calling without find/click — the full menu tree can be very large."
+        description: "Interact with an app's menu bar. 'find' and the no-argument tree read are read-only and do NOT steal focus. 'find' returns each match with its full path (e.g. 'Edit > Copy') — use it when you're unsure the item exists or need its exact label. If you already know the leaf title (common items like 'Copy', 'Paste', 'Save', 'Quit'), skip find and call click directly. 'click' triggers a menu item and activates the target app first because menus must be visible to execute. Works on apps with no open windows (menus are per-app). Avoid calling with no args — the full menu tree can be very large."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
             // The menu bar is per-app, not per-window — resolving a window would
@@ -524,7 +524,7 @@ enum PeekTools {
 
     static let watch = MCPTool(
         name: "peek_watch",
-        description: "Monitor async/delayed UI changes by taking two accessibility snapshots separated by a delay (default: 3s) and returning what was added, removed, or changed. Best for: waiting on loading spinners, build progress, animations, or other changes that happen over time. NOT for verifying immediate results of peek_action — use peek_action with resultTree=true or peek_tree instead."
+        description: "Monitor async/delayed UI changes by taking two accessibility snapshots separated by a delay (default: 3s) and reporting what was added, removed, or changed. Use this ONLY for changes you don't trigger yourself — loading spinners, network loads, build progress, animations that play out on their own. For changes you trigger via peek_action, peek_menu --click, or peek_type, peek_action resultTree=true is simpler, atomic, and avoids the parallel-call problem this tool's snapshot model would otherwise create."
     ) { (args: WatchArgs) in
         let delay = args.delay ?? 3.0
         // Watch's delay is part of normal operation — budget around it.
@@ -537,7 +537,7 @@ enum PeekTools {
 
     static let launch = MCPTool(
         name: "peek_launch",
-        description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — the call will return only after the app has at least one AX-visible window (or 10s have elapsed). Prefer bundle_id when known."
+        description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — returns once an AX-visible window appears, errors on 10s timeout. Prefer bundle_id when known. Note: many apps persist view mode, expression, or document state across runs — peek_quit + peek_launch may not reset that. Plan an explicit reset (clear button, mode menu, fresh document) when you need a known starting state."
     ) { (args: LaunchArgs) in
         try await withTimeout("peek_launch", seconds: 15) {
             let url = try AppLifecycleManager.resolveAppURL(
@@ -567,7 +567,7 @@ enum PeekTools {
 
     static let wait = MCPTool(
         name: "peek_wait",
-        description: "Poll for a UI element to appear, returning as soon as it matches. Use this instead of peek_watch when you're waiting on a known element (e.g. a 'Done' button after a save, a dialog to open) rather than diffing arbitrary changes. Same filter shape as peek_find: role/title/desc/value. Errors with timeout if the element doesn't appear within the budget."
+        description: "Poll for a UI element to appear, returning as soon as it matches. Use this instead of peek_watch when you're waiting on a known element (a 'Done' button after a save, a dialog to open) rather than diffing arbitrary changes. Same filter shape as peek_find. Pre-read state with peek_find first to confirm the label/role you're going to wait for actually appears in this app's UI — waiting on a label that never shows burns the full timeout. Errors with timeout on miss."
     ) { (args: WaitArgs) in
         let timeout = args.timeout ?? 30.0
         let poll = max(args.poll ?? 0.5, 0.1)
