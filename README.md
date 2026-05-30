@@ -151,22 +151,30 @@ peek capture --app Simulator --output simulator.png
 peek capture --app Xcode --output toolbar.png --x 0 --y 0 --width 400 --height 50
 ```
 
-### Monitor UI changes
+### Act and verify in one call
 
 ```bash
-# Watch for changes (3 second delay between snapshots)
-peek watch --app Xcode --snapshot --delay 3 --format toon
+# Press a button and see only what changed in the UI
+peek action --app Xcode --role Button --desc "Run" --do Press --verify diff --format toon
 ```
 ```yaml
-changed[1]:
-  - role: StaticText
-    before:
-      value: Build Succeeded
-    after:
-      value: Indexing
-    frame:
-      x: 608
-      y: 47
+action[1]:
+  - role: Button
+    desc: Run
+diff:
+  changed[1]:
+    - role: StaticText
+      before:
+        value: Build Succeeded
+      after:
+        value: Indexing
+```
+
+### Launch and quit applications
+
+```bash
+peek launch --bundle-id com.apple.calculator --wait-for-window
+peek quit --bundle-id com.apple.calculator
 ```
 
 ## Command Reference
@@ -184,8 +192,8 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 | Command | Description | Key Options | Example |
 |---------|-------------|-------------|---------|
 | `tree` | Display the accessibility tree of a window | `--app <name>` Target app<br>`--depth <n>` Max tree depth<br>`--format` Output format | `peek tree --app Xcode --depth 5` |
-| `find` | Search for UI elements by attributes or coordinates | `--role <role>` Filter by role<br>`--desc <text>` Filter by description<br>`--x <x> --y <y>` Hit-test at coordinates | `peek find --app Xcode --role Button --desc "Run"` |
-| `menu` | Inspect or interact with application menu bars | `--find <query>` Search menu items<br>`--click <item>` Click a menu item | `peek menu --app Xcode --find "Build"` |
+| `find` | Search for UI elements by attributes or coordinates | `--role <role>` Filter by role<br>`--title <text>` Match AXTitle OR AXDescription<br>`--desc <text>` Strict description filter<br>`--enabled true\|false` Filter by enabled state<br>`--x <x> --y <y>` Hit-test at coordinates | `peek find --app Xcode --role Button --enabled false` |
+| `menu` | Inspect or interact with application menu bars | `--find <query>` Search menu items<br>`--path <path>` Scope to a submenu (e.g. `Debug` or `Edit > Find`)<br>`--click <item>` Click a menu item | `peek menu --app Xcode --path Debug` |
 
 ### Interaction
 
@@ -194,14 +202,20 @@ All commands support `--format` for structured output: `json` (standard JSON) or
 | `click` | Click at screen coordinates | `--x <x> --y <y>` Coordinates (required)<br>`--app <name>` Auto-activate app | `peek click --app Simulator --x 500 --y 300` |
 | `scroll` | Scroll at screen coordinates | `--x <x> --y <y>` Coordinates (required)<br>`--delta-y <px>` Vertical scroll (required)<br>`--delta-x <px>` Horizontal scroll<br>`--drag` Drag gesture for touch apps | `peek scroll --app Simulator --x 200 --y 500 --delta-y 300 --drag` |
 | `type` | Type text via keyboard events | `--text <text>` Text to type (required)<br>`--app <name>` Auto-activate app | `peek type --app Simulator --text "test@example.com"` |
-| `action` | Perform accessibility actions on UI elements | `--do <action>` Action: Press, Confirm, etc.<br>`--role <role>` Filter by role<br>`--all` Act on all matches<br>`--result-tree` Return post-action tree<br>`--depth <n>` Tree depth (with result-tree)<br>`--delay <sec>` Wait before tree (default: 1) | `peek action --app Xcode --role Button --desc "Run" --do Press` |
+| `action` | Perform accessibility actions on UI elements | `--do <action>` Action: Press, Confirm, etc.<br>`--role <role>` Filter by role<br>`--all` Act on all matches<br>`--verify <none\|tree\|diff>` Post-action verification (default: none)<br>`--depth <n>` Tree depth (with `--verify`)<br>`--delay <sec>` Wait before snapshot (default: 1) | `peek action --app Xcode --role Button --desc "Run" --do Press --verify diff` |
 | `activate` | Bring an application window to the foreground | `--app <name>` Target app<br>`--pid <pid>` Target by PID | `peek activate --app Xcode` |
+
+### Lifecycle
+
+| Command | Description | Key Options | Example |
+|---------|-------------|-------------|---------|
+| `launch` | Launch a macOS application | `--bundle-id <id>` Bundle identifier (preferred)<br>`--name <name>` App display name<br>`--path <path>` Absolute `.app` path<br>`--wait-for-window` Block until a window appears (10s) | `peek launch --bundle-id com.apple.calculator --wait-for-window` |
+| `quit` | Terminate a running app | `--pid <pid>` Process ID<br>`--bundle-id <id>` Bundle identifier<br>`--name <name>` App name<br>`--force` Use forceTerminate | `peek quit --bundle-id com.apple.calculator` |
 
 ### Monitoring
 
 | Command | Description | Key Options | Example |
 |---------|-------------|-------------|---------|
-| `watch` | Monitor UI changes in a window | `--snapshot` Compare snapshots<br>`--delay <sec>` Wait time (default: 3) | `peek watch --app Xcode --snapshot --delay 5` |
 | `capture` | Capture a window screenshot | `--output <path>` Output file<br>`--x --y --width --height` Crop region | `peek capture --app Simulator --output screenshot.png` |
 
 ### System
@@ -252,9 +266,10 @@ skillman install github.com/alexmx/peek
 All Peek commands are exposed as MCP tools with the `peek_` prefix:
 - `peek_apps`, `peek_tree`, `peek_find`, `peek_menu`
 - `peek_click`, `peek_scroll`, `peek_type`, `peek_action`, `peek_activate`
-- `peek_watch`, `peek_capture`, `peek_doctor`
+- `peek_launch`, `peek_quit`, `peek_wait`
+- `peek_capture`, `peek_doctor`
 
-MCP tools return JSON format by default. `peek_capture` returns the screenshot image inline when no output path is specified. For token-optimized output, use the CLI with `--format toon`.
+`peek_action` supports `verify={none|tree|diff}` to atomically capture post-action state in the same call. `peek_wait` (MCP only) polls for an element to appear with a timeout, instead of polling manually. MCP tools return JSON format by default; `peek_capture` returns the screenshot image inline when no output path is specified. For token-optimized output, use the CLI with `--format toon`.
 
 ### AI Agent Skill
 

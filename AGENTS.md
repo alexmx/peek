@@ -2,7 +2,7 @@
 
 ## What is Peek?
 
-Peek is a macOS CLI tool and MCP server for inspecting and automating native application windows. It provides accessibility tree inspection, element search, UI interaction (click, type, actions), menu bar control, screenshots, and real-time UI monitoring.
+Peek is a macOS CLI tool and MCP server for inspecting and automating native application windows. It provides accessibility tree inspection, element search, UI interaction (click, type, actions), menu bar control, screenshots, and app lifecycle control (launch/quit).
 
 ## Project Structure
 
@@ -67,20 +67,21 @@ All commands support `--format json` for JSON output (default: text). Most comma
 - **apps** — List running apps and windows. `--app` to filter by name.
 
 ### Inspection
-- **tree** — Accessibility tree of a window. `--depth` to limit traversal.
-- **find** — Search elements by `--role`, `--title`, `--value`, `--desc`, or hit-test with `--x`/`--y`.
-- **menu** — Menu bar structure. `--find` to search, `--click` to trigger an item.
+- **tree** — Accessibility tree of a window. `--depth` to limit traversal (default: full tree from CLI).
+- **find** — Search elements by `--role`, `--title`, `--value`, `--desc`, `--enabled`, or hit-test with `--x`/`--y`. The `--title` filter matches AXTitle OR AXDescription; `--enabled true|false` narrows by state.
+- **menu** — Menu bar structure. `--find` searches items, `--click` triggers an item, `--path` returns just a scoped submenu (e.g. `--path Debug`) to avoid dumping the full menu tree on large apps.
 
 ### Interaction
 - **click** — Click at `--x`/`--y` screen coordinates.
 - **scroll** — Scroll at `--x`/`--y` screen coordinates with `--delta-y` (required) and `--delta-x` (optional). `--drag` for touch-based apps like iOS Simulator.
 - **type** — Type `--text` via keyboard events.
-- **action** — Perform an AX action (`--do Press|Confirm|Cancel|ShowMenu`) on elements matched by `--role`/`--title`/`--value`/`--desc`. `--all` for all matches. `--result-tree` to also return the post-action accessibility tree (with `--depth` and `--delay` options).
+- **action** — Perform an AX action (`--do Press|Confirm|Cancel|ShowMenu`) on elements matched by `--role`/`--title`/`--value`/`--desc`. `--all` for all matches. `--verify tree|diff|none` (default `none`) atomically captures the post-action state — `diff` returns just what changed (best for "did this update?" checks), `tree` returns the full post-action tree. Tune via `--depth` and `--delay`.
 - **activate** — Bring app to foreground.
+- **launch** — Launch an app by `--bundle-id`, `--name`, or `--path`. `--wait-for-window` blocks until at least one AX-visible window appears (10s budget).
+- **quit** — Terminate a running app by `--pid`, `--bundle-id`, or `--name`. `--force` uses forceTerminate.
 
 ### Monitoring
-- **watch** — Monitor AX changes. `--snapshot` for diff mode with `--delay`.
-- **capture** — Screenshot to PNG. `--output` path, `--x`/`--y`/`--width`/`--height` to crop.
+- **capture** — Screenshot to PNG. `--output` path, `--x`/`--y`/`--width`/`--height` to crop (window-relative pixels).
 
 ### System
 - **doctor** — Check Accessibility/Screen Recording permissions. `--prompt` to open System Settings.

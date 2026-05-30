@@ -40,8 +40,8 @@ Realistic testing scenarios using Xcode and iOS Simulator.
 
 ## Monitoring & Debugging
 
-25. Watch Xcode for any value changes while I trigger a build
-26. Monitor the Simulator for UI changes while I tap through screens
+25. Press the Build button in Xcode with `peek_action verify=diff` and report what changed in the status bar
+26. Wait for a specific UI element to appear in the Simulator after tapping a button (e.g. a navigation bar title) using `peek_wait`
 27. Inspect the full accessibility tree of the Simulator at depth 5 and find all interactive elements
 28. Find all StaticText elements in the Simulator to read the screen content
 
