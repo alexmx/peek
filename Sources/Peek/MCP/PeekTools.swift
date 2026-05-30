@@ -54,8 +54,11 @@ enum PeekTools {
 
     /// Bring the targeted app to the foreground for tools that post CGEvents
     /// (click, scroll, type). `InteractionManager.activate` blocks until the app
-    /// is verified frontmost, so no extra sleep is needed here.
+    /// is verified frontmost, so no extra sleep is needed here. If no target was
+    /// provided, skip activation entirely — the caller is doing a raw-coordinate
+    /// event (e.g. a click on a canvas region with no specific window).
     private static func activateTarget(windowID: Int?, app: String?, pid: Int?) async throws {
+        guard windowID != nil || app != nil || pid != nil else { return }
         let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
         _ = try InteractionManager.activate(pid: p, windowID: wid)
     }
