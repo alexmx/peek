@@ -82,8 +82,9 @@ enum PeekTools {
     /// Task cancellation, so if AX itself wedges (e.g. after an interrupted call leaves
     /// an element locked), a tool handler could hang forever and block the MCP server's
     /// stdio pump. This timeout races the handler against a sleep so the server stays
-    /// responsive even when AX doesn't.
-    private static let defaultTimeout: TimeInterval = 20
+    /// responsive even when AX doesn't. 10s covers the realistic worst case for
+    /// every tool except peek_launch (15s, fixed) and peek_wait (caller's timeout).
+    private static let defaultTimeout: TimeInterval = 10
 
     /// Run `body` on a background task and race it against a timeout. If the timeout
     /// fires first, throw `PeekError.timeout`. The underlying AX/CGEvent call may keep
