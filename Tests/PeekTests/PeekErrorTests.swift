@@ -149,6 +149,25 @@ struct PeekErrorTests {
         #expect(description.contains("Dock"))
     }
 
+    @Test("unsupportedAction - lists supported actions when known")
+    func unsupportedActionWithSupported() throws {
+        let error = PeekError.unsupportedAction("AXShowMenu", supported: ["AXPress", "AXConfirm"])
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("AXShowMenu"))
+        #expect(description.contains("AXPress"))
+        #expect(description.contains("AXConfirm"))
+        #expect(description.localizedCaseInsensitiveContains("not supported"))
+    }
+
+    @Test("unsupportedAction - suggests alternative when no actions")
+    func unsupportedActionWithEmpty() throws {
+        let error = PeekError.unsupportedAction("AXPress", supported: [])
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("AXPress"))
+        #expect(description.localizedCaseInsensitiveContains("no ax actions"))
+        #expect(description.contains("peek_click"))
+    }
+
     // MARK: - All Errors Have Descriptions
 
     @Test("all error cases have non-empty descriptions")
@@ -166,7 +185,8 @@ struct PeekErrorTests {
             .invalidCropRegion,
             .captureFailed,
             .encodingFailed,
-            .activationFailed(123, "TestApp")
+            .activationFailed(123, "TestApp"),
+            .unsupportedAction("AXShowMenu", supported: ["AXPress"])
         ]
 
         for error in errors {

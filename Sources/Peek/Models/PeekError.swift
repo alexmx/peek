@@ -16,6 +16,7 @@ enum PeekError: LocalizedError {
     case captureFailed
     case encodingFailed
     case activationFailed(pid_t, String)
+    case unsupportedAction(String, supported: [String])
 
     var errorDescription: String? {
         switch self {
@@ -45,6 +46,12 @@ enum PeekError: LocalizedError {
             "Failed to encode result as JSON."
         case .activationFailed(let pid, let name):
             "Failed to bring '\(name)' (pid \(pid)) to the foreground. macOS may have denied the activation request; try clicking the app's Dock icon and retrying."
+        case .unsupportedAction(let action, let supported):
+            if supported.isEmpty {
+                "Action '\(action)' is not supported on this element. The element exposes no AX actions — pick a different element or use peek_click on its coordinates."
+            } else {
+                "Action '\(action)' is not supported on this element. Supported actions: \(supported.joined(separator: ", "))."
+            }
         }
     }
 }

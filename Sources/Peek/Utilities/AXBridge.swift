@@ -115,13 +115,32 @@ enum AXBridge {
 
     /// AX errors tolerated when performing actions — SwiftUI apps often return these
     /// even when the action succeeds because the element gets recreated during state changes.
+    /// Only tolerated *after* the action has been verified as supported by the element.
     private static let toleratedActionErrors: Set<AXError> = [
-        .cannotComplete, .attributeUnsupported, .invalidUIElement
+        .cannotComplete, .invalidUIElement
     ]
 
-    /// Perform an AX action on an element. Tolerates known SwiftUI transient errors.
+    /// Return the AX action names supported by an element (with the "AX" prefix stripped).
+    /// Returns an empty array if the element exposes no actions or AX failed to enumerate.
+    static func supportedActions(of element: AXUIElement) -> [String] {
+        var ref: CFArray?
+        guard AXUIElementCopyActionNames(element, &ref) == .success,
+              let names = ref as? [String] else { return [] }
+        return names.map(stripAXPrefix)
+    }
+
+    /// Perform an AX action on an element.
+    /// Verifies the action is in the element's supported list first to avoid silent no-ops
+    /// (e.g. ShowMenu on a regular button, or typoed action names). After dispatch, tolerates
+    /// transient AX errors that SwiftUI emits when an element is recreated mid-action.
     static func performAction(_ action: String, on element: AXUIElement) throws {
         let axAction = ensureAXPrefix(action)
+        let supported = supportedActions(of: element)
+        let stripped = stripAXPrefix(axAction)
+        if !supported.contains(stripped) {
+            throw PeekError.unsupportedAction(stripped, supported: supported)
+        }
+
         let result = AXUIElementPerformAction(element, axAction as CFString)
         if result != .success, !toleratedActionErrors.contains(result) {
             throw PeekError.actionFailed(axAction, result)
