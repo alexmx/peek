@@ -28,11 +28,12 @@ enum PeekTools {
         return (resolved.windowID, resolved.pid)
     }
 
-    private static func activateIfTargeted(windowID: Int?, app: String?, pid: Int?) async throws {
-        guard windowID != nil || app != nil || pid != nil else { return }
+    /// Bring the targeted app to the foreground for tools that post CGEvents
+    /// (click, scroll, type). `InteractionManager.activate` blocks until the app
+    /// is verified frontmost, so no extra sleep is needed here.
+    private static func activateTarget(windowID: Int?, app: String?, pid: Int?) async throws {
         let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
         _ = try InteractionManager.activate(pid: p, windowID: wid)
-        usleep(200_000)
     }
 
     // MARK: - Argument Types
@@ -260,7 +261,7 @@ enum PeekTools {
         name: "peek_click",
         description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (e.g. on images or canvas areas). For UI elements like buttons, use peek_action instead. Always provide app/pid/window_id to auto-activate the target app."
     ) { (args: ClickArgs) in
-        try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
+        try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
         InteractionManager.click(x: Double(args.x), y: Double(args.y))
         return try json(["x": args.x, "y": args.y])
     }
@@ -269,7 +270,7 @@ enum PeekTools {
         name: "peek_scroll",
         description: "Scroll at screen coordinates. deltaY: use POSITIVE values to scroll DOWN (reveal content below), NEGATIVE to scroll UP. deltaX: positive = right, negative = left. Set drag=true for touch-based apps like iOS Simulator (uses drag gesture instead of scroll wheel). Always provide app/pid/window_id to auto-activate the target app."
     ) { (args: ScrollArgs) in
-        try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
+        try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
         let dx = Int32(args.deltaX ?? 0)
         let dy = Int32(args.deltaY)
         if args.drag ?? false {
@@ -287,7 +288,7 @@ enum PeekTools {
         name: "peek_type",
         description: "Type text via keyboard events into the focused element. Always provide app/pid/window_id to auto-activate the target app. Focus a text field first with peek_click or peek_action."
     ) { (args: TypeArgs) in
-        try await activateIfTargeted(windowID: args.window_id, app: args.app, pid: args.pid)
+        try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
         InteractionManager.type(text: args.text)
         return try json(["characters": args.text.count])
     }

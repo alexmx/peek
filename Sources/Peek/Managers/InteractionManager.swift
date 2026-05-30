@@ -5,6 +5,8 @@ import Foundation
 
 enum InteractionManager {
     /// Activate an app and raise its window.
+    /// Polls `isActive` after activation; retries once if macOS dropped the request.
+    /// Throws `PeekError.activationFailed` if the app is still not frontmost after the budget.
     static func activate(pid: pid_t, windowID: CGWindowID) throws -> ActivateResult {
         try PermissionManager.requireAccessibility()
 
@@ -12,16 +14,35 @@ enum InteractionManager {
             throw PeekError.windowNotFound(windowID)
         }
 
-        app.activate()
-
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
+
+        let name = app.localizedName ?? "Unknown"
+        if !activateAndAwait(app: app, window: window, timeout: 0.5) {
+            // One bounded retry — cooperative activation occasionally drops the first call.
+            if !activateAndAwait(app: app, window: window, timeout: 0.3) {
+                throw PeekError.activationFailed(pid, name)
+            }
+        }
+
+        return ActivateResult(pid: pid, windowID: windowID, app: name)
+    }
+
+    /// Request activation and poll until the app is frontmost or `timeout` elapses.
+    /// Returns true if the app became active within the budget.
+    private static func activateAndAwait(
+        app: NSRunningApplication,
+        window: AXUIElement,
+        timeout: TimeInterval
+    ) -> Bool {
+        app.activate()
         AXBridge.raise(window)
 
-        return ActivateResult(
-            pid: pid,
-            windowID: windowID,
-            app: app.localizedName ?? "Unknown"
-        )
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if app.isActive { return true }
+            usleep(25_000) // 25ms
+        }
+        return app.isActive
     }
 
     struct ActivateResult: Encodable {

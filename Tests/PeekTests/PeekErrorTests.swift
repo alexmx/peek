@@ -139,6 +139,16 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("JSON")))
     }
 
+    @Test("activationFailed - includes pid and app name with remediation")
+    func activationFailedDescription() throws {
+        let error = PeekError.activationFailed(54321, "TestApp")
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("TestApp"))
+        #expect(description.contains("54321"))
+        #expect(description.localizedCaseInsensitiveContains("foreground"))
+        #expect(description.contains("Dock"))
+    }
+
     // MARK: - All Errors Have Descriptions
 
     @Test("all error cases have non-empty descriptions")
@@ -155,7 +165,8 @@ struct PeekErrorTests {
             .screenCaptureNotGranted,
             .invalidCropRegion,
             .captureFailed,
-            .encodingFailed
+            .encodingFailed,
+            .activationFailed(123, "TestApp")
         ]
 
         for error in errors {
