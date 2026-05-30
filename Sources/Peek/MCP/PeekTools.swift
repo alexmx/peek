@@ -60,7 +60,7 @@ enum PeekTools {
     private static func activateTarget(windowID: Int?, app: String?, pid: Int?) async throws {
         guard windowID != nil || app != nil || pid != nil else { return }
         let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
-        _ = try InteractionManager.activate(pid: p, windowID: wid)
+        _ = try await InteractionManager.activate(pid: p, windowID: wid)
     }
 
     /// Default tree depth when `args.depth` is not provided. Caps the response size
@@ -437,12 +437,12 @@ enum PeekTools {
             let includeTree = args.resultTree ?? false
 
             let nodes: [AXNode] = if all {
-                try InteractionManager.performActionOnAll(
+                try await InteractionManager.performActionOnAll(
                     pid: pid, windowID: windowID, action: args.action,
                     role: args.role, title: args.title, value: args.value, description: args.desc
                 )
             } else {
-                try [InteractionManager.performAction(
+                try await [InteractionManager.performAction(
                     pid: pid, windowID: windowID, action: args.action,
                     role: args.role, title: args.title, value: args.value, description: args.desc
                 )]
@@ -468,7 +468,7 @@ enum PeekTools {
     ) { (args: WindowArgs) in
         try await withTimeout("peek_activate") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-            let result = try InteractionManager.activate(pid: pid, windowID: windowID)
+            let result = try await InteractionManager.activate(pid: pid, windowID: windowID)
             return try json(result)
         }
     }
@@ -507,7 +507,7 @@ enum PeekTools {
             let pid = try await resolvePID(windowID: args.window_id, app: args.app, pid: args.pid)
             if let clickTitle = args.click {
                 // Clicking a menu item needs the menu to actually open — app must be FG.
-                _ = try InteractionManager.activateApp(pid: pid)
+                _ = try await InteractionManager.activateApp(pid: pid)
                 let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
                 return try json(["title": title])
             } else if let findTitle = args.find {

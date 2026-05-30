@@ -5,9 +5,9 @@ import Foundation
 
 enum InteractionManager {
     /// Activate an app and raise its window.
-    /// Polls `isActive` after activation; retries once if macOS dropped the request.
+    /// Polls frontmost + z-order after activation; retries once if macOS dropped the request.
     /// Throws `PeekError.activationFailed` if the app is still not frontmost after the budget.
-    static func activate(pid: pid_t, windowID: CGWindowID) throws -> ActivateResult {
+    static func activate(pid: pid_t, windowID: CGWindowID) async throws -> ActivateResult {
         try PermissionManager.requireAccessibility()
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
@@ -17,9 +17,9 @@ enum InteractionManager {
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
 
         let name = app.localizedName ?? "Unknown"
-        if !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.5) {
+        if try await !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.5) {
             // One bounded retry — cooperative activation occasionally drops the first call.
-            if !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.3) {
+            if try await !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.3) {
                 throw PeekError.activationFailed(pid, name)
             }
         }
@@ -30,7 +30,7 @@ enum InteractionManager {
     /// Activate an app without raising a specific window. Useful for apps that have no
     /// windows (e.g. Finder when no Finder windows are open) — the menu bar still
     /// belongs to a running app and we need to bring it to the front to interact.
-    static func activateApp(pid: pid_t) throws -> ActivateResult {
+    static func activateApp(pid: pid_t) async throws -> ActivateResult {
         try PermissionManager.requireAccessibility()
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
@@ -38,8 +38,8 @@ enum InteractionManager {
         }
         let name = app.localizedName ?? "Unknown"
 
-        if !activateAppAndAwait(app: app, timeout: 0.5) {
-            if !activateAppAndAwait(app: app, timeout: 0.3) {
+        if try await !activateAppAndAwait(app: app, timeout: 0.5) {
+            if try await !activateAppAndAwait(app: app, timeout: 0.3) {
                 throw PeekError.activationFailed(pid, name)
             }
         }
@@ -47,15 +47,18 @@ enum InteractionManager {
         return ActivateResult(pid: pid, windowID: 0, app: name)
     }
 
-    private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) -> Bool {
+    private static let tickNanoseconds: UInt64 = 25_000_000   // 25ms
+    private static let settleNanoseconds: UInt64 = 50_000_000 // 50ms
+
+    private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) async throws -> Bool {
         app.activate()
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if isFrontmost(app) {
-                usleep(50_000)
+                try await Task.sleep(nanoseconds: settleNanoseconds)
                 return true
             }
-            usleep(25_000)
+            try await Task.sleep(nanoseconds: tickNanoseconds)
         }
         return isFrontmost(app)
     }
@@ -67,17 +70,17 @@ enum InteractionManager {
         window: AXUIElement,
         windowID: CGWindowID,
         timeout: TimeInterval
-    ) -> Bool {
+    ) async throws -> Bool {
         app.activate()
         AXBridge.raise(window)
 
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if isFrontmost(app), isWindowTopmost(windowID) {
-                usleep(50_000)
+                try await Task.sleep(nanoseconds: settleNanoseconds)
                 return true
             }
-            usleep(25_000)
+            try await Task.sleep(nanoseconds: tickNanoseconds)
         }
         return isFrontmost(app) && isWindowTopmost(windowID)
     }
@@ -249,7 +252,7 @@ enum InteractionManager {
         title: String?,
         value: String?,
         description: String?
-    ) throws -> AXNode {
+    ) async throws -> AXNode {
         try PermissionManager.requireAccessibility()
 
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
@@ -264,7 +267,7 @@ enum InteractionManager {
         }
 
         if actionNeedsFocus(action) {
-            _ = try activate(pid: pid, windowID: windowID)
+            _ = try await activate(pid: pid, windowID: windowID)
         }
 
         try AXBridge.performAction(action, on: match.ref)
@@ -281,7 +284,7 @@ enum InteractionManager {
         title: String?,
         value: String?,
         description: String?
-    ) throws -> [AXNode] {
+    ) async throws -> [AXNode] {
         try PermissionManager.requireAccessibility()
 
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
@@ -298,7 +301,7 @@ enum InteractionManager {
         }
 
         if actionNeedsFocus(action) {
-            _ = try activate(pid: pid, windowID: windowID)
+            _ = try await activate(pid: pid, windowID: windowID)
         }
 
         for match in matches {

@@ -26,7 +26,7 @@ struct ClickCommand: AsyncParsableCommand {
     func run() async throws {
         if target.windowID != nil || target.app != nil || target.pid != nil {
             let resolved = try await target.resolve()
-            _ = try InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
         }
 
         InteractionManager.click(x: Double(x), y: Double(y))

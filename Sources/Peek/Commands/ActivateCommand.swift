@@ -15,7 +15,7 @@ struct ActivateCommand: AsyncParsableCommand {
     func run() async throws {
         let resolved = try await target.resolve()
 
-        let result = try InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        let result = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
 
         switch format {
         case .json:

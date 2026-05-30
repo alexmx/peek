@@ -27,7 +27,7 @@ struct MenuCommand: AsyncParsableCommand {
         let pid = try await resolvePID()
 
         if let click {
-            _ = try? InteractionManager.activateApp(pid: pid)
+            _ = try? await InteractionManager.activateApp(pid: pid)
             let title = try MenuBarManager.clickMenuItem(pid: pid, title: click)
             switch format {
             case .json:

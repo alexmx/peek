@@ -51,12 +51,12 @@ struct ActionCommand: AsyncParsableCommand {
         let action = self.do
 
         let nodes: [AXNode] = if all {
-            try InteractionManager.performActionOnAll(
+            try await InteractionManager.performActionOnAll(
                 pid: resolved.pid, windowID: resolved.windowID, action: action,
                 role: role, title: title, value: value, description: desc
             )
         } else {
-            try [InteractionManager.performAction(
+            try await [InteractionManager.performAction(
                 pid: resolved.pid, windowID: resolved.windowID, action: action,
                 role: role, title: title, value: value, description: desc
             )]
