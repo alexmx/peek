@@ -333,7 +333,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items), Confirm (text fields), ShowMenu (popups), Increment/Decrement (sliders). Set resultTree=true to also return the post-action accessibility tree (saves a separate peek_tree call)."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items — works without activating the app), Confirm (text fields), ShowMenu (popups — auto-activates the app), Increment/Decrement (sliders). Set resultTree=true to also return the post-action accessibility tree (saves a separate peek_tree call)."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 1.0
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
@@ -369,7 +369,7 @@ enum PeekTools {
 
     static let activate = MCPTool(
         name: "peek_activate",
-        description: "Bring an app to the foreground and raise its window. Rarely needed — most commands (peek_tree, peek_find, peek_action, peek_watch, peek_menu) auto-activate apps."
+        description: "Bring an app to the foreground and raise its window. Most read-only tools (peek_tree, peek_find, peek_watch, peek_capture, peek_menu --find) and peek_action Press work on backgrounded apps and do NOT auto-activate. Use this when you need to interact with the app's keyboard focus (e.g. before peek_type) or to show UI that requires the app's event loop (popovers, sheets)."
     ) { (args: WindowArgs) in
         try await withTimeout("peek_activate") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -403,18 +403,21 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Interact with an app's menu bar. Use 'find' to search for menu items by title (returns matches with full path). Use 'click' to trigger a menu item. Avoid calling without find/click — the full menu tree can be very large."
+        description: "Interact with an app's menu bar. 'find' and the no-argument tree read are read-only and do NOT steal focus. 'click' triggers a menu item and will activate the target app first because menus must be visible to execute. Avoid calling without find/click — the full menu tree can be very large."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-            _ = try InteractionManager.activate(pid: pid, windowID: windowID)
             if let clickTitle = args.click {
+                // Clicking a menu item needs the menu to actually open — app must be FG.
+                _ = try InteractionManager.activate(pid: pid, windowID: windowID)
                 let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
                 return try json(["title": title])
             } else if let findTitle = args.find {
+                // Read-only menu search — works on backgrounded apps via AX.
                 let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
                 return try json(items)
             } else {
+                // Read-only menu tree — same.
                 let tree = try MenuBarManager.menuBar(pid: pid)
                 return try json(tree)
             }

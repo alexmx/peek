@@ -166,7 +166,20 @@ enum InteractionManager {
         }
     }
 
+    /// AX actions that only take visible effect when the target app is frontmost.
+    /// `Press` works on backgrounded buttons because AX dispatches directly, but
+    /// `ShowMenu` needs the app's event loop to render the popover.
+    private static let focusRequiringActions: Set<String> = ["ShowMenu"]
+
+    /// Returns true if the given AX action requires the target app to be FG to work.
+    /// Accepts both `Press` and `AXPress` style names.
+    private static func actionNeedsFocus(_ action: String) -> Bool {
+        let stripped = action.hasPrefix("AX") ? String(action.dropFirst(2)) : action
+        return focusRequiringActions.contains(stripped)
+    }
+
     /// Perform an AX action on the first element matching the given filters.
+    /// Auto-activates the target app only if the action is in `focusRequiringActions`.
     static func performAction(
         pid: pid_t,
         windowID: CGWindowID,
@@ -189,11 +202,16 @@ enum InteractionManager {
             throw PeekError.elementNotFound
         }
 
+        if actionNeedsFocus(action) {
+            _ = try activate(pid: pid, windowID: windowID)
+        }
+
         try AXBridge.performAction(action, on: match.ref)
         return match.node
     }
 
     /// Perform an AX action on all elements matching the given filters.
+    /// Auto-activates the target app only if the action is in `focusRequiringActions`.
     static func performActionOnAll(
         pid: pid_t,
         windowID: CGWindowID,
@@ -216,6 +234,10 @@ enum InteractionManager {
 
         guard !matches.isEmpty else {
             throw PeekError.elementNotFound
+        }
+
+        if actionNeedsFocus(action) {
+            _ = try activate(pid: pid, windowID: windowID)
         }
 
         for match in matches {
