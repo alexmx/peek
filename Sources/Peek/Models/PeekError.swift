@@ -17,6 +17,7 @@ enum PeekError: LocalizedError {
     case encodingFailed
     case activationFailed(pid_t, String)
     case unsupportedAction(String, supported: [String])
+    case timeout(String, TimeInterval)
 
     var errorDescription: String? {
         switch self {
@@ -52,6 +53,8 @@ enum PeekError: LocalizedError {
             } else {
                 "Action '\(action)' is not supported on this element. Supported actions: \(supported.joined(separator: ", "))."
             }
+        case .timeout(let op, let seconds):
+            "Operation '\(op)' timed out after \(String(format: "%.1f", seconds))s. The target app may be unresponsive or the accessibility tree may be very large; try narrowing with role/title filters, lowering depth, or retrying."
         }
     }
 }

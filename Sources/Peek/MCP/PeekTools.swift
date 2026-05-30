@@ -36,6 +36,34 @@ enum PeekTools {
         _ = try InteractionManager.activate(pid: p, windowID: wid)
     }
 
+    /// Default per-tool wall-clock budget. Synchronous AX/CGEvent calls don't honor
+    /// Task cancellation, so if AX itself wedges (e.g. after an interrupted call leaves
+    /// an element locked), a tool handler could hang forever and block the MCP server's
+    /// stdio pump. This timeout races the handler against a sleep so the server stays
+    /// responsive even when AX doesn't.
+    private static let defaultTimeout: TimeInterval = 20
+
+    /// Run `body` on a background task and race it against a timeout. If the timeout
+    /// fires first, throw `PeekError.timeout`. The underlying AX/CGEvent call may keep
+    /// running in the background — there's no way to interrupt the C call — but the
+    /// MCP request returns to the client so subsequent tool calls aren't blocked.
+    private static func withTimeout<T: Sendable>(
+        _ operation: String,
+        seconds: TimeInterval = defaultTimeout,
+        body: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await body() }
+            group.addTask {
+                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                throw PeekError.timeout(operation, seconds)
+            }
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
+        }
+    }
+
     // MARK: - Argument Types
 
     struct WindowArgs: MCPToolInput {
@@ -217,43 +245,46 @@ enum PeekTools {
         name: "peek_apps",
         description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs. Always filter by app name when you know it."
     ) { (args: WindowArgs) in
-        let windows = try await WindowManager.listWindows()
-        var entries = AppManager.listApps(windows: windows)
-
-        if let app = args.app {
-            entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
+        try await withTimeout("peek_apps") {
+            let windows = try await WindowManager.listWindows()
+            var entries = AppManager.listApps(windows: windows)
+            if let app = args.app {
+                entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
+            }
+            return try json(entries)
         }
-
-        return try json(entries)
     }
 
     static let tree = MCPTool(
         name: "peek_tree",
         description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy. Always use depth to control output size."
     ) { (args: TreeArgs) in
-        let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
-        return try json(tree)
+        try await withTimeout("peek_tree") {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+            return try json(tree)
+        }
     }
 
     static let find = MCPTool(
         name: "peek_find",
         description: "Search for UI elements (read-only). Start broad with role only, then narrow with title/desc. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click."
     ) { (args: FindArgs) in
-        let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-
-        if let x = args.x, let y = args.y {
-            guard let node = try AccessibilityManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
-                return .text("No element found at (\(x), \(y)).")
+        try await withTimeout("peek_find") {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            if let x = args.x, let y = args.y {
+                guard let node = try AccessibilityManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
+                    return .text("No element found at (\(x), \(y)).")
+                }
+                return try json(node)
+            } else {
+                let results = try AccessibilityManager.find(
+                    pid: pid, windowID: windowID,
+                    role: args.role, title: args.title,
+                    value: args.value, description: args.desc
+                )
+                return try json(results)
             }
-            return try json(node)
-        } else {
-            let results = try AccessibilityManager.find(
-                pid: pid, windowID: windowID,
-                role: args.role, title: args.title,
-                value: args.value, description: args.desc
-            )
-            return try json(results)
         }
     }
 
@@ -261,69 +292,78 @@ enum PeekTools {
         name: "peek_click",
         description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (e.g. on images or canvas areas). For UI elements like buttons, use peek_action instead. Always provide app/pid/window_id to auto-activate the target app."
     ) { (args: ClickArgs) in
-        try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-        InteractionManager.click(x: Double(args.x), y: Double(args.y))
-        return try json(["x": args.x, "y": args.y])
+        try await withTimeout("peek_click") {
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            InteractionManager.click(x: Double(args.x), y: Double(args.y))
+            return try json(["x": args.x, "y": args.y])
+        }
     }
 
     static let scroll = MCPTool(
         name: "peek_scroll",
         description: "Scroll at screen coordinates. deltaY: use POSITIVE values to scroll DOWN (reveal content below), NEGATIVE to scroll UP. deltaX: positive = right, negative = left. Set drag=true for touch-based apps like iOS Simulator (uses drag gesture instead of scroll wheel). Always provide app/pid/window_id to auto-activate the target app."
     ) { (args: ScrollArgs) in
-        try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-        let dx = Int32(args.deltaX ?? 0)
-        let dy = Int32(args.deltaY)
-        if args.drag ?? false {
-            InteractionManager.drag(
-                fromX: Double(args.x), fromY: Double(args.y),
-                toX: Double(args.x - Int(dx)), toY: Double(args.y - Int(dy))
-            )
-        } else {
-            InteractionManager.scroll(x: Double(args.x), y: Double(args.y), deltaX: dx, deltaY: dy)
+        try await withTimeout("peek_scroll") {
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            let dx = Int32(args.deltaX ?? 0)
+            let dy = Int32(args.deltaY)
+            if args.drag ?? false {
+                InteractionManager.drag(
+                    fromX: Double(args.x), fromY: Double(args.y),
+                    toX: Double(args.x - Int(dx)), toY: Double(args.y - Int(dy))
+                )
+            } else {
+                InteractionManager.scroll(x: Double(args.x), y: Double(args.y), deltaX: dx, deltaY: dy)
+            }
+            return try json(["x": args.x, "y": args.y, "deltaX": Int(dx), "deltaY": Int(dy)])
         }
-        return try json(["x": args.x, "y": args.y, "deltaX": Int(dx), "deltaY": Int(dy)])
     }
 
     static let type = MCPTool(
         name: "peek_type",
         description: "Type text via keyboard events into the focused element. Always provide app/pid/window_id to auto-activate the target app. Focus a text field first with peek_click or peek_action."
     ) { (args: TypeArgs) in
-        try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-        InteractionManager.type(text: args.text)
-        return try json(["characters": args.text.count])
+        // Generous budget — `type` posts a key event per character with 10ms gaps.
+        try await withTimeout("peek_type", seconds: max(defaultTimeout, Double(args.text.count) * 0.05 + 5)) {
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            InteractionManager.type(text: args.text)
+            return try json(["characters": args.text.count])
+        }
     }
 
     static let action = MCPTool(
         name: "peek_action",
         description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items), Confirm (text fields), ShowMenu (popups), Increment/Decrement (sliders). Set resultTree=true to also return the post-action accessibility tree (saves a separate peek_tree call)."
     ) { (args: ActionArgs) in
-        let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        let all = args.all ?? false
-        let includeTree = args.resultTree ?? false
+        let settleDelay = args.delay ?? 1.0
+        return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let all = args.all ?? false
+            let includeTree = args.resultTree ?? false
 
-        let nodes: [AXNode] = if all {
-            try InteractionManager.performActionOnAll(
-                pid: pid, windowID: windowID, action: args.action,
-                role: args.role, title: args.title, value: args.value, description: args.desc
-            )
-        } else {
-            try [InteractionManager.performAction(
-                pid: pid, windowID: windowID, action: args.action,
-                role: args.role, title: args.title, value: args.value, description: args.desc
-            )]
-        }
+            let nodes: [AXNode] = if all {
+                try InteractionManager.performActionOnAll(
+                    pid: pid, windowID: windowID, action: args.action,
+                    role: args.role, title: args.title, value: args.value, description: args.desc
+                )
+            } else {
+                try [InteractionManager.performAction(
+                    pid: pid, windowID: windowID, action: args.action,
+                    role: args.role, title: args.title, value: args.value, description: args.desc
+                )]
+            }
 
-        if includeTree {
-            let settleDelay = args.delay ?? 1.0
-            usleep(UInt32(settleDelay * 1_000_000))
-            let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
-            return try json(ActionTreeResult(action: nodes, resultTree: tree))
-        }
+            if includeTree {
+                usleep(UInt32(settleDelay * 1_000_000))
+                let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+                return try json(ActionTreeResult(action: nodes, resultTree: tree))
+            }
 
-        if all {
-            return try json(nodes)
-        } else {
-            return try json(nodes[0])
+            if all {
+                return try json(nodes)
+            } else {
+                return try json(nodes[0])
+            }
         }
     }
 
@@ -331,29 +371,33 @@ enum PeekTools {
         name: "peek_activate",
         description: "Bring an app to the foreground and raise its window. Rarely needed — most commands (peek_tree, peek_find, peek_action, peek_watch, peek_menu) auto-activate apps."
     ) { (args: WindowArgs) in
-        let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        let result = try InteractionManager.activate(pid: pid, windowID: windowID)
-        return try json(result)
+        try await withTimeout("peek_activate") {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let result = try InteractionManager.activate(pid: pid, windowID: windowID)
+            return try json(result)
+        }
     }
 
     static let capture = MCPTool(
         name: "peek_capture",
         description: "Capture a screenshot of a window. Returns the image inline unless an output path is specified. For manual crop, provide x/y/width/height in window-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates (from peek_tree/peek_find)."
     ) { (args: CaptureArgs) in
-        let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        let crop: CGRect? = if let x = args.x, let y = args.y,
-                               let w = args.width, let h = args.height {
-            CGRect(x: x, y: y, width: w, height: h)
-        } else {
-            nil
-        }
+        try await withTimeout("peek_capture") {
+            let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let crop: CGRect? = if let x = args.x, let y = args.y,
+                                   let w = args.width, let h = args.height {
+                CGRect(x: x, y: y, width: w, height: h)
+            } else {
+                nil
+            }
 
-        if let path = args.output {
-            let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
-            return try json(result)
-        } else {
-            let (data, _, _) = try await ScreenCaptureManager.capturePNGData(windowID: windowID, crop: crop)
-            return .content([.image(data: data, mimeType: "image/png")])
+            if let path = args.output {
+                let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
+                return try json(result)
+            } else {
+                let (data, _, _) = try await ScreenCaptureManager.capturePNGData(windowID: windowID, crop: crop)
+                return .content([.image(data: data, mimeType: "image/png")])
+            }
         }
     }
 
@@ -361,17 +405,19 @@ enum PeekTools {
         name: "peek_menu",
         description: "Interact with an app's menu bar. Use 'find' to search for menu items by title (returns matches with full path). Use 'click' to trigger a menu item. Avoid calling without find/click — the full menu tree can be very large."
     ) { (args: MenuArgs) in
-        let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-        _ = try InteractionManager.activate(pid: pid, windowID: windowID)
-        if let clickTitle = args.click {
-            let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
-            return try json(["title": title])
-        } else if let findTitle = args.find {
-            let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
-            return try json(items)
-        } else {
-            let tree = try MenuBarManager.menuBar(pid: pid)
-            return try json(tree)
+        try await withTimeout("peek_menu") {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            _ = try InteractionManager.activate(pid: pid, windowID: windowID)
+            if let clickTitle = args.click {
+                let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
+                return try json(["title": title])
+            } else if let findTitle = args.find {
+                let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
+                return try json(items)
+            } else {
+                let tree = try MenuBarManager.menuBar(pid: pid)
+                return try json(tree)
+            }
         }
     }
 
@@ -379,10 +425,13 @@ enum PeekTools {
         name: "peek_watch",
         description: "Monitor async/delayed UI changes by taking two accessibility snapshots separated by a delay (default: 3s) and returning what was added, removed, or changed. Best for: waiting on loading spinners, build progress, animations, or other changes that happen over time. NOT for verifying immediate results of peek_action — use peek_action with resultTree=true or peek_tree instead."
     ) { (args: WatchArgs) in
-        let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
         let delay = args.delay ?? 3.0
-        let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
-        return try json(diff)
+        // Watch's delay is part of normal operation — budget around it.
+        return try await withTimeout("peek_watch", seconds: delay + defaultTimeout) {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
+            return try json(diff)
+        }
     }
 
     static let doctor = MCPTool(

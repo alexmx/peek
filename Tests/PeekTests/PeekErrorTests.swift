@@ -168,6 +168,16 @@ struct PeekErrorTests {
         #expect(description.contains("peek_click"))
     }
 
+    @Test("timeout - includes operation name and seconds")
+    func timeoutDescription() throws {
+        let error = PeekError.timeout("peek_find", 20)
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("peek_find"))
+        #expect(description.contains("20"))
+        #expect(description.localizedCaseInsensitiveContains("timed out"))
+        #expect(description.localizedCaseInsensitiveContains("retry") || description.localizedCaseInsensitiveContains("depth"))
+    }
+
     // MARK: - All Errors Have Descriptions
 
     @Test("all error cases have non-empty descriptions")
@@ -186,7 +196,8 @@ struct PeekErrorTests {
             .captureFailed,
             .encodingFailed,
             .activationFailed(123, "TestApp"),
-            .unsupportedAction("AXShowMenu", supported: ["AXPress"])
+            .unsupportedAction("AXShowMenu", supported: ["AXPress"]),
+            .timeout("peek_tree", 20)
         ]
 
         for error in errors {
