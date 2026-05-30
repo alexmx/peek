@@ -64,13 +64,19 @@ enum AppLifecycleManager {
         }
 
         if waitForWindow {
-            let deadline = Date().addingTimeInterval(10)
+            let budget: TimeInterval = 10
+            let deadline = Date().addingTimeInterval(budget)
+            var appeared = false
             while Date() < deadline {
-                let windows = try? await WindowManager.listWindows()
-                if windows?.contains(where: { $0.pid == app.processIdentifier }) == true {
+                let windows = try await WindowManager.listWindows()
+                if windows.contains(where: { $0.pid == app.processIdentifier }) {
+                    appeared = true
                     break
                 }
                 try await Task.sleep(nanoseconds: 100_000_000)
+            }
+            if !appeared {
+                throw PeekError.timeout("peek_launch wait_for_window", budget)
             }
         }
 
