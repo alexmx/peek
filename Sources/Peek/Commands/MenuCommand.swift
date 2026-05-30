@@ -1,3 +1,4 @@
+import AppKit
 import ArgumentParser
 import Foundation
 
@@ -23,10 +24,11 @@ struct MenuCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-        let resolved = try await target.resolve()
+        let pid = try await resolvePID()
 
         if let click {
-            let title = try MenuBarManager.clickMenuItem(pid: resolved.pid, title: click)
+            _ = try? InteractionManager.activateApp(pid: pid)
+            let title = try MenuBarManager.clickMenuItem(pid: pid, title: click)
             switch format {
             case .json:
                 try printJSON(ClickResult(title: title))
@@ -39,7 +41,7 @@ struct MenuCommand: AsyncParsableCommand {
         }
 
         if let find {
-            let items = try MenuBarManager.findMenuItems(pid: resolved.pid, title: find)
+            let items = try MenuBarManager.findMenuItems(pid: pid, title: find)
             switch format {
             case .json:
                 try printJSON(items)
@@ -58,7 +60,7 @@ struct MenuCommand: AsyncParsableCommand {
             return
         }
 
-        let tree = try MenuBarManager.menuBar(pid: resolved.pid)
+        let tree = try MenuBarManager.menuBar(pid: pid)
 
         switch format {
         case .json:
@@ -68,6 +70,22 @@ struct MenuCommand: AsyncParsableCommand {
         case .default:
             printMenu(tree)
         }
+    }
+
+    /// Resolve just the target PID without requiring a window. Menu bar is per-app.
+    private func resolvePID() async throws -> pid_t {
+        if let pid = target.pid { return pid }
+        if let app = target.app {
+            for running in NSWorkspace.shared.runningApplications
+                where running.activationPolicy == .regular
+                && running.localizedName?.localizedCaseInsensitiveContains(app) == true {
+                return running.processIdentifier
+            }
+            throw PeekError.appNotFound(app)
+        }
+        // Fall through to window-based resolution if user passed a window ID.
+        let resolved = try await target.resolve()
+        return resolved.pid
     }
 
     private func printMenu(_ node: MenuNode) {

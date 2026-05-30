@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import SwiftMCP
@@ -26,6 +27,29 @@ enum PeekTools {
             pid: pid.map { pid_t($0) }
         )
         return (resolved.windowID, resolved.pid)
+    }
+
+    /// Resolve just the target PID, without requiring the app to have a window.
+    /// Used by tools that only need to touch the menu bar (per-app, not per-window).
+    /// Falls back to `resolveWindow` if a `window_id` was explicitly passed so the
+    /// caller still gets a useful error if it's invalid.
+    private static func resolvePID(windowID: Int?, app: String?, pid: Int?) async throws -> pid_t {
+        if let pid {
+            return pid_t(pid)
+        }
+        if let app {
+            for running in NSWorkspace.shared.runningApplications
+                where running.activationPolicy == .regular
+                && running.localizedName?.localizedCaseInsensitiveContains(app) == true {
+                return running.processIdentifier
+            }
+            throw PeekError.appNotFound(app)
+        }
+        if windowID != nil {
+            let (_, p) = try await resolveWindow(windowID: windowID, app: nil, pid: nil)
+            return p
+        }
+        throw PeekError.appNotFound("(no pid, app, or window_id)")
     }
 
     /// Bring the targeted app to the foreground for tools that post CGEvents
@@ -474,10 +498,13 @@ enum PeekTools {
         description: "Interact with an app's menu bar. 'find' and the no-argument tree read are read-only and do NOT steal focus. 'click' triggers a menu item and will activate the target app first because menus must be visible to execute. Avoid calling without find/click — the full menu tree can be very large."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
-            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            // The menu bar is per-app, not per-window — resolving a window would
+            // wrongly fail for apps that are running but have no windows (Finder
+            // with no Finder windows open, background-mode utilities, etc.).
+            let pid = try await resolvePID(windowID: args.window_id, app: args.app, pid: args.pid)
             if let clickTitle = args.click {
                 // Clicking a menu item needs the menu to actually open — app must be FG.
-                _ = try InteractionManager.activate(pid: pid, windowID: windowID)
+                _ = try InteractionManager.activateApp(pid: pid)
                 let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
                 return try json(["title": title])
             } else if let findTitle = args.find {

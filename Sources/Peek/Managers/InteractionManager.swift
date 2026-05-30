@@ -27,6 +27,36 @@ enum InteractionManager {
         return ActivateResult(pid: pid, windowID: windowID, app: name)
     }
 
+    /// Activate an app without raising a specific window. Useful for apps that have no
+    /// windows (e.g. Finder when no Finder windows are open) — the menu bar still
+    /// belongs to a running app and we need to bring it to the front to interact.
+    static func activateApp(pid: pid_t) throws -> ActivateResult {
+        try PermissionManager.requireAccessibility()
+
+        guard let app = NSRunningApplication(processIdentifier: pid) else {
+            throw PeekError.appNotFound("pid \(pid)")
+        }
+        let name = app.localizedName ?? "Unknown"
+
+        if !activateAppAndAwait(app: app, timeout: 0.5) {
+            if !activateAppAndAwait(app: app, timeout: 0.3) {
+                throw PeekError.activationFailed(pid, name)
+            }
+        }
+
+        return ActivateResult(pid: pid, windowID: 0, app: name)
+    }
+
+    private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) -> Bool {
+        app.activate()
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if app.isActive { return true }
+            usleep(25_000)
+        }
+        return app.isActive
+    }
+
     /// Request activation and poll until the app is frontmost or `timeout` elapses.
     /// Returns true if the app became active within the budget.
     private static func activateAndAwait(
