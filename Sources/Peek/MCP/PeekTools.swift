@@ -53,14 +53,24 @@ enum PeekTools {
     }
 
     /// Bring the targeted app to the foreground for tools that post CGEvents
-    /// (click, scroll, type). `InteractionManager.activate` blocks until the app
-    /// is verified frontmost, so no extra sleep is needed here. If no target was
-    /// provided, skip activation entirely — the caller is doing a raw-coordinate
-    /// event (e.g. a click on a canvas region with no specific window).
+    /// (click, scroll, type). If no target was provided, skip activation entirely —
+    /// the caller is doing a raw-coordinate event.
+    ///
+    /// When the caller passes a specific `window_id`, we enforce that THAT window
+    /// is topmost (matters for click/scroll at known coordinates). When the caller
+    /// only passes app/pid, we just ensure the app is frontmost without policing
+    /// which of its windows is on top — otherwise a transient popover (search
+    /// popup, autocomplete) sitting above the main window would falsely fail the
+    /// topmost check.
     private static func activateTarget(windowID: Int?, app: String?, pid: Int?) async throws {
         guard windowID != nil || app != nil || pid != nil else { return }
-        let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
-        _ = try await InteractionManager.activate(pid: p, windowID: wid)
+        if windowID != nil {
+            let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
+            _ = try await InteractionManager.activate(pid: p, windowID: wid)
+        } else {
+            let p = try await resolvePID(windowID: nil, app: app, pid: pid)
+            _ = try await InteractionManager.activateApp(pid: p)
+        }
     }
 
     /// Default tree depth when `args.depth` is not provided. Caps the response size
@@ -417,7 +427,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes, menu items — works without activating the app; most controls labeled 'popup' in casual terms actually take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes; also menu items in an ALREADY-OPEN menu — for menu BAR items use peek_menu --click; most controls labeled 'popup' in casual terms take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 1.0
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
