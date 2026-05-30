@@ -397,8 +397,8 @@ enum PeekTools {
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            let dx = Int32(args.deltaX ?? 0)
-            let dy = Int32(args.deltaY)
+            let dx = Int32(clamping: args.deltaX ?? 0)
+            let dy = Int32(clamping: args.deltaY)
             if args.drag ?? false {
                 InteractionManager.drag(
                     fromX: Double(args.x), fromY: Double(args.y),
