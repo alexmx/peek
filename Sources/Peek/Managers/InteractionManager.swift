@@ -17,9 +17,9 @@ enum InteractionManager {
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
 
         let name = app.localizedName ?? "Unknown"
-        if !activateAndAwait(app: app, window: window, timeout: 0.5) {
+        if !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.5) {
             // One bounded retry — cooperative activation occasionally drops the first call.
-            if !activateAndAwait(app: app, window: window, timeout: 0.3) {
+            if !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.3) {
                 throw PeekError.activationFailed(pid, name)
             }
         }
@@ -51,17 +51,21 @@ enum InteractionManager {
         app.activate()
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if app.isActive { return true }
+            if isFrontmost(app) {
+                usleep(50_000)
+                return true
+            }
             usleep(25_000)
         }
-        return app.isActive
+        return isFrontmost(app)
     }
 
-    /// Request activation and poll until the app is frontmost or `timeout` elapses.
-    /// Returns true if the app became active within the budget.
+    /// Request activation and poll until the app is frontmost AND the target window
+    /// is the topmost normal-layer window, or `timeout` elapses.
     private static func activateAndAwait(
         app: NSRunningApplication,
         window: AXUIElement,
+        windowID: CGWindowID,
         timeout: TimeInterval
     ) -> Bool {
         app.activate()
@@ -69,10 +73,37 @@ enum InteractionManager {
 
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            if app.isActive { return true }
-            usleep(25_000) // 25ms
+            if isFrontmost(app), isWindowTopmost(windowID) {
+                usleep(50_000)
+                return true
+            }
+            usleep(25_000)
         }
-        return app.isActive
+        return isFrontmost(app) && isWindowTopmost(windowID)
+    }
+
+    /// True if `app` is the workspace-frontmost application.
+    /// `NSWorkspace.frontmostApplication` reflects window-server-acknowledged state
+    /// more reliably than `NSRunningApplication.isActive`, which can flip true while
+    /// the actual z-order reorder is still in flight.
+    private static func isFrontmost(_ app: NSRunningApplication) -> Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier
+    }
+
+    /// True if `windowID` is the front-most normal-layer (user) window on screen.
+    /// Floating layers (menu bar, dock, status items) are skipped so they don't mask
+    /// our window's true z-position.
+    private static func isWindowTopmost(_ windowID: CGWindowID) -> Bool {
+        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let windows = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
+            return true
+        }
+        for info in windows {
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
+            if layer != 0 { continue }
+            return (info[kCGWindowNumber as String] as? CGWindowID) == windowID
+        }
+        return true
     }
 
     struct ActivateResult: Encodable {
