@@ -148,7 +148,14 @@ extension MonitorManager {
             }
         }
 
-        // Second pass: pair removed↔added by overlapping frame + same role.
+        // Second pass: pair removed↔added when they almost certainly refer to the
+        // same UI element whose value or frame shifted. Pairing requires (a) same
+        // role, (b) overlapping frame, and (c) no *label* conflict — title and
+        // description must each either match or be nil on at least one side. A
+        // pure value change (Calculator's display "9" → "95+7") still pairs because
+        // value is allowed to differ. Two genuinely different elements at the same
+        // coords (Save button replaced by Print button) do NOT pair because their
+        // titles conflict.
         var pairedAddedIndices: Set<Int> = []
         var stillRemoved: [AXNode] = []
         for r in removed {
@@ -156,6 +163,7 @@ extension MonitorManager {
                 !pairedAddedIndices.contains(i)
                     && added[i].role == r.role
                     && framesOverlap(r.frame, added[i].frame)
+                    && labelsCompatible(r, added[i])
             }) {
                 pairedAddedIndices.insert(idx)
                 changed.append(makeChange(key: r.identity, before: r, after: added[idx]))
@@ -167,6 +175,16 @@ extension MonitorManager {
         removed = stillRemoved
 
         return TreeDiff(added: added, removed: removed, changed: changed)
+    }
+
+    /// True if two nodes' label dimensions (title, description) don't conflict.
+    /// A dimension is "compatible" when it's equal on both sides or nil on at least
+    /// one. Conflicting non-nil values block the pair so genuinely-different
+    /// elements at the same coords are reported as add+remove, not changed.
+    private static func labelsCompatible(_ a: AXNode, _ b: AXNode) -> Bool {
+        if let ta = a.title, let tb = b.title, ta != tb { return false }
+        if let da = a.description, let db = b.description, da != db { return false }
+        return true
     }
 
     private static func makeChange(key: String, before b: AXNode, after a: AXNode) -> TreeDiff.NodeChange {

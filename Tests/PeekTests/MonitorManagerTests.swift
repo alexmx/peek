@@ -503,10 +503,12 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - title change on same-position element reported as changed")
+    @Test("computeDiff - title swap at same position stays as removed+added (different element)")
     func computeDiffChangedTitle() {
-        // Identity includes title (different), but the overlap-pass pairs the removed/
-        // added by role + frame overlap and reports a single `changed` entry.
+        // Title conflict blocks pairing: we can't tell from before/after alone
+        // whether a button was renamed or replaced with a different button at the
+        // same coords. Conservative choice is to report the swap as add+remove so
+        // callers don't infer a value-edit when a context-swap may have happened.
         let before = [
             AXNode(
                 role: "Button",
@@ -530,11 +532,25 @@ struct MonitorManagerTests {
             )
         ]
         let diff = MonitorManager.computeDiff(before: before, after: after)
-        #expect(diff.added.isEmpty)
-        #expect(diff.removed.isEmpty)
-        #expect(diff.changed.count == 1)
-        #expect(diff.changed[0].before.title == "Old")
-        #expect(diff.changed[0].after.title == "New")
+        #expect(diff.added.count == 1)
+        #expect(diff.removed.count == 1)
+        #expect(diff.changed.isEmpty)
+    }
+
+    @Test("computeDiff - toolbar context swap (different buttons at same coords) reported as add+remove")
+    func computeDiffToolbarSwap() {
+        let before = [
+            AXNode(role: "Button", title: "Save", value: nil, description: nil, enabled: true,
+                   frame: AXNode.FrameInfo(x: 10, y: 20, width: 50, height: 30), children: [])
+        ]
+        let after = [
+            AXNode(role: "Button", title: "Print", value: nil, description: nil, enabled: true,
+                   frame: AXNode.FrameInfo(x: 10, y: 20, width: 50, height: 30), children: [])
+        ]
+        let diff = MonitorManager.computeDiff(before: before, after: after)
+        #expect(diff.added.count == 1)
+        #expect(diff.removed.count == 1)
+        #expect(diff.changed.isEmpty)
     }
 
     @Test("computeDiff - changed value")
@@ -771,10 +787,10 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - description change on same-position element reported as changed")
+    @Test("computeDiff - description swap at same position stays as removed+added")
     func computeDiffDescriptionChange() {
-        // Identity includes description (different), but overlap-pass pairs the
-        // removed/added by role + frame overlap.
+        // Description conflict blocks pairing for the same reason as title: a
+        // descriptionchange could be a rename or a substitution.
         let before = [
             AXNode(
                 role: "TextField",
@@ -798,11 +814,9 @@ struct MonitorManagerTests {
             )
         ]
         let diff = MonitorManager.computeDiff(before: before, after: after)
-        #expect(diff.added.isEmpty)
-        #expect(diff.removed.isEmpty)
-        #expect(diff.changed.count == 1)
-        #expect(diff.changed[0].before.description == "old desc")
-        #expect(diff.changed[0].after.description == "new desc")
+        #expect(diff.added.count == 1)
+        #expect(diff.removed.count == 1)
+        #expect(diff.changed.isEmpty)
     }
 
     @Test("computeDiff - detects frame size change")
