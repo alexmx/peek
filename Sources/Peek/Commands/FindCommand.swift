@@ -22,6 +22,9 @@ struct FindCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Filter by description (case-insensitive substring)")
     var desc: String?
 
+    @Option(name: .long, help: "Filter by enabled state (true → enabled only, false → disabled only)")
+    var enabled: Bool?
+
     @Option(name: .long, help: "Hit-test X screen coordinate (use with --y)")
     var x: Int?
 
@@ -84,7 +87,8 @@ struct FindCommand: AsyncParsableCommand {
             role: role,
             title: title,
             value: value,
-            description: desc
+            description: desc,
+            enabled: enabled
         )
 
         switch format {

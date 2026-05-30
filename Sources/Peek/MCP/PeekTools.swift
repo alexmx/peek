@@ -151,6 +151,8 @@ enum PeekTools {
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring). Prefer 'title' for label searches — it already includes description.")
         var desc: String?
+        @InputProperty("Filter by enabled state. true → only enabled controls, false → only disabled. Omit to include both.")
+        var enabled: Bool?
         @InputProperty("Hit-test X screen coordinate (use with y instead of filters)")
         var x: Int?
         @InputProperty("Hit-test Y screen coordinate (use with x instead of filters)")
@@ -267,6 +269,8 @@ enum PeekTools {
             "Search for menu items by title (case-insensitive substring) — returns matches with their menu path"
         )
         var find: String?
+        @InputProperty("Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find'). Use this when the full menu tree would overflow (Xcode, Safari).")
+        var path: String?
     }
 
     struct LaunchArgs: MCPToolInput {
@@ -363,7 +367,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title (matches AXTitle OR AXDescription) or value. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click. Best uses: pre-read state to learn what's currently visible (button labels, display values, dialog presence) before peek_wait, peek_click, or peek_action — that way you target labels you've confirmed exist."
+        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title (matches AXTitle OR AXDescription), value, or enabled state. Each match comes back as a flat node — title/role/value/frame — WITHOUT its child subtree; for the subtree of a specific element, use peek_tree. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click. Best uses: pre-read state to learn what's currently visible (button labels, display values, dialog presence, enabled state) before peek_wait, peek_click, or peek_action — that way you target labels you've confirmed exist."
     ) { (args: FindArgs) in
         try await withTimeout("peek_find") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -376,7 +380,8 @@ enum PeekTools {
                 let results = try AccessibilityManager.find(
                     pid: pid, windowID: windowID,
                     role: args.role, title: args.title,
-                    value: args.value, description: args.desc
+                    value: args.value, description: args.desc,
+                    enabled: args.enabled
                 )
                 return try json(results)
             }
@@ -512,7 +517,7 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Interact with an app's menu bar. 'find' and the no-argument tree read are read-only and do NOT steal focus. 'find' returns each match with its full path (e.g. 'Edit > Copy') — use it when you're unsure the item exists or need its exact label. If you already know the leaf title (common items like 'Copy', 'Paste', 'Save', 'Quit'), skip find and call click directly. 'click' triggers a menu item and activates the target app first because menus must be visible to execute. Works on apps with no open windows (menus are per-app). Avoid calling with no args — the full menu tree can be very large."
+        description: "Interact with an app's menu bar. 'find' and tree reads are read-only and do NOT steal focus. 'find' returns each match with its full path (e.g. 'Edit > Copy') — use when unsure the item exists or need its exact label. If you already know the leaf title (Copy, Paste, Save, Quit), skip find and call click directly. 'path' returns only that submenu (e.g. 'Debug' or 'Edit > Find') — prefer over no-arg dumps for large apps where the full menu tree would overflow. 'click' triggers a menu item and activates the target app first because menus must be visible to execute. Works on apps with no open windows (menus are per-app). Avoid calling with no args on a large app — the full menu tree can be very large."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
             // The menu bar is per-app, not per-window — resolving a window would
@@ -528,6 +533,10 @@ enum PeekTools {
                 // Read-only menu search — works on backgrounded apps via AX.
                 let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
                 return try json(items)
+            } else if let scopedPath = args.path {
+                // Read-only scoped submenu — avoids dumping the full menu tree.
+                let subtree = try MenuBarManager.menuSubtree(pid: pid, path: scopedPath)
+                return try json(subtree)
             } else {
                 // Read-only menu tree — same.
                 let tree = try MenuBarManager.menuBar(pid: pid)

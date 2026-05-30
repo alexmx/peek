@@ -16,6 +16,9 @@ struct MenuCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Search for menu items by title (case-insensitive substring)")
     var find: String?
 
+    @Option(name: .long, help: "Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find')")
+    var path: String?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -60,7 +63,11 @@ struct MenuCommand: AsyncParsableCommand {
             return
         }
 
-        let tree = try MenuBarManager.menuBar(pid: pid)
+        let tree: MenuNode = if let path {
+            try MenuBarManager.menuSubtree(pid: pid, path: path)
+        } else {
+            try MenuBarManager.menuBar(pid: pid)
+        }
 
         switch format {
         case .json:

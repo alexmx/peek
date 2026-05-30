@@ -9,6 +9,42 @@ enum MenuBarManager {
         return buildMenuNode(from: menuBarEl)
     }
 
+    /// Return the subtree at the given path (segments separated by ">"), so callers
+    /// can scope a menu read to a single submenu (e.g. "Debug" or "Edit > Find")
+    /// instead of dumping the entire menu bar. Throws `menuItemNotFound` if no node
+    /// along the path matches.
+    static func menuSubtree(pid: pid_t, path: String) throws -> MenuNode {
+        let segments = path.split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard !segments.isEmpty else {
+            return try menuBar(pid: pid)
+        }
+        let tree = try menuBar(pid: pid)
+        guard let node = findByPath(in: tree, segments: segments) else {
+            throw PeekError.menuItemNotFound(path)
+        }
+        return node
+    }
+
+    private static func findByPath(in node: MenuNode, segments: [String]) -> MenuNode? {
+        guard let head = segments.first else { return node }
+        let rest = Array(segments.dropFirst())
+        for child in node.children {
+            if child.title.localizedCaseInsensitiveCompare(head) == .orderedSame {
+                if let found = findByPath(in: child, segments: rest) {
+                    return found
+                }
+            }
+            // Descend through unnamed wrappers (AXMenu containers) without consuming a segment.
+            if child.title.isEmpty {
+                if let found = findByPath(in: child, segments: segments) {
+                    return found
+                }
+            }
+        }
+        return nil
+    }
+
     /// Search for menu items matching a title (case-insensitive substring).
     static func findMenuItems(pid: pid_t, title: String) throws -> [MenuNode] {
         let menuBarEl = try AccessibilityManager.menuBar(pid: pid)

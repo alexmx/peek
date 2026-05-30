@@ -115,6 +115,27 @@ struct AXNodeTests {
         #expect(!titleOnlyNode.matches(role: nil, title: nil, value: nil, description: "save"))
     }
 
+    @Test("matches - enabled filter selects by state")
+    func matchesEnabledFilter() {
+        let enabledNode = AXNode(role: "Button", title: "Go", value: nil, description: nil,
+                                  enabled: true, frame: nil, children: [])
+        let disabledNode = AXNode(role: "Button", title: "Stop", value: nil, description: nil,
+                                   enabled: false, frame: nil, children: [])
+        let implicitNode = AXNode(role: "Button", title: "X", value: nil, description: nil,
+                                   enabled: nil, frame: nil, children: [])
+        #expect(enabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
+        #expect(!enabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
+        #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
+        #expect(!disabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
+        // Nodes with enabled=nil are treated as enabled (sensible default — most AX
+        // elements omit the attribute when they're enabled).
+        #expect(implicitNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
+        #expect(!implicitNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
+        // Filter omitted → both pass
+        #expect(enabledNode.matches(role: nil, title: nil, value: nil, description: nil))
+        #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil))
+    }
+
     @Test("matches - multiple filters combined")
     func matchesMultipleFilters() {
         #expect(sampleNode.matches(role: "Button", title: "Click", value: "pressed", description: "clickable"))

@@ -54,7 +54,7 @@ struct AXNode: Encodable, Equatable {
     /// both), so callers asking for the "5" button shouldn't have to know whether AppKit
     /// or SwiftUI chose to put the label in title vs description. Use `description` when
     /// you specifically need the description-only filter.
-    func matches(role: String?, title: String?, value: String?, description: String?) -> Bool {
+    func matches(role: String?, title: String?, value: String?, description: String?, enabled: Bool? = nil) -> Bool {
         if let role, self.role != role { return false }
         if let title {
             let titleHit = self.title?.localizedCaseInsensitiveContains(title) == true
@@ -63,6 +63,7 @@ struct AXNode: Encodable, Equatable {
         }
         if let value, self.value?.localizedCaseInsensitiveContains(value) != true { return false }
         if let description, self.description?.localizedCaseInsensitiveContains(description) != true { return false }
+        if let enabled, (self.enabled ?? true) != enabled { return false }
         return true
     }
 

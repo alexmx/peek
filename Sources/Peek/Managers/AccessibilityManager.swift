@@ -108,10 +108,11 @@ enum AccessibilityManager {
         role: String?,
         title: String?,
         value: String?,
-        description: String?
+        description: String?,
+        enabled: Bool? = nil
     ) throws -> [AXNode] {
         let window = try resolveWindow(pid: pid, windowID: windowID)
-        return findAll(in: window, role: role, title: title, value: value, description: description)
+        return findAll(in: window, role: role, title: title, value: value, description: description, enabled: enabled)
             .map(\.node)
     }
 
@@ -151,7 +152,8 @@ enum AccessibilityManager {
         role: String?,
         title: String?,
         value: String?,
-        description: String?
+        description: String?,
+        enabled: Bool? = nil
     ) -> [ElementMatch] {
         var results: [ElementMatch] = []
         searchAll(
@@ -160,6 +162,7 @@ enum AccessibilityManager {
             title: title,
             value: value,
             description: description,
+            enabled: enabled,
             depth: 0,
             results: &results
         )
@@ -207,13 +210,14 @@ enum AccessibilityManager {
         title: String?,
         value: String?,
         description: String?,
+        enabled: Bool?,
         depth: Int,
         results: inout [ElementMatch]
     ) {
         guard depth < maxDepth else { return }
 
         let node = AXBridge.nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description) {
+        if node.matches(role: role, title: title, value: value, description: description, enabled: enabled) {
             results.append(ElementMatch(ref: element, node: node))
         }
 
@@ -225,6 +229,7 @@ enum AccessibilityManager {
                     title: title,
                     value: value,
                     description: description,
+                    enabled: enabled,
                     depth: depth + 1,
                     results: &results
                 )
