@@ -136,7 +136,7 @@ enum PeekTools {
         var role: String?
         @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title.")
         var title: String?
-        @InputProperty("Filter by value (case-insensitive substring)")
+        @InputProperty("Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string.")
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring). Prefer 'title' for label searches — it already includes description.")
         var desc: String?
@@ -206,7 +206,7 @@ enum PeekTools {
         var role: String?
         @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches.")
         var title: String?
-        @InputProperty("Filter by value")
+        @InputProperty("Filter by value (case-insensitive substring). App-formatted text (thousands separators, currency, percent) may not match a literal — use a short partial substring.")
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring).")
         var desc: String?
@@ -291,7 +291,7 @@ enum PeekTools {
         var role: String?
         @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring.")
         var title: String?
-        @InputProperty("Filter by value (case-insensitive substring)")
+        @InputProperty("Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string.")
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring).")
         var desc: String?
