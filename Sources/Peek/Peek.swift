@@ -20,7 +20,6 @@ struct Peek: AsyncParsableCommand {
             LaunchCommand.self,
             QuitCommand.self,
             // Monitoring
-            WatchCommand.self,
             CaptureCommand.self,
             // System
             DoctorCommand.self,

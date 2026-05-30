@@ -3,6 +3,10 @@ import CoreGraphics
 import Foundation
 
 struct ActionCommand: AsyncParsableCommand {
+    enum VerifyMode: String, ExpressibleByArgument {
+        case none, tree, diff
+    }
+
     static let configuration = CommandConfiguration(
         commandName: "action",
         abstract: "Perform an accessibility action on a UI element"
@@ -28,13 +32,13 @@ struct ActionCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Perform the action on all matching elements (default: first match only)")
     var all: Bool = false
 
-    @Flag(name: .long, help: "Also return the accessibility tree after performing the action")
-    var resultTree: Bool = false
+    @Option(name: .long, help: "Verification mode after the action: 'none' (default), 'tree' (post-action snapshot), 'diff' (only what changed)")
+    var verify: VerifyMode = .none
 
-    @Option(name: .long, help: "Tree depth limit when --result-tree is used")
+    @Option(name: .long, help: "Tree depth limit when --verify=tree or --verify=diff")
     var depth: Int?
 
-    @Option(name: .long, help: "Seconds to wait before capturing the tree (default: 1)")
+    @Option(name: .long, help: "Seconds to wait before the post-action snapshot (default: 1)")
     var delay: Double?
 
     @Option(name: .long, help: "Output format")
@@ -49,6 +53,15 @@ struct ActionCommand: AsyncParsableCommand {
     func run() async throws {
         let resolved = try await target.resolve()
         let action = self.do
+        let settleDelay = delay ?? 1.0
+
+        let beforeFlat: [AXNode]? = if verify == .diff {
+            MonitorManager.flattenNodes(
+                try AccessibilityManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
+            )
+        } else {
+            nil
+        }
 
         let nodes: [AXNode] = if all {
             try await InteractionManager.performActionOnAll(
@@ -62,33 +75,46 @@ struct ActionCommand: AsyncParsableCommand {
             )]
         }
 
-        if resultTree {
-            let settleDelay = delay ?? 1.0
+        switch verify {
+        case .tree:
             usleep(UInt32(settleDelay * 1_000_000))
             let treeNode = try AccessibilityManager.inspect(
                 pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
             )
+            try printActionResult(ActionTreeResult(action: nodes, resultTree: treeNode), nodes: nodes, action: action)
+        case .diff:
+            usleep(UInt32(settleDelay * 1_000_000))
+            let afterTree = try AccessibilityManager.inspect(
+                pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
+            )
+            let diff = MonitorManager.computeDiff(
+                before: beforeFlat ?? [],
+                after: MonitorManager.flattenNodes(afterTree)
+            )
+            try printActionResult(ActionDiffResult(action: nodes, diff: diff), nodes: nodes, action: action)
+        case .none:
             switch format {
-            case .json: try printJSON(ActionTreeResult(action: nodes, resultTree: treeNode))
-            case .toon: try printTOON(ActionTreeResult(action: nodes, resultTree: treeNode))
+            case .json:
+                if all { try printJSON(nodes) } else { try printJSON(nodes[0]) }
+            case .toon:
+                if all { try printTOON(nodes) } else { try printTOON(nodes[0]) }
             case .default:
                 for node in nodes {
                     print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
                 }
+                if all { print("\(nodes.count) element(s) affected.") }
             }
-            return
         }
+    }
 
+    private func printActionResult(_ result: some Encodable, nodes: [AXNode], action: String) throws {
         switch format {
-        case .json:
-            if all { try printJSON(nodes) } else { try printJSON(nodes[0]) }
-        case .toon:
-            if all { try printTOON(nodes) } else { try printTOON(nodes[0]) }
+        case .json: try printJSON(result)
+        case .toon: try printTOON(result)
         case .default:
             for node in nodes {
                 print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
             }
-            if all { print("\(nodes.count) element(s) affected.") }
         }
     }
 }

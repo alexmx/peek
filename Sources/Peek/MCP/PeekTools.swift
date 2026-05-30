@@ -212,11 +212,11 @@ enum PeekTools {
         var desc: String?
         @InputProperty("Perform on all matches (default: first only)")
         var all: Bool?
-        @InputProperty("Return the accessibility tree after the action (saves a separate peek_tree call)")
-        var resultTree: Bool?
-        @InputProperty("Tree depth limit when resultTree=true (default: full tree)")
+        @InputProperty("Verification mode after the action. 'none' (default) returns just confirmation. 'tree' captures the post-action accessibility tree (saves a separate peek_tree call). 'diff' snapshots before and after the action and returns only what changed — usually the ideal choice for 'did this control update?' checks (smaller payload than tree, focused on the delta).")
+        var verify: String?
+        @InputProperty("Tree depth limit for verify=tree or verify=diff (default: full tree).")
         var depth: Int?
-        @InputProperty("Seconds to wait before capturing the tree when resultTree=true (default: 1)")
+        @InputProperty("Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 1). Bump for apps that lazy-paint values.")
         var delay: Double?
     }
 
@@ -301,17 +301,6 @@ enum PeekTools {
         var poll: Double?
     }
 
-    struct WatchArgs: MCPToolInput {
-        @InputProperty("Window ID (from peek_apps)")
-        var window_id: Int?
-        @InputProperty("App name (case-insensitive substring)")
-        var app: String?
-        @InputProperty("Process ID")
-        var pid: Int?
-        @InputProperty("Seconds to wait between snapshots (default: 3)")
-        var delay: Double?
-    }
-
     struct DoctorArgs: MCPToolInput {
         @InputProperty("Prompt for missing permissions via System Settings")
         var prompt: Bool?
@@ -320,7 +309,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, scroll, type, action, activate, launch, quit, capture, menu, watch, wait, doctor]
+        [apps, tree, find, click, scroll, type, action, activate, launch, quit, capture, menu, wait, doctor]
     }
 
     static let apps = MCPTool(
@@ -428,13 +417,22 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items — works without activating the app), Confirm (text fields), ShowMenu (popups — auto-activates the app), Increment/Decrement (sliders). Prefer resultTree=true when you need to verify the outcome — it captures the post-action accessibility tree (after `delay`, default 1s) and usually eliminates a follow-up peek_find. Caveat: apps that lazy-paint values (computed displays, debounced renders) may still need a follow-up peek_find for the specific value — bump `delay` or fall back when the tree comes back missing the field you care about. Use plain peek_action when you don't need to inspect the result."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items — works without activating the app), Confirm (text fields), ShowMenu (popups — auto-activates the app), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 1.0
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let all = args.all ?? false
-            let includeTree = args.resultTree ?? false
+            let verify = args.verify?.lowercased() ?? "none"
+
+            // For verify=diff we need a snapshot taken BEFORE the action.
+            let beforeFlat: [AXNode]? = if verify == "diff" {
+                MonitorManager.flattenNodes(
+                    try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+                )
+            } else {
+                nil
+            }
 
             let nodes: [AXNode] = if all {
                 try await InteractionManager.performActionOnAll(
@@ -448,23 +446,28 @@ enum PeekTools {
                 )]
             }
 
-            if includeTree {
-                usleep(UInt32(settleDelay * 1_000_000))
+            switch verify {
+            case "tree":
+                try await Task.sleep(nanoseconds: UInt64(settleDelay * 1_000_000_000))
                 let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
                 return try json(ActionTreeResult(action: nodes, resultTree: tree))
-            }
-
-            if all {
-                return try json(nodes)
-            } else {
-                return try json(nodes[0])
+            case "diff":
+                try await Task.sleep(nanoseconds: UInt64(settleDelay * 1_000_000_000))
+                let afterTree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+                let diff = MonitorManager.computeDiff(
+                    before: beforeFlat ?? [],
+                    after: MonitorManager.flattenNodes(afterTree)
+                )
+                return try json(ActionDiffResult(action: nodes, diff: diff))
+            default:
+                return all ? try json(nodes) : try json(nodes[0])
             }
         }
     }
 
     static let activate = MCPTool(
         name: "peek_activate",
-        description: "Bring an app to the foreground and raise its window. Most read-only tools (peek_tree, peek_find, peek_watch, peek_capture, peek_menu --find) and peek_action Press work on backgrounded apps and do NOT auto-activate. Use this when you need to interact with the app's keyboard focus (e.g. before peek_type) or to show UI that requires the app's event loop (popovers, sheets)."
+        description: "Bring an app to the foreground and raise its window. Most read-only tools (peek_tree, peek_find, peek_capture, peek_menu --find) and peek_action Press work on backgrounded apps and do NOT auto-activate. Use this when you need to interact with the app's keyboard focus (e.g. before peek_type) or to show UI that requires the app's event loop (popovers, sheets)."
     ) { (args: WindowArgs) in
         try await withTimeout("peek_activate") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -522,19 +525,6 @@ enum PeekTools {
         }
     }
 
-    static let watch = MCPTool(
-        name: "peek_watch",
-        description: "Monitor async/delayed UI changes by taking two accessibility snapshots separated by a delay (default: 3s) and reporting what was added, removed, or changed. Use this ONLY for changes you don't trigger yourself — loading spinners, network loads, build progress, animations that play out on their own. For changes you trigger via peek_action, peek_menu --click, or peek_type, peek_action resultTree=true is simpler, atomic, and avoids the parallel-call problem this tool's snapshot model would otherwise create."
-    ) { (args: WatchArgs) in
-        let delay = args.delay ?? 3.0
-        // Watch's delay is part of normal operation — budget around it.
-        return try await withTimeout("peek_watch", seconds: delay + defaultTimeout) {
-            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-            let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
-            return try json(diff)
-        }
-    }
-
     static let launch = MCPTool(
         name: "peek_launch",
         description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — returns once an AX-visible window appears, errors on 10s timeout. Prefer bundle_id when known. Note: many apps persist view mode, expression, or document state across runs — peek_quit + peek_launch may not reset that. Plan an explicit reset (clear button, mode menu, fresh document) when you need a known starting state."
@@ -567,7 +557,7 @@ enum PeekTools {
 
     static let wait = MCPTool(
         name: "peek_wait",
-        description: "Poll for a UI element to appear, returning as soon as it matches. Use this instead of peek_watch when you're waiting on a known element (a 'Done' button after a save, a dialog to open) rather than diffing arbitrary changes. Same filter shape as peek_find. Pre-read state with peek_find first to confirm the label/role you're going to wait for actually appears in this app's UI — waiting on a label that never shows burns the full timeout. Errors with timeout on miss."
+        description: "Poll for a UI element to appear, returning as soon as it matches. Use this when you're waiting on a known element (a 'Done' button after a save, a dialog to open, a spinner to vanish) — change you don't directly trigger. For changes you DO trigger, peek_action verify='diff' is more direct. Same filter shape as peek_find. Pre-read state with peek_find first to confirm the label/role you're going to wait for actually appears in this app's UI — waiting on a label that never shows burns the full timeout. Errors with timeout on miss."
     ) { (args: WaitArgs) in
         let timeout = args.timeout ?? 30.0
         let poll = max(args.poll ?? 0.5, 0.1)

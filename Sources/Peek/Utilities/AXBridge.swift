@@ -155,37 +155,6 @@ enum AXBridge {
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
     }
 
-    // MARK: - Observation
-
-    /// Create an AXObserver for a PID with the given callback and notifications.
-    static func createObserver(
-        pid: pid_t,
-        callback: AXObserverCallback,
-        element: AXUIElement,
-        notifications: [String],
-        context: UnsafeMutableRawPointer
-    ) throws -> AXObserver {
-        var observer: AXObserver?
-        let result = AXObserverCreate(pid, callback, &observer)
-        guard result == .success, let observer else {
-            throw PeekError.actionFailed("AXObserverCreate", result)
-        }
-
-        for notification in notifications {
-            AXObserverAddNotification(observer, element, notification as CFString, context)
-        }
-
-        return observer
-    }
-
-    /// Attach an observer to the current run loop.
-    static func attachToRunLoop(_ observer: AXObserver) {
-        CFRunLoopAddSource(
-            CFRunLoopGetCurrent(),
-            AXObserverGetRunLoopSource(observer),
-            .defaultMode
-        )
-    }
 
     // MARK: - Menu Attributes
 
