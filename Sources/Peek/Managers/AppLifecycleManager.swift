@@ -111,10 +111,13 @@ enum AppLifecycleManager {
         }
         if let name {
             let lower = name.lowercased()
-            for app in NSWorkspace.shared.runningApplications {
-                if app.localizedName?.lowercased().contains(lower) == true {
-                    return app
-                }
+            let regularApps = NSWorkspace.shared.runningApplications
+                .filter { $0.activationPolicy == .regular }
+            if let exact = regularApps.first(where: { $0.localizedName?.lowercased() == lower }) {
+                return exact
+            }
+            if let substring = regularApps.first(where: { $0.localizedName?.lowercased().contains(lower) == true }) {
+                return substring
             }
             throw PeekError.appNotFound(name)
         }
