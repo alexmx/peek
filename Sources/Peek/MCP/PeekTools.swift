@@ -280,7 +280,7 @@ enum PeekTools {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             if let x = args.x, let y = args.y {
                 guard let node = try AccessibilityManager.elementAt(pid: pid, windowID: windowID, x: x, y: y) else {
-                    return .text("No element found at (\(x), \(y)).")
+                    return .text("null")
                 }
                 return try json(node)
             } else {
