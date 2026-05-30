@@ -503,9 +503,10 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - title change creates different identity")
+    @Test("computeDiff - title change on same-position element reported as changed")
     func computeDiffChangedTitle() {
-        // Identity includes title, so changing title = different identity = removed + added
+        // Identity includes title (different), but the overlap-pass pairs the removed/
+        // added by role + frame overlap and reports a single `changed` entry.
         let before = [
             AXNode(
                 role: "Button",
@@ -529,9 +530,11 @@ struct MonitorManagerTests {
             )
         ]
         let diff = MonitorManager.computeDiff(before: before, after: after)
-        #expect(diff.added.count == 1)
-        #expect(diff.removed.count == 1)
-        #expect(diff.changed.isEmpty)
+        #expect(diff.added.isEmpty)
+        #expect(diff.removed.isEmpty)
+        #expect(diff.changed.count == 1)
+        #expect(diff.changed[0].before.title == "Old")
+        #expect(diff.changed[0].after.title == "New")
     }
 
     @Test("computeDiff - changed value")
@@ -564,7 +567,42 @@ struct MonitorManagerTests {
         #expect(diff.changed[0].after.value == "new text")
     }
 
-    @Test("computeDiff - frame position change creates different identity")
+    @Test("computeDiff - resizing display reported as changed (Calculator shape)")
+    func computeDiffResizingDisplay() {
+        // Mirrors Calculator's StaticText display going from "9" to "95+7" — the value
+        // changes and the frame width shifts, but the element is the same one.
+        // Old behavior reported this as 1 removed + 1 added; new behavior pairs them.
+        let before = [
+            AXNode(
+                role: "StaticText",
+                title: nil,
+                value: "9",
+                description: nil,
+                enabled: true,
+                frame: AXNode.FrameInfo(x: 1097, y: 270, width: 19, height: 36),
+                children: []
+            )
+        ]
+        let after = [
+            AXNode(
+                role: "StaticText",
+                title: nil,
+                value: "95+7",
+                description: nil,
+                enabled: true,
+                frame: AXNode.FrameInfo(x: 1043, y: 270, width: 73, height: 36),
+                children: []
+            )
+        ]
+        let diff = MonitorManager.computeDiff(before: before, after: after)
+        #expect(diff.added.isEmpty)
+        #expect(diff.removed.isEmpty)
+        #expect(diff.changed.count == 1)
+        #expect(diff.changed[0].before.value == "9")
+        #expect(diff.changed[0].after.value == "95+7")
+    }
+
+    @Test("computeDiff - non-overlapping frame move stays as removed+added")
     func computeDiffChangedFrame() {
         // Identity includes frame position, so moving = different identity = removed + added
         let before = [
@@ -733,9 +771,10 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - description change creates different identity")
+    @Test("computeDiff - description change on same-position element reported as changed")
     func computeDiffDescriptionChange() {
-        // Identity includes description, so changing it creates different identity
+        // Identity includes description (different), but overlap-pass pairs the
+        // removed/added by role + frame overlap.
         let before = [
             AXNode(
                 role: "TextField",
@@ -759,11 +798,11 @@ struct MonitorManagerTests {
             )
         ]
         let diff = MonitorManager.computeDiff(before: before, after: after)
-
-        // Description is part of identity
-        #expect(diff.added.count == 1)
-        #expect(diff.removed.count == 1)
-        #expect(diff.changed.isEmpty)
+        #expect(diff.added.isEmpty)
+        #expect(diff.removed.isEmpty)
+        #expect(diff.changed.count == 1)
+        #expect(diff.changed[0].before.description == "old desc")
+        #expect(diff.changed[0].after.description == "new desc")
     }
 
     @Test("computeDiff - detects frame size change")

@@ -119,6 +119,13 @@ extension MonitorManager {
     }
 
     /// Compute diff between two flattened node lists.
+    ///
+    /// Identity-based matching catches the common case where role+title+description+frame
+    /// all stayed the same. A second pass then pairs each leftover removed node with an
+    /// added node of the same role whose frame overlaps the removed one's frame — that's
+    /// almost always the same UI element whose value or label changed enough to shift its
+    /// bounds (e.g. a digit display resizing as the number grows). Those pairs get
+    /// reported as `changed` instead of `removed + added`.
     static func computeDiff(before: [AXNode], after: [AXNode]) -> TreeDiff {
         let beforeByID = Dictionary(grouping: before, by: { $0.identity })
         let afterByID = Dictionary(grouping: after, by: { $0.identity })
@@ -130,33 +137,54 @@ extension MonitorManager {
         let removedKeys = beforeKeys.subtracting(afterKeys)
         let commonKeys = beforeKeys.intersection(afterKeys)
 
-        let added = addedKeys.compactMap { afterByID[$0]?.first }
-        let removed = removedKeys.compactMap { beforeByID[$0]?.first }
+        var added = addedKeys.compactMap { afterByID[$0]?.first }
+        var removed = removedKeys.compactMap { beforeByID[$0]?.first }
 
         var changed: [TreeDiff.NodeChange] = []
         for key in commonKeys {
             guard let b = beforeByID[key]?.first, let a = afterByID[key]?.first else { continue }
             if b != a {
-                changed.append(TreeDiff.NodeChange(
-                    identity: key,
-                    role: a.role,
-                    before: TreeDiff.ChangeValues(
-                        title: b.title,
-                        value: b.value,
-                        description: b.description,
-                        frame: b.frame
-                    ),
-                    after: TreeDiff.ChangeValues(
-                        title: a.title,
-                        value: a.value,
-                        description: a.description,
-                        frame: a.frame
-                    )
-                ))
+                changed.append(makeChange(key: key, before: b, after: a))
             }
         }
 
+        // Second pass: pair removed↔added by overlapping frame + same role.
+        var pairedAddedIndices: Set<Int> = []
+        var stillRemoved: [AXNode] = []
+        for r in removed {
+            if let idx = added.indices.first(where: { i in
+                !pairedAddedIndices.contains(i)
+                    && added[i].role == r.role
+                    && framesOverlap(r.frame, added[i].frame)
+            }) {
+                pairedAddedIndices.insert(idx)
+                changed.append(makeChange(key: r.identity, before: r, after: added[idx]))
+            } else {
+                stillRemoved.append(r)
+            }
+        }
+        added = added.enumerated().filter { !pairedAddedIndices.contains($0.offset) }.map(\.element)
+        removed = stillRemoved
+
         return TreeDiff(added: added, removed: removed, changed: changed)
+    }
+
+    private static func makeChange(key: String, before b: AXNode, after a: AXNode) -> TreeDiff.NodeChange {
+        TreeDiff.NodeChange(
+            identity: key,
+            role: a.role,
+            before: TreeDiff.ChangeValues(title: b.title, value: b.value, description: b.description, frame: b.frame),
+            after: TreeDiff.ChangeValues(title: a.title, value: a.value, description: a.description, frame: a.frame)
+        )
+    }
+
+    private static func framesOverlap(_ lhs: AXNode.FrameInfo?, _ rhs: AXNode.FrameInfo?) -> Bool {
+        guard let lhs, let rhs else { return false }
+        let lMaxX = lhs.x + lhs.width
+        let lMaxY = lhs.y + lhs.height
+        let rMaxX = rhs.x + rhs.width
+        let rMaxY = rhs.y + rhs.height
+        return lhs.x < rMaxX && rhs.x < lMaxX && lhs.y < rMaxY && rhs.y < lMaxY
     }
 
     /// Flatten a node tree into a list.
