@@ -36,6 +36,11 @@ enum PeekTools {
         _ = try InteractionManager.activate(pid: p, windowID: wid)
     }
 
+    /// Default tree depth when `args.depth` is not provided. Caps the response size
+    /// so a tree from a deeply-nested app (Xcode, System Settings) doesn't blow out
+    /// the MCP context window. Callers who need to drill deeper pass an explicit value.
+    private static let defaultTreeDepth = 10
+
     /// Default per-tool wall-clock budget. Synchronous AX/CGEvent calls don't honor
     /// Task cancellation, so if AX itself wedges (e.g. after an interrupted call leaves
     /// an element locked), a tool handler could hang forever and block the MCP server's
@@ -82,7 +87,7 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty("Maximum tree depth to traverse")
+        @InputProperty("Maximum tree depth to traverse (default: 10). Pass a higher value for deeply-nested apps.")
         var depth: Int?
     }
 
@@ -257,11 +262,12 @@ enum PeekTools {
 
     static let tree = MCPTool(
         name: "peek_tree",
-        description: "Inspect the accessibility tree of a window. Returns the full UI element hierarchy. Always use depth to control output size."
+        description: "Inspect the accessibility tree of a window. Returns the UI element hierarchy down to a depth limit (default: 10). For deeply-nested apps (Xcode, System Settings), the default keeps the response from blowing out the context; pass a higher 'depth' to drill further. To explore a subtree cheaply, narrow first with peek_find."
     ) { (args: TreeArgs) in
         try await withTimeout("peek_tree") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-            let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+            let depth = args.depth ?? defaultTreeDepth
+            let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: depth)
             return try json(tree)
         }
     }
