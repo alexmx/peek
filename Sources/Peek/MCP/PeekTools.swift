@@ -231,6 +231,28 @@ enum PeekTools {
         var find: String?
     }
 
+    struct LaunchArgs: MCPToolInput {
+        @InputProperty("Bundle identifier (e.g. com.apple.calculator). Prefer this when known — it's the most reliable resolver.")
+        var bundle_id: String?
+        @InputProperty("App display name (e.g. 'Calculator'). Searches /Applications, /System/Applications, /System/Applications/Utilities.")
+        var name: String?
+        @InputProperty("Absolute path to a .app bundle (e.g. /Applications/Notes.app)")
+        var path: String?
+        @InputProperty("Wait until at least one AX-visible window appears before returning (default: false). Useful when the next call needs a window_id.")
+        var wait_for_window: Bool?
+    }
+
+    struct QuitArgs: MCPToolInput {
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty("Bundle identifier (e.g. com.apple.calculator)")
+        var bundle_id: String?
+        @InputProperty("App display name (case-insensitive substring; first match wins)")
+        var name: String?
+        @InputProperty("Force-terminate with forceTerminate() instead of graceful terminate() (default: false). Use only when graceful quit has failed.")
+        var force: Bool?
+    }
+
     struct WaitArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -271,7 +293,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, scroll, type, action, activate, capture, menu, watch, wait, doctor]
+        [apps, tree, find, click, scroll, type, action, activate, launch, quit, capture, menu, watch, wait, doctor]
     }
 
     static let apps = MCPTool(
@@ -480,6 +502,36 @@ enum PeekTools {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let diff = try MonitorManager.diff(pid: pid, windowID: windowID, delay: delay)
             return try json(diff)
+        }
+    }
+
+    static let launch = MCPTool(
+        name: "peek_launch",
+        description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — the call will return only after the app has at least one AX-visible window (or 10s have elapsed). Prefer bundle_id when known."
+    ) { (args: LaunchArgs) in
+        try await withTimeout("peek_launch", seconds: 15) {
+            let url = try AppLifecycleManager.resolveAppURL(
+                bundleID: args.bundle_id, name: args.name, path: args.path
+            )
+            let result = try await AppLifecycleManager.launch(
+                url: url, waitForWindow: args.wait_for_window ?? false
+            )
+            return try json(result)
+        }
+    }
+
+    static let quit = MCPTool(
+        name: "peek_quit",
+        description: "Terminate a running application gracefully (force=true uses forceTerminate). Resolve by pid, bundle_id, or name — prefer pid when known. Returns immediately after dispatching the terminate signal; the app's shutdown may continue asynchronously."
+    ) { (args: QuitArgs) in
+        try await withTimeout("peek_quit") {
+            let result = try AppLifecycleManager.quit(
+                pid: args.pid.map { pid_t($0) },
+                bundleID: args.bundle_id,
+                name: args.name,
+                force: args.force ?? false
+            )
+            return try json(result)
         }
     }
 

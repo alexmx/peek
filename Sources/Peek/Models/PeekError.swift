@@ -19,6 +19,8 @@ enum PeekError: LocalizedError {
     case unsupportedAction(String, supported: [String])
     case timeout(String, TimeInterval)
     case windowHidden(CGWindowID)
+    case appNotFound(String)
+    case launchFailed(String, String)
 
     var errorDescription: String? {
         switch self {
@@ -58,6 +60,10 @@ enum PeekError: LocalizedError {
             "Operation '\(op)' timed out after \(String(format: "%.1f", seconds))s. The target app may be unresponsive or the accessibility tree may be very large; try narrowing with role/title filters, lowering depth, or retrying."
         case .windowHidden(let id):
             "Window \(id) cannot be captured because its app is hidden. Call peek_activate first, then retry the capture."
+        case .appNotFound(let identifier):
+            "Could not locate an app matching '\(identifier)'. Provide a valid bundle_id (e.g. com.apple.calculator), an exact name (e.g. 'Calculator'), or an absolute .app path."
+        case .launchFailed(let name, let reason):
+            "Failed to launch or terminate '\(name)': \(reason)."
         }
     }
 }

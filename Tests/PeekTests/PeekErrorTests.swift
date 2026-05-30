@@ -187,6 +187,24 @@ struct PeekErrorTests {
         #expect(description.contains("peek_activate"))
     }
 
+    @Test("appNotFound - lists accepted identifier shapes")
+    func appNotFoundDescription() throws {
+        let error = PeekError.appNotFound("NoSuchApp")
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("NoSuchApp"))
+        #expect(description.contains("bundle_id"))
+        #expect(description.localizedCaseInsensitiveContains("name"))
+        #expect(description.contains(".app"))
+    }
+
+    @Test("launchFailed - includes name and reason")
+    func launchFailedDescription() throws {
+        let error = PeekError.launchFailed("TestApp", "process exited")
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("TestApp"))
+        #expect(description.contains("process exited"))
+    }
+
     // MARK: - All Errors Have Descriptions
 
     @Test("all error cases have non-empty descriptions")
@@ -207,7 +225,9 @@ struct PeekErrorTests {
             .activationFailed(123, "TestApp"),
             .unsupportedAction("AXShowMenu", supported: ["AXPress"]),
             .timeout("peek_tree", 20),
-            .windowHidden(99)
+            .windowHidden(99),
+            .appNotFound("XYZ"),
+            .launchFailed("XYZ", "oops")
         ]
 
         for error in errors {
