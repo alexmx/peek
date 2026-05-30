@@ -18,6 +18,7 @@ enum PeekError: LocalizedError {
     case activationFailed(pid_t, String)
     case unsupportedAction(String, supported: [String])
     case timeout(String, TimeInterval)
+    case windowHidden(CGWindowID)
 
     var errorDescription: String? {
         switch self {
@@ -55,6 +56,8 @@ enum PeekError: LocalizedError {
             }
         case .timeout(let op, let seconds):
             "Operation '\(op)' timed out after \(String(format: "%.1f", seconds))s. The target app may be unresponsive or the accessibility tree may be very large; try narrowing with role/title filters, lowering depth, or retrying."
+        case .windowHidden(let id):
+            "Window \(id) cannot be captured because its app is hidden. Call peek_activate first, then retry the capture."
         }
     }
 }

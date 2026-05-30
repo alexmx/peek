@@ -178,6 +178,15 @@ struct PeekErrorTests {
         #expect(description.localizedCaseInsensitiveContains("retry") || description.localizedCaseInsensitiveContains("depth"))
     }
 
+    @Test("windowHidden - suggests peek_activate")
+    func windowHiddenDescription() throws {
+        let error = PeekError.windowHidden(42)
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("42"))
+        #expect(description.localizedCaseInsensitiveContains("hidden"))
+        #expect(description.contains("peek_activate"))
+    }
+
     // MARK: - All Errors Have Descriptions
 
     @Test("all error cases have non-empty descriptions")
@@ -197,7 +206,8 @@ struct PeekErrorTests {
             .encodingFailed,
             .activationFailed(123, "TestApp"),
             .unsupportedAction("AXShowMenu", supported: ["AXPress"]),
-            .timeout("peek_tree", 20)
+            .timeout("peek_tree", 20),
+            .windowHidden(99)
         ]
 
         for error in errors {

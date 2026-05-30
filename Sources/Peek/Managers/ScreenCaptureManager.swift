@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -16,7 +17,7 @@ enum ScreenCaptureManager {
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {
-            throw PeekError.captureFailed
+            throw captureFailure(for: windowID)
         }
 
         if let crop {
@@ -48,7 +49,7 @@ enum ScreenCaptureManager {
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {
-            throw PeekError.captureFailed
+            throw captureFailure(for: windowID)
         }
 
         if let crop {
@@ -91,6 +92,31 @@ enum ScreenCaptureManager {
             windowID,
             [.boundsIgnoreFraming, .bestResolution]
         )
+    }
+
+    /// Distinguish "window is hidden" from a generic capture failure so callers know
+    /// to call peek_activate first. Uses NSRunningApplication via the owning PID
+    /// resolved from CGWindowList — synchronous, no SCShareableContent continuation.
+    private static func captureFailure(for windowID: CGWindowID) -> PeekError {
+        // .optionAll includes off-screen and minimized windows so we can find the entry
+        // even when the owning app has been hidden.
+        let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
+        guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]],
+              let info = windows.first(where: { ($0[kCGWindowNumber as String] as? CGWindowID) == windowID })
+        else {
+            return PeekError.captureFailed
+        }
+        let onScreen = info[kCGWindowIsOnscreen as String] as? Bool ?? true
+        let alpha = info[kCGWindowAlpha as String] as? Double ?? 1.0
+        if !onScreen || alpha == 0 {
+            return PeekError.windowHidden(windowID)
+        }
+        if let pid = info[kCGWindowOwnerPID as String] as? Int32,
+           let app = NSRunningApplication(processIdentifier: pid),
+           app.isHidden {
+            return PeekError.windowHidden(windowID)
+        }
+        return PeekError.captureFailed
     }
 
     private static func encodePNG(_ image: CGImage) throws -> Data {
