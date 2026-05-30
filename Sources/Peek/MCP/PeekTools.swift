@@ -134,7 +134,7 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
-        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title.")
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title. If title returns empty, fall back to the `value` filter — some apps (notably System Settings on macOS 14+) store labels in AXStaticText.value rather than title/description.")
         var title: String?
         @InputProperty("Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string.")
         var value: String?
@@ -204,7 +204,7 @@ enum PeekTools {
 
         @InputProperty("Filter by role")
         var role: String?
-        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches.")
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches. If empty, fall back to `value` — some apps store labels in AXStaticText.value rather than title/description.")
         var title: String?
         @InputProperty("Filter by value (case-insensitive substring). App-formatted text (thousands separators, currency, percent) may not match a literal — use a short partial substring.")
         var value: String?
@@ -214,7 +214,7 @@ enum PeekTools {
         var all: Bool?
         @InputProperty("Verification mode after the action. 'none' (default) returns just confirmation. 'tree' captures the post-action accessibility tree (saves a separate peek_tree call). 'diff' snapshots before and after the action and returns only what changed — usually the ideal choice for 'did this control update?' checks (smaller payload than tree, focused on the delta).")
         var verify: String?
-        @InputProperty("Tree depth limit for verify=tree or verify=diff (default: full tree).")
+        @InputProperty("Tree depth limit for verify=tree or verify=diff (default: full tree). For verify=diff, a shallow depth can silently hide changes — anything rendered deeper than the limit won't appear in the diff. Leave unset unless payload size is a problem.")
         var depth: Int?
         @InputProperty("Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 1). Bump for apps that lazy-paint values.")
         var delay: Double?
@@ -289,7 +289,7 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
-        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring.")
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. If empty, fall back to `value` — some apps store labels in AXStaticText.value.")
         var title: String?
         @InputProperty("Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string.")
         var value: String?
@@ -417,7 +417,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, checkboxes, menu items — works without activating the app), Confirm (text fields), ShowMenu (popups — auto-activates the app), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes, menu items — works without activating the app; most controls labeled 'popup' in casual terms actually take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 1.0
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
