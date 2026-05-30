@@ -113,11 +113,14 @@ enum AXBridge {
 
     // MARK: - Actions
 
-    /// AX errors tolerated when performing actions — SwiftUI apps often return these
-    /// even when the action succeeds because the element gets recreated during state changes.
-    /// Only tolerated *after* the action has been verified as supported by the element.
+    /// AX errors tolerated *after* the action has been verified as supported by the
+    /// element. The supportedActions pre-check is the front-line defense against
+    /// bogus or unsupported action names; this set covers the narrow window where
+    /// SwiftUI recreates the element between the pre-check and PerformAction,
+    /// causing the perform call to surface a benign error even though the action
+    /// landed on the recreated node.
     private static let toleratedActionErrors: Set<AXError> = [
-        .cannotComplete, .invalidUIElement
+        .cannotComplete, .invalidUIElement, .attributeUnsupported
     ]
 
     /// Return the AX action names supported by an element (with the "AX" prefix stripped).
