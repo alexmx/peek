@@ -137,11 +137,13 @@ extension MonitorManager {
         let removedKeys = beforeKeys.subtracting(afterKeys)
         let commonKeys = beforeKeys.intersection(afterKeys)
 
-        var added = addedKeys.compactMap { afterByID[$0]?.first }
-        var removed = removedKeys.compactMap { beforeByID[$0]?.first }
+        // Sort by frame top-left then identity so the second-pass pairing below is
+        // deterministic — Set-derived iteration order is otherwise unspecified.
+        var added = addedKeys.compactMap { afterByID[$0]?.first }.sorted(by: nodeOrder)
+        var removed = removedKeys.compactMap { beforeByID[$0]?.first }.sorted(by: nodeOrder)
 
         var changed: [TreeDiff.NodeChange] = []
-        for key in commonKeys {
+        for key in commonKeys.sorted() {
             guard let b = beforeByID[key]?.first, let a = afterByID[key]?.first else { continue }
             if b != a {
                 changed.append(makeChange(key: key, before: b, after: a))
@@ -175,6 +177,18 @@ extension MonitorManager {
         removed = stillRemoved
 
         return TreeDiff(added: added, removed: removed, changed: changed)
+    }
+
+    /// Stable ordering on AXNode by frame top-left (y then x), then identity.
+    /// Used to make the watch-diff pairing pass deterministic across runs.
+    private static func nodeOrder(_ a: AXNode, _ b: AXNode) -> Bool {
+        let ay = a.frame?.y ?? Int.max
+        let by = b.frame?.y ?? Int.max
+        if ay != by { return ay < by }
+        let ax = a.frame?.x ?? Int.max
+        let bx = b.frame?.x ?? Int.max
+        if ax != bx { return ax < bx }
+        return a.identity < b.identity
     }
 
     /// True if two nodes' label dimensions (title, description) don't conflict.
