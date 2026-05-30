@@ -51,16 +51,22 @@ enum AppLifecycleManager {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
 
-        let app: NSRunningApplication = try await withCheckedThrowingContinuation { cont in
-            NSWorkspace.shared.openApplication(at: url, configuration: config) { running, error in
-                if let error {
-                    cont.resume(throwing: PeekError.launchFailed(url.lastPathComponent, error.localizedDescription))
-                } else if let running {
-                    cont.resume(returning: running)
-                } else {
-                    cont.resume(throwing: PeekError.launchFailed(url.lastPathComponent, "openApplication returned no running app"))
+        let launcher = LaunchContinuation()
+        let app: NSRunningApplication = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                launcher.attach(cont)
+                NSWorkspace.shared.openApplication(at: url, configuration: config) { running, error in
+                    if let error {
+                        launcher.complete(.failure(PeekError.launchFailed(url.lastPathComponent, error.localizedDescription)))
+                    } else if let running {
+                        launcher.complete(.success(running))
+                    } else {
+                        launcher.complete(.failure(PeekError.launchFailed(url.lastPathComponent, "openApplication returned no running app")))
+                    }
                 }
             }
+        } onCancel: {
+            launcher.cancel()
         }
 
         if waitForWindow {
@@ -100,6 +106,44 @@ enum AppLifecycleManager {
             throw PeekError.launchFailed(appName, force ? "forceTerminate returned false" : "terminate returned false")
         }
         return QuitResult(pid: appPid, name: appName, forced: force)
+    }
+
+    /// Mediates between NSWorkspace.openApplication's completion callback and the
+    /// surrounding Task's cancellation. Resume-once across both paths; if cancel
+    /// fires before the continuation is attached, remember it and resume cancelled
+    /// as soon as we have one. The underlying launch can't be aborted (macOS API
+    /// limitation), but the awaiting Task is freed.
+    private final class LaunchContinuation: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cont: CheckedContinuation<NSRunningApplication, Error>?
+        private var cancelled = false
+
+        func attach(_ c: CheckedContinuation<NSRunningApplication, Error>) {
+            lock.lock(); defer { lock.unlock() }
+            if cancelled {
+                c.resume(throwing: CancellationError())
+            } else {
+                cont = c
+            }
+        }
+
+        func complete(_ result: Result<NSRunningApplication, Error>) {
+            lock.lock(); defer { lock.unlock() }
+            guard let c = cont else { return }
+            cont = nil
+            switch result {
+            case .success(let v): c.resume(returning: v)
+            case .failure(let e): c.resume(throwing: e)
+            }
+        }
+
+        func cancel() {
+            lock.lock(); defer { lock.unlock() }
+            cancelled = true
+            guard let c = cont else { return }
+            cont = nil
+            c.resume(throwing: CancellationError())
+        }
     }
 
     private static func resolveRunningApp(pid: pid_t?, bundleID: String?, name: String?) throws -> NSRunningApplication {
