@@ -80,6 +80,13 @@ enum PeekTools {
         var pid: Int?
     }
 
+    struct AppsArgs: MCPToolInput {
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Include off-screen / minimized / other-Space windows (default: false). Off-screen windows aren't interactable without peek_activate, so they're trimmed by default.")
+        var include_offscreen: Bool?
+    }
+
     struct TreeArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -248,13 +255,25 @@ enum PeekTools {
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs. Always filter by app name when you know it."
-    ) { (args: WindowArgs) in
+        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs. Off-screen windows are trimmed by default — pass include_offscreen=true to see hidden / other-Space windows. Always filter by app name when you know it."
+    ) { (args: AppsArgs) in
         try await withTimeout("peek_apps") {
             let windows = try await WindowManager.listWindows()
             var entries = AppManager.listApps(windows: windows)
             if let app = args.app {
                 entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
+            }
+            if !(args.include_offscreen ?? false) {
+                entries = entries.map { entry in
+                    AppEntry(
+                        name: entry.name,
+                        bundleID: entry.bundleID,
+                        pid: entry.pid,
+                        isActive: entry.isActive,
+                        isHidden: entry.isHidden,
+                        windows: entry.windows.filter { $0.isOnScreen }
+                    )
+                }
             }
             return try json(entries)
         }
