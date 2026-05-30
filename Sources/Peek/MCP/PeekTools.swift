@@ -95,11 +95,11 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
-        @InputProperty("Filter by title (case-insensitive substring)")
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title.")
         var title: String?
         @InputProperty("Filter by value (case-insensitive substring)")
         var value: String?
-        @InputProperty("Filter by description (case-insensitive substring)")
+        @InputProperty("Strict description-only filter (case-insensitive substring). Prefer 'title' for label searches — it already includes description.")
         var desc: String?
         @InputProperty("Hit-test X screen coordinate (use with y instead of filters)")
         var x: Int?
@@ -165,11 +165,11 @@ enum PeekTools {
 
         @InputProperty("Filter by role")
         var role: String?
-        @InputProperty("Filter by title")
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches.")
         var title: String?
         @InputProperty("Filter by value")
         var value: String?
-        @InputProperty("Filter by description")
+        @InputProperty("Strict description-only filter (case-insensitive substring).")
         var desc: String?
         @InputProperty("Perform on all matches (default: first only)")
         var all: Bool?

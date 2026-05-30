@@ -92,6 +92,29 @@ struct AXNodeTests {
         #expect(!sampleNode.matches(role: nil, title: nil, value: nil, description: "text field"))
     }
 
+    @Test("matches - title filter also matches description (Calc number key shape)")
+    func matchesTitleFallsBackToDescription() {
+        // Mirrors Calculator's number buttons: no AXTitle, label lives in AXDescription.
+        let descOnlyNode = AXNode(
+            role: "Button", title: nil, value: nil,
+            description: "5", enabled: true, frame: nil, children: []
+        )
+        #expect(descOnlyNode.matches(role: "Button", title: "5", value: nil, description: nil))
+        #expect(descOnlyNode.matches(role: nil, title: "5", value: nil, description: nil))
+        #expect(!descOnlyNode.matches(role: nil, title: "9", value: nil, description: nil))
+    }
+
+    @Test("matches - desc filter stays strict (description-only)")
+    func matchesDescFilterRemainsStrict() {
+        // A node whose label lives only in title should NOT match a desc filter.
+        let titleOnlyNode = AXNode(
+            role: "Button", title: "Save", value: nil,
+            description: nil, enabled: true, frame: nil, children: []
+        )
+        #expect(titleOnlyNode.matches(role: nil, title: "save", value: nil, description: nil))
+        #expect(!titleOnlyNode.matches(role: nil, title: nil, value: nil, description: "save"))
+    }
+
     @Test("matches - multiple filters combined")
     func matchesMultipleFilters() {
         #expect(sampleNode.matches(role: "Button", title: "Click", value: "pressed", description: "clickable"))
