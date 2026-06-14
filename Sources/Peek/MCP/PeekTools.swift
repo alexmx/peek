@@ -183,6 +183,23 @@ enum PeekTools {
         var y: Int
     }
 
+    struct DragArgs: MCPToolInput {
+        @InputProperty("Window ID (from peek_apps)")
+        var window_id: Int?
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty("Source X screen coordinate")
+        var from_x: Int
+        @InputProperty("Source Y screen coordinate")
+        var from_y: Int
+        @InputProperty("Destination X screen coordinate")
+        var to_x: Int
+        @InputProperty("Destination Y screen coordinate")
+        var to_y: Int
+    }
+
     struct ScrollArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -377,7 +394,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, scroll, type, key, action, activate, launch, quit, capture, menu, wait, doctor]
+        [apps, tree, find, click, drag, scroll, type, key, action, activate, launch, quit, capture, menu, wait, doctor]
     }
 
     static let apps = MCPTool(
@@ -449,6 +466,23 @@ enum PeekTools {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
             InteractionManager.click(x: Double(args.x), y: Double(args.y))
             return try json(["x": args.x, "y": args.y])
+        }
+    }
+
+    static let drag = MCPTool(
+        name: "peek_drag",
+        description: "Drag from one screen point to another via synthesized mouse events (mouseDown → interpolated mouseDragged → mouseUp). Use this for drag-reorder (tabs, list rows), drag-and-drop, marquee selection, or moving items — anything peek_click and peek_action can't express. Both points are absolute screen coordinates; read them from peek_find frames. Always pass app/pid/window_id to auto-activate the target before the gesture. For scroll-style touch swipes (iOS Simulator), use peek_scroll with drag=true instead."
+    ) { (args: DragArgs) in
+        try await withTimeout("peek_drag") {
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            InteractionManager.drag(
+                fromX: Double(args.from_x), fromY: Double(args.from_y),
+                toX: Double(args.to_x), toY: Double(args.to_y)
+            )
+            return try json([
+                "from_x": args.from_x, "from_y": args.from_y,
+                "to_x": args.to_x, "to_y": args.to_y
+            ])
         }
     }
 

@@ -137,27 +137,30 @@ enum InteractionManager {
         mouseUp?.post(tap: .cghidEventTap)
     }
 
-    /// Drag from one point to another (simulates a touch swipe in apps like iOS Simulator).
+    /// Drag from one screen point to another.
     static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
-        let start = CGPoint(x: fromX, y: fromY)
-        let end = CGPoint(x: toX, y: toY)
+        let dx = toX - fromX
+        let dy = toY - fromY
+        let distance = (dx * dx + dy * dy).squareRoot()
 
         let mouseDown = CGEvent(
             mouseEventSource: nil,
             mouseType: .leftMouseDown,
-            mouseCursorPosition: start,
+            mouseCursorPosition: CGPoint(x: fromX, y: fromY),
             mouseButton: .left
         )
         mouseDown?.post(tap: .cghidEventTap)
-        usleep(50000)
+        usleep(100_000) // dwell so drag-source views (tab strips, list cells) enter tracking
 
-        // Interpolate in small steps for a smooth drag
-        let steps = 20
+        let steps = max(10, min(40, Int(distance / 5)))
         for i in 1...steps {
-            let t = Double(i) / Double(steps)
-            let x = fromX + (toX - fromX) * t
-            let y = fromY + (toY - fromY) * t
-            let point = CGPoint(x: x, y: y)
+            var t = Double(i) / Double(steps)
+            // Force the first event past the ~5px system drag-init threshold so AppKit
+            // treats short drags as a drag-start instead of a click.
+            if i == 1, distance > 0 {
+                t = max(t, min(1.0, 6.0 / distance))
+            }
+            let point = CGPoint(x: fromX + dx * t, y: fromY + dy * t)
             let drag = CGEvent(
                 mouseEventSource: nil,
                 mouseType: .leftMouseDragged,
@@ -165,13 +168,13 @@ enum InteractionManager {
                 mouseButton: .left
             )
             drag?.post(tap: .cghidEventTap)
-            usleep(10000) // 10ms between steps
+            usleep(10000)
         }
 
         let mouseUp = CGEvent(
             mouseEventSource: nil,
             mouseType: .leftMouseUp,
-            mouseCursorPosition: end,
+            mouseCursorPosition: CGPoint(x: toX, y: toY),
             mouseButton: .left
         )
         mouseUp?.post(tap: .cghidEventTap)
