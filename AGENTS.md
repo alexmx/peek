@@ -67,17 +67,19 @@ All commands support `--format json` for JSON output (default: text). Most comma
 - **apps** — List running apps and windows. `--app` to filter by name.
 
 ### Inspection
-- **tree** — Accessibility tree of a window. `--depth` to limit traversal (default: full tree from CLI).
-- **find** — Search elements by `--role`, `--title`, `--value`, `--desc`, `--enabled`, or hit-test with `--x`/`--y`. The `--title` filter matches AXTitle OR AXDescription; `--enabled true|false` narrows by state.
-- **menu** — Menu bar structure. `--find` searches items, `--click` triggers an item, `--path` returns just a scoped submenu (e.g. `--path Debug`) to avoid dumping the full menu tree on large apps.
+- **tree** — Accessibility tree of a window. `--depth` to limit traversal (CLI default: full tree; MCP default: 5).
+- **find** — Search elements by `--role`, `--title`, `--value`, `--desc`, `--enabled`, or hit-test with `--x`/`--y`. `--title` matches AXTitle OR AXDescription. `--limit N` stops after N matches (use `--limit 1` for existence checks).
+- **menu** — Menu bar structure. `--find` searches items, `--click` triggers an item, `--path` returns just a scoped submenu (e.g. `--path Debug`) to avoid dumping the full menu tree on large apps. The MCP variant soft-caps no-arg responses.
 
 ### Interaction
 - **click** — Click at `--x`/`--y` screen coordinates.
+- **drag** — Drag between two screen points with `--from-x`/`--from-y`/`--to-x`/`--to-y`. For drag-reorder, drag-and-drop, marquee selection.
 - **scroll** — Scroll at `--x`/`--y` screen coordinates with `--delta-y` (required) and `--delta-x` (optional). `--drag` for touch-based apps like iOS Simulator.
-- **type** — Type `--text` via keyboard events.
-- **action** — Perform an AX action (`--do Press|Confirm|Cancel|ShowMenu`) on elements matched by `--role`/`--title`/`--value`/`--desc`. `--all` for all matches. `--verify tree|diff|none` (default `none`) atomically captures the post-action state — `diff` returns just what changed (best for "did this update?" checks), `tree` returns the full post-action tree. Tune via `--depth` and `--delay`.
+- **type** — Type `--text` via keyboard events. `--delay-ms` per-character delay (default 5).
+- **key** — Send a single key chord. `--key` is a single character or named key (escape, tab, return, delete, arrows, home, end, pageup, pagedown, f1-f12, space). `--modifiers` accepts cmd, shift, option, control, fn.
+- **action** — Perform an AX action (`--do Press|Confirm|Cancel|ShowMenu|Increment|Decrement|Raise`) on elements matched by `--role`/`--title`/`--value`/`--desc`. `--all` for all matches. `--verify tree|diff|none` (default `none`) atomically captures post-action state. Tune via `--depth` and `--delay` (default 0.15s).
 - **activate** — Bring app to foreground.
-- **launch** — Launch an app by `--bundle-id`, `--name`, or `--path`. `--wait-for-window` blocks until at least one AX-visible window appears (10s budget).
+- **launch** — Launch an app by `--bundle-id`, `--name`, or `--path`. `--wait-for-window` blocks until an AX-visible window appears (10s budget) and includes `windowID`/`windowTitle` in the result — skip a follow-up `apps` call.
 - **quit** — Terminate a running app by `--pid`, `--bundle-id`, or `--name`. `--force` uses forceTerminate.
 
 ### Monitoring

@@ -16,7 +16,6 @@ struct AXNode: Encodable, Equatable {
         let height: Int
     }
 
-    /// Only encode `enabled` when false to keep output clean.
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(role, forKey: .role)
@@ -26,8 +25,12 @@ struct AXNode: Encodable, Equatable {
         if enabled == false {
             try container.encode(false, forKey: .enabled)
         }
-        try container.encodeIfPresent(frame, forKey: .frame)
-        try container.encode(children, forKey: .children)
+        if let frame, frame.x != 0 || frame.y != 0 || frame.width != 0 || frame.height != 0 {
+            try container.encode(frame, forKey: .frame)
+        }
+        if !children.isEmpty {
+            try container.encode(children, forKey: .children)
+        }
     }
 
     private enum CodingKeys: String, CodingKey {

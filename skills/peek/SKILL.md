@@ -6,369 +6,124 @@ argument-hint: [command]
 
 # peek — macOS Window Inspector CLI
 
-Use `peek` to inspect and interact with native macOS application windows. It provides accessibility tree inspection, screenshots, element search, UI automation, and app lifecycle control (launch/quit).
+`peek` inspects and drives native macOS app windows via Accessibility: tree inspection, element search, UI automation, screenshots, app lifecycle, menu bar.
 
-## Prerequisites
+Requirements: macOS 15+, Accessibility permission (and Screen Recording for `peek capture`). Run `peek doctor --prompt` to grant.
 
-- macOS 15+
-- Accessibility permission must be granted in System Settings > Privacy & Security > Accessibility
-- Screen Recording permission for `peek capture`
-- Run `peek doctor` to check permissions, or `peek doctor --prompt` to trigger system dialogs
+Always pass `--format toon` for LLM workflows (30-50% fewer tokens than JSON).
 
-## Quick Workflow
+## Workflow
 
-The typical workflow is: **discover → act → verify** — in as few calls as possible.
+**Discover → act → verify** in as few calls as possible.
 
 ```bash
-# 1. Discover the app and its window frame
-peek apps --app Simulator --format toon
-
-# 2. Inspect the UI tree to understand the layout
-peek tree --app Simulator --depth 3 --format toon
-
-# 3. Act on an element and verify what changed in one call
-peek action --app Simulator --do Press --role StaticText --desc "Settings" --verify diff --delay 2 --format toon
+peek launch --name Calculator --wait-for-window        # → returns pid + windowID + windowTitle
+peek find --app Calculator --role Button --title 5 --limit 1
+peek action --app Calculator --do Press --role Button --title 5 --verify diff
 ```
 
-`--verify diff` is usually what you want — it returns just the delta between before and after, much smaller than the full tree. Use `--verify tree` if you specifically need the post-action structure.
+- **Discover** with `peek launch --wait-for-window` (returns windowID) or `peek apps --app X`. Skip `peek apps` after launch — it's already in the result.
+- **Inspect** structure with `peek tree` (unfamiliar UI) or `peek find` (known labels, much cheaper — `--limit 1` for existence checks).
+- **Act+verify** in one call: `peek action --verify diff` returns just the delta — usually 10x smaller than `--verify tree`.
+- **Shortcuts** (⌘S, Esc, arrows, F-keys): use `peek key`, not menu navigation.
+- **Menu items**: `peek menu --click "Save"` for menu BAR; `peek action --do Press` only works for items in an already-open menu.
 
-For menu items, use `peek menu --click` instead of `peek action`:
-```bash
-peek menu --app Xcode --click "Paste"
-```
+## Window targeting
 
-## Window Targeting
+All UI commands accept one of: `--app NAME` (case-insensitive substring), `--pid PID`, or a positional `<window-id>`. `--app` is simplest. Doesn't apply to `launch` / `quit` (use `--bundle-id` / `--name`).
 
-All commands accept a window target. Use `--app` by default — it's the simplest and works everywhere.
+## Commands
 
-| Method | Example | Description |
-|--------|---------|-------------|
-| `--app` | `peek tree --app Xcode` | First window matching app name (case-insensitive substring) |
-| `--pid` | `peek tree --pid 53051` | First window for the given process ID |
-| Window ID | `peek tree 21121` | Direct window ID (from `peek apps`) |
+### `peek apps` — list running apps + windows
 
-Applies to: `tree`, `find`, `action`, `activate`, `capture`, `menu`. (`launch` and `quit` resolve by bundle ID / name / path instead.)
+`--app NAME` filters. Always pass it when you know the name (no-arg form lists every running app).
 
-## Commands Reference
+### `peek tree` — accessibility tree
 
-### `peek apps` — List running applications
+`--depth N` to limit output. Bump for deep apps (Xcode, System Settings). Prefer `peek find` for labeled elements.
 
-Options: `--app <name>` to filter by app name. Always filter when you know the app name.
+### `peek find` — search elements (read-only)
 
-```bash
-$ peek apps --app Xcode --format toon
-[1]:
-  - name: Xcode
-    bundleID: com.apple.dt.Xcode
-    pid: 53051
-    windows[1]:
-      - windowID: 21121
-        title: peek — MenuBarManager.swift
-        frame:
-          x: 0
-          y: 33
-          width: 1512
-          height: 882
-```
+Filters: `--role` (exact, without AX prefix), `--title` (case-insensitive substring, matches AXTitle OR AXDescription), `--value`, `--desc`, `--enabled true|false`. Hit-test mode: `--x N --y N` returns the deepest element at coordinates.
 
-The `frame` values are needed for `peek capture` crop coordinate conversion (see capture section).
+Pass `--limit N` to stop after N matches (`--limit 1` for existence checks — big speedup on deep trees).
 
+To interact with a match, call `peek action` with the same filters — don't `peek find` then `peek click`.
 
-### `peek tree` — Inspect the accessibility tree
+### `peek action` — perform AX actions
 
-Options: `--depth <n>` to limit tree depth. Always use `--depth` to control output size.
+Finds + acts in one call. Filters: `--role`, `--title`, `--value`, `--desc`. `--all` to act on every match.
 
-```bash
-$ peek tree --app Xcode --depth 2 --format toon
-role: Window
-title: peek — MenuBarManager.swift
-frame:
-  x: 0
-  y: 33
-  width: 1512
-  height: 882
-children[3]:
-  - role: SplitGroup
-    title: peek
-    description: /Users/alexmx/Projects/peek
-    frame:
-      x: 0
-      y: 33
-      width: 1512
-      height: 882
-  - role: Toolbar
-    frame:
-      x: 0
-      y: 33
-      width: 1512
-      height: 52
-  - role: Button
-    frame:
-      x: 18
-      y: 51
-      width: 16
-      height: 16
-```
+Actions:
+- **Press** — buttons, popup buttons, checkboxes, items in an already-open menu
+- **Confirm** — text fields
+- **ShowMenu** — rare; try Press first and read `unsupportedAction` errors
+- **Increment / Decrement** — sliders, steppers
+- **Raise** — windows
 
+Verification: `--verify diff` (default delay 0.15s) returns just what changed — the recommended check for "did this update?". `--verify tree` returns the full post-action tree. `--depth N` and `--delay N` tune the snapshot; bump delay for apps that lazy-paint values.
 
-### `peek find` — Search for UI elements
+For menu BAR items, use `peek menu --click` instead.
 
-Read-only search. To interact with found elements, use `peek action` directly with the same filters — no need to find first.
+### `peek menu` — read or click menu items
 
-Two modes: **attribute search** or **hit-test**.
+Modes:
+- `--find TITLE` — search across all menus, returns matches with paths
+- `--path "Menu > Submenu"` — return just that submenu
+- `--click TITLE` — trigger an item (activates the app)
 
-**Attribute search** — filter by `--role`, `--title`, `--value`, `--desc`, `--enabled` (at least one required):
+No-arg form dumps the full menu bar — avoid on large apps. Items hidden via `NSMenuItem.isHidden=true` (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via `peek key`.
+
+### `peek key` — send a key chord
+
+`--key NAME` is a single character (`'1'`, `'/'`) or a named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). `--modifiers cmd,shift,option,control,fn` (comma-separated). Pass `--app`/`--pid` to auto-activate.
 
 ```bash
-$ peek find --app Xcode --role Button --desc "Run" --format toon
-[1]:
-  - role: Button
-    description: Run
-    frame:
-      x: 276
-      y: 45
-      width: 28
-      height: 28
+peek key --key s --modifiers cmd --app TextEdit       # ⌘S
+peek key --key escape --app Calculator
 ```
 
-`--title` matches AXTitle OR AXDescription (most controls expose their label via one or the other). `--enabled true|false` narrows by state — useful for "find all disabled buttons":
-
-```bash
-$ peek find --app Xcode --role Button --enabled false --format toon
-```
-
-Each match comes back as a flat node (no child subtree). To inspect what's inside a matched element, follow up with `peek tree` on that subtree.
-
-**Hit-test** — find the deepest element at screen coordinates with `--x` and `--y`:
-
-```bash
-$ peek find --app Xcode --x 280 --y 50 --format toon
-role: Button
-description: Run
-frame:
-  x: 276
-  y: 45
-  width: 28
-  height: 28
-```
-
-
-### `peek action` — Perform accessibility actions
-
-The primary interaction tool. Finds an element and acts on it in one step — no need to `peek find` first.
-
-Filters: `--role`, `--title`, `--value`, `--desc` (at least one required).
-Use `--all` to act on every matching element (default: first match only).
-Use `--verify tree|diff|none` to atomically capture post-action state in the same call (default `none`). Tune the capture with `--depth` and `--delay` (seconds to wait before snapshot, default: 1).
-
-**Basic action:**
-
-```bash
-$ peek action --app Xcode --do Press --role Button --desc "Run" --format toon
-role: Button
-description: Run
-frame:
-  x: 276
-  y: 45
-  width: 28
-  height: 28
-```
-
-**Action with diff verification** (recommended — act and see just what changed):
+### `peek type` — type literal text
 
-```bash
-$ peek action --app Simulator --do Press --role StaticText --desc "General" --verify diff --delay 1 --format toon
-action[1]:
-  - role: StaticText
-    value: General
-diff:
-  added[1]:
-    - role: NavigationBar
-      title: General
-  changed[1]:
-    - role: StaticText
-      before:
-        value: Settings
-      after:
-        value: General
-  removed: []
-```
+`--text "..."`. Pass `--app`/`--pid` to auto-activate. Use `peek key` for chords / non-character keys.
 
-**Action with full tree** (when you need the post-action structure):
+### `peek click` — click at screen coordinates
 
-```bash
-$ peek action --app Simulator --do Press --role StaticText --desc "General" --verify tree --depth 3 --delay 2 --format toon
-```
+`--x N --y N`. For labeled elements, use `peek action --do Press` instead. For drag gestures, use `peek drag`.
 
-Common actions by element role:
-- **Button, PopUpButton, MenuItem, CheckBox, RadioButton:** `Press` (works without activating the app)
-- **TextField, TextArea:** `Confirm` (to submit), or use `peek click` to focus
-- **Slider, Stepper:** `Increment`, `Decrement`
-- **Window:** `Raise`
-- **ShowMenu** is for the narrow set of widgets that explicitly advertise AXShowMenu — most "popup" buttons take Press. If unsure, try Press first; the `unsupportedAction` error lists what's actually supported.
+### `peek drag` — drag between two screen points
 
-Note: for menu BAR items, use `peek menu --click` instead of `peek action --do Press`. `peek action`'s Press only works for menu items in an already-open menu.
+`--from-x --from-y --to-x --to-y`. For drag-reorder, drag-and-drop, marquee selection.
 
+### `peek scroll` — scroll at screen coordinates
 
-### `peek menu` — Inspect and click menu items
+`--x --y --delta-y N` (positive scrolls **DOWN**, negative UP). `--delta-x` for horizontal. `--drag` for touch-based apps like iOS Simulator (swipe gesture).
 
-Three modes:
-- `--find <title>` — search across all menus, returns each match with its full path
-- `--click <title>` — trigger a menu item (activates the target app)
-- `--path <path>` — return just the subtree at a path (e.g. `Debug` or `Edit > Find`), to avoid dumping the entire menu bar on large apps
+### `peek activate` — bring an app to the foreground
 
-Avoid calling without any of these — the full menu tree on a large app can be hundreds of KB.
+Most read-only commands and `peek action --do Press` work on backgrounded apps. Use `activate` before `peek type` or for UI requiring the app's event loop (popovers, sheets).
 
-```bash
-$ peek menu --app Xcode --find "Run" --format toon
-[4]:
-  - title: Run
-    shortcut: ⌘R
-    path: Product > Run
-  - title: Run…
-    shortcut: ⌥⌘R
-    path: Product > Run…
-  - title: Running
-    shortcut: ⇧⌘R
-    path: Product > Build For > Running
-  - title: Run Without Building
-    shortcut: ⌃⌘R
-    path: Product > Perform Action > Run Without Building
-```
+### `peek launch` / `peek quit` — app lifecycle
 
-```bash
-# Scoped read — return only the Debug menu's tree (much smaller than the full menu bar)
-$ peek menu --app Xcode --path Debug --format toon
+`peek launch` resolves by `--bundle-id` (preferred), `--name`, or `--path`. Pass `--wait-for-window` when the next call needs a window ID — the result then includes `windowID` and `windowTitle`, so you can skip a follow-up `peek apps`.
 
-# Click a menu item by its leaf title
-$ peek menu --app Xcode --click "Paste"
-Clicked menu item: Paste
-```
+`peek quit` resolves by `--pid` (preferred), `--bundle-id`, or `--name`. `--force` for forceTerminate.
 
+Many apps persist state across launches — plan an explicit reset (clear button, fresh document) when you need a known starting state.
 
-### `peek click` — Click at screen coordinates
+### `peek capture` — screenshot a window
 
-Low-level click at screen coordinates. Only use for raw coordinate clicks (e.g. on images or canvas areas). For UI elements like buttons, use `peek action --do Press` instead. Accepts optional `--app`/`--pid` to auto-activate the target app before clicking.
+`-o PATH` for output. Crop with `--x --y --width --height` in **window-relative** points (subtract the window's frame origin from screen coords).
 
-```bash
-$ peek click --app Xcode --x 276 --y 50
-Clicked at (276, 50)
-```
+### `peek doctor` — check permissions
 
+`peek doctor` checks Accessibility + Screen Recording. `--prompt` opens System Settings for missing ones.
 
-### `peek scroll` — Scroll at screen coordinates
+## Element discovery tips
 
-Scroll using scroll wheel events (works on native macOS apps). Use `--drag` for touch-based apps like iOS Simulator, which simulates a finger swipe instead. Accepts optional `--app`/`--pid` to auto-activate the target app.
+- **Don't dump the tree** when you can `peek find` by role/title/desc.
+- **`--title` matches AXTitle OR AXDescription** — start with that, fall back to `--value` (System Settings stores labels in `value`).
+- **Wrong role guesses**: tabs are often `RadioButton`, toggles are `CheckBox`, "popup" buttons usually take `Press` not `ShowMenu`.
+- **Hit-test** with `peek find --x --y` when you know coordinates but not role/title.
 
-`--delta-y`: use **positive** values to scroll **DOWN** (reveal content below), **negative** to scroll **UP**.
-
-```bash
-# Scroll down in a native macOS app
-$ peek scroll --app Safari --x 756 --y 500 --delta-y 300
-Scrolled at (756, 500) by dx=0, dy=300
-
-# Scroll down in iOS Simulator (requires --drag)
-$ peek scroll --app Simulator --x 200 --y 500 --delta-y 300 --drag
-Scrolled at (200, 500) by dx=0, dy=300
-```
-
-
-### `peek type` — Type text via keyboard events
-
-Types text via keyboard events into the focused element. Focus a text field first with `peek click` or `peek action`. Accepts optional `--app`/`--pid` to auto-activate the target app before typing.
-
-```bash
-$ peek type --app Xcode --text "hello world"
-Typed 11 character(s)
-```
-
-
-### `peek activate` — Bring an app to the foreground
-
-Activates the app and raises the target window. Most read-only commands (`tree`, `find`, `capture`, `menu --find`) and `peek action --do Press` work on backgrounded apps without activation. Use `activate` when you need keyboard focus before `peek type`, or when surfacing UI that requires the app's event loop (popovers, sheets).
-
-```bash
-$ peek activate --app Claude
-Activated Claude (pid 84720, window 22325)
-```
-
-
-### `peek launch` — Launch a macOS application
-
-Resolves the app by `--bundle-id` (preferred), `--name`, or `--path`. Pass `--wait-for-window` when your next command needs a window ID — the call blocks until at least one AX-visible window appears (10s budget).
-
-```bash
-$ peek launch --bundle-id com.apple.calculator --wait-for-window
-Launched Calculator (pid 12345, bundle com.apple.calculator)
-```
-
-Note: many apps persist view mode, expression, or document state across runs. `peek quit` + `peek launch` won't necessarily reset that — plan an explicit reset (clear button, mode menu, fresh document) when you need a known starting state.
-
-
-### `peek quit` — Terminate a running application
-
-Resolves by `--pid` (preferred when known), `--bundle-id`, or `--name`. Graceful by default; `--force` uses forceTerminate.
-
-```bash
-$ peek quit --bundle-id com.apple.calculator
-Quit Calculator (pid 12345)
-```
-
-
-### `peek capture` — Screenshot a window
-
-Options: `-o <path>` for output file, `--x`, `--y`, `--width`, `--height` to crop a region in window-relative points.
-
-**Important:** `peek tree`/`peek find` return screen coordinates. To crop, subtract the window's frame origin (from `peek apps`) to get window-relative offsets.
-
-```bash
-# Full window screenshot
-$ peek capture --app Xcode -o screenshot.png
-Saved screenshot.png (3024x1764 pixels)
-
-# Crop a specific region (window-relative coordinates)
-$ peek capture --app Xcode -o toolbar.png --x 0 --y 0 --width 400 --height 50
-Saved toolbar.png (800x100 pixels)
-```
-
-
-### `peek doctor` — Check permissions
-
-Run `peek doctor` to check, or `peek doctor --prompt` to trigger system permission dialogs.
-
-```bash
-$ peek doctor --prompt
-Accessibility:    granted
-Screen Recording: not granted
-
-Opening System Settings for missing permissions...
-```
-
-
-## Output Formats
-
-All commands support `--format`:
-- `json` — Standard JSON for programmatic use
-- `toon` — Token-optimized for LLM consumption (30-50% fewer tokens than JSON)
-
-**Always use `--format toon` for AI agent workflows.**
-
-
-## Element Discovery Tips
-
-- **Start with `peek tree --depth 2-3`** to understand the UI layout, then use `peek action` directly with role + desc/title filters.
-- **Combine role + description** for precise targeting: `peek action --role Button --desc "Run" --do Press`
-- **Use the right role** — don't assume `Button` for everything. Tabs are often `RadioButton`, toggles are `CheckBox`.
-- **Use `peek menu --find`** for menu items instead of searching the accessibility tree.
-- **Hit-test with `peek find --x --y`** when you know screen coordinates but not the element's role or title.
-
-Common roles:
-- **Containers:** `Window`, `Group`, `SplitGroup`, `ScrollArea`, `TabGroup`, `Sheet`, `Drawer`
-- **Controls:** `Button`, `CheckBox`, `RadioButton`, `PopUpButton`, `MenuButton`, `Slider`, `Stepper`, `ColorWell`
-- **Text:** `StaticText`, `TextField`, `TextArea`, `Link`
-- **Tables:** `Table`, `Row`, `Cell`, `Column`, `Outline`, `OutlineRow`
-- **Menus:** `MenuBar`, `MenuBarItem`, `Menu`, `MenuItem`
-- **Toolbars:** `Toolbar`, `ToolbarButton`
-- **Other:** `Image`, `ProgressIndicator`, `Splitter`, `ValueIndicator`, `WebArea`
-
-Filters (`--title`, `--value`, `--desc`) are case-insensitive substring matches. `--role` is an exact match (without the `AX` prefix).
+Common roles (no AX prefix): `Window`, `Group`, `SplitGroup`, `ScrollArea`, `TabGroup`, `Sheet`, `Toolbar`, `Button`, `CheckBox`, `RadioButton`, `PopUpButton`, `MenuButton`, `Slider`, `Stepper`, `StaticText`, `TextField`, `TextArea`, `Link`, `Table`, `Row`, `Cell`, `Outline`, `OutlineRow`, `MenuBar`, `MenuBarItem`, `Menu`, `MenuItem`, `Image`, `WebArea`.

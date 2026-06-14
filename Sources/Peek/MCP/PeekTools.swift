@@ -16,6 +16,30 @@ enum PeekTools {
         return .text(string)
     }
 
+    /// Soft-cap on the menu tree response when called without `find`/`path`/`click`.
+    /// Big apps (Safari, Xcode) produce 10k+ token dumps that blow up context.
+    private static let menuSoftCapBytes = 4000
+
+    private static func cappedMenuTree(_ tree: MenuNode) throws -> MCPToolResult {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let full = try encoder.encode(tree)
+        if full.count <= menuSoftCapBytes {
+            return .text(String(decoding: full, as: UTF8.self))
+        }
+        let pruned = tree.pruned(toDepth: 1)
+        struct Capped: Encodable {
+            let tree: MenuNode
+            let truncated: Bool
+            let hint: String
+        }
+        return try json(Capped(
+            tree: pruned,
+            truncated: true,
+            hint: "Menu tree exceeded \(menuSoftCapBytes) bytes; only the top-level menu bar items are returned. Re-call peek_menu with `find=<title>` (case-insensitive substring) or `path=<Menu>` / `path=<Menu > Submenu>` to drill in."
+        ))
+    }
+
     private static func resolveWindow(
         windowID: Int?,
         app: String?,
@@ -76,7 +100,7 @@ enum PeekTools {
     /// Default tree depth when `args.depth` is not provided. Caps the response size
     /// so a tree from a deeply-nested app (Xcode, System Settings) doesn't blow out
     /// the MCP context window. Callers who need to drill deeper pass an explicit value.
-    private static let defaultTreeDepth = 10
+    private static let defaultTreeDepth = 5
 
     /// Default per-tool wall-clock budget. Synchronous AX/CGEvent calls don't honor
     /// Task cancellation, so if AX itself wedges (e.g. after an interrupted call leaves
@@ -122,7 +146,7 @@ enum PeekTools {
         @InputProperty("App name (case-insensitive substring)")
         var app: String?
         @InputProperty(
-            "Include off-screen / minimized / other-Space windows (default: false). Off-screen windows aren't interactable without peek_activate, so they're trimmed by default."
+            "Include off-screen / minimized / other-Space windows (default: false; off-screen windows aren't interactable without peek_activate)."
         )
         var include_offscreen: Bool?
     }
@@ -134,7 +158,7 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty("Maximum tree depth to traverse (default: 10). Pass a higher value for deeply-nested apps.")
+        @InputProperty("Max tree depth (default: 5). Bump to 10+ for deep apps like Xcode or System Settings.")
         var depth: Int?
     }
 
@@ -148,28 +172,24 @@ enum PeekTools {
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
         @InputProperty(
-            "Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title. If title returns empty, fall back to the `value` filter — some apps (notably System Settings on macOS 14+) store labels in AXStaticText.value rather than title/description."
+            "Filter by label — matches AXTitle OR AXDescription (case-insensitive substring). If empty, fall back to `value` — some apps (System Settings) store labels in AXStaticText.value."
         )
         var title: String?
         @InputProperty(
-            "Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string."
+            "Filter by value (case-insensitive substring). App formatting (separators, currency, percent) may not match a literal — use a short partial substring or pre-read with peek_find."
         )
         var value: String?
         @InputProperty(
-            "Strict description-only filter (case-insensitive substring). Prefer 'title' for label searches — it already includes description."
+            "Description-only filter (case-insensitive substring). Prefer `title` — it already includes description."
         )
         var desc: String?
-        @InputProperty(
-            "Filter by enabled state. true → only enabled controls, false → only disabled. Omit to include both."
-        )
+        @InputProperty("Filter by enabled state. true = only enabled, false = only disabled. Omit for both.")
         var enabled: Bool?
         @InputProperty("Hit-test X screen coordinate (use with y instead of filters)")
         var x: Int?
         @InputProperty("Hit-test Y screen coordinate (use with x instead of filters)")
         var y: Int?
-        @InputProperty(
-            "Stop after this many matches (1 = first match; omit = return all). Big speedup on deep trees when you only need to confirm something exists or grab one element."
-        )
+        @InputProperty("Stop after N matches (1 = first; omit = all). Big speedup on deep trees for existence checks.")
         var limit: Int?
     }
 
@@ -215,15 +235,11 @@ enum PeekTools {
         var x: Int
         @InputProperty("Y coordinate")
         var y: Int
-        @InputProperty(
-            "Vertical scroll amount in pixels. Positive = scroll DOWN (reveal content below), negative = scroll UP"
-        )
+        @InputProperty("Vertical scroll in pixels. Positive = DOWN, negative = UP.")
         var deltaY: Int
-        @InputProperty(
-            "Horizontal scroll amount in pixels. Positive = scroll RIGHT (reveal content to the right), negative = scroll LEFT"
-        )
+        @InputProperty("Horizontal scroll in pixels. Positive = RIGHT, negative = LEFT.")
         var deltaX: Int?
-        @InputProperty("Use drag gesture instead of scroll wheel (required for touch-based apps like iOS Simulator)")
+        @InputProperty("Use drag gesture instead of scroll wheel (required for iOS Simulator).")
         var drag: Bool?
     }
 
@@ -237,7 +253,7 @@ enum PeekTools {
         @InputProperty("The text to type")
         var text: String
         @InputProperty(
-            "Per-character delay in milliseconds (default: 5). Bump to 10-20 only if a lazy field drops/duplicates characters."
+            "Per-character delay in ms (default: 5). Bump to 10-20 if a lazy field drops/duplicates characters."
         )
         var delay_ms: Int?
     }
@@ -250,7 +266,7 @@ enum PeekTools {
         @InputProperty("Process ID")
         var pid: Int?
         @InputProperty(
-            "Key name: a single character (e.g. '1', 'a', '/') or a named key (escape, tab, return, delete, up, down, left, right, home, end, pageup, pagedown, f1-f12, space)"
+            "Single character ('1', 'a', '/') or named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space)."
         )
         var key: String
         @InputProperty("Modifier keys: any subset of cmd, shift, option, control, fn")
@@ -264,19 +280,17 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty(
-            "AX action: Press (buttons), Confirm (text fields), Cancel, ShowMenu, Increment, Decrement, Raise"
-        )
+        @InputProperty("AX action: Press, Confirm, Cancel, ShowMenu, Increment, Decrement, Raise.")
         var action: String
 
         @InputProperty("Filter by role")
         var role: String?
         @InputProperty(
-            "Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches. If empty, fall back to `value` — some apps store labels in AXStaticText.value rather than title/description."
+            "Filter by label — matches AXTitle OR AXDescription (case-insensitive substring). If empty, fall back to `value`."
         )
         var title: String?
         @InputProperty(
-            "Filter by value (case-insensitive substring). App-formatted text (thousands separators, currency, percent) may not match a literal — use a short partial substring."
+            "Filter by value (case-insensitive substring). App-formatted text may not match a literal — use a short partial."
         )
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring).")
@@ -284,15 +298,13 @@ enum PeekTools {
         @InputProperty("Perform on all matches (default: first only)")
         var all: Bool?
         @InputProperty(
-            "Verification mode after the action. 'none' (default) returns just confirmation. 'tree' captures the post-action accessibility tree (saves a separate peek_tree call). 'diff' snapshots before and after the action and returns only what changed — usually the ideal choice for 'did this control update?' checks (smaller payload than tree, focused on the delta)."
+            "Verification: 'none' (default), 'tree' (post-action tree), 'diff' (before+after delta — prefer for 'did this update?')."
         )
         var verify: String?
-        @InputProperty(
-            "Tree depth limit for verify=tree or verify=diff (default: full tree). For verify=diff, a shallow depth can silently hide changes — anything rendered deeper than the limit won't appear in the diff. Leave unset unless payload size is a problem."
-        )
+        @InputProperty("Depth for verify=tree/diff (default: full). Shallow depth can hide deep changes.")
         var depth: Int?
         @InputProperty(
-            "Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 0.15). Bump to 0.5+ for apps that lazy-paint values."
+            "Seconds before post-action snapshot for verify=tree/diff (default 0.15). Bump to 0.5+ for lazy-paint apps."
         )
         var delay: Double?
     }
@@ -306,13 +318,9 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Output file path. If omitted, the image is returned inline")
         var output: String?
-        @InputProperty(
-            "Crop region X offset in window-relative pixels (subtract window frame x from screen coordinate)"
-        )
+        @InputProperty("Crop X offset (window-relative pixels).")
         var x: Int?
-        @InputProperty(
-            "Crop region Y offset in window-relative pixels (subtract window frame y from screen coordinate)"
-        )
+        @InputProperty("Crop Y offset (window-relative pixels).")
         var y: Int?
         @InputProperty("Crop region width")
         var width: Int?
@@ -329,29 +337,23 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Menu item title to click (case-insensitive substring)")
         var click: String?
-        @InputProperty(
-            "Search for menu items by title (case-insensitive substring) — returns matches with their menu path"
-        )
+        @InputProperty("Search menu items by title (case-insensitive substring) — returns matches with path.")
         var find: String?
-        @InputProperty(
-            "Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find'). Use this when the full menu tree would overflow (Xcode, Safari)."
-        )
+        @InputProperty("Return only the submenu at this path ('Debug' or 'Edit > Find').")
         var path: String?
     }
 
     struct LaunchArgs: MCPToolInput {
-        @InputProperty(
-            "Bundle identifier (e.g. com.apple.calculator). Prefer this when known — it's the most reliable resolver."
-        )
+        @InputProperty("Bundle identifier (com.apple.calculator). Most reliable resolver — prefer when known.")
         var bundle_id: String?
         @InputProperty(
-            "App display name (e.g. 'Calculator'). Searches /Applications, /System/Applications, /System/Applications/Utilities."
+            "App display name ('Calculator'). Searches /Applications, /System/Applications, /System/Applications/Utilities."
         )
         var name: String?
-        @InputProperty("Absolute path to a .app bundle (e.g. /Applications/Notes.app)")
+        @InputProperty("Absolute path to a .app bundle (/Applications/Notes.app).")
         var path: String?
         @InputProperty(
-            "Wait until at least one AX-visible window appears before returning (default: false). Useful when the next call needs a window_id."
+            "Wait until an AX-visible window appears before returning (default: false). Result includes windowID/windowTitle so you can skip a follow-up peek_apps."
         )
         var wait_for_window: Bool?
     }
@@ -363,9 +365,7 @@ enum PeekTools {
         var bundle_id: String?
         @InputProperty("App display name (case-insensitive substring; first match wins)")
         var name: String?
-        @InputProperty(
-            "Force-terminate with forceTerminate() instead of graceful terminate() (default: false). Use only when graceful quit has failed."
-        )
+        @InputProperty("Force-terminate (default: false). Use only when graceful quit failed.")
         var force: Bool?
     }
 
@@ -379,16 +379,16 @@ enum PeekTools {
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
         @InputProperty(
-            "Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. If empty, fall back to `value` — some apps store labels in AXStaticText.value."
+            "Filter by label — matches AXTitle OR AXDescription (case-insensitive substring). If empty, fall back to `value`."
         )
         var title: String?
         @InputProperty(
-            "Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string."
+            "Filter by value (case-insensitive substring). Use a short partial — app formatting may not match a literal."
         )
         var value: String?
-        @InputProperty("Strict description-only filter (case-insensitive substring).")
+        @InputProperty("Description-only filter (case-insensitive substring).")
         var desc: String?
-        @InputProperty("Maximum seconds to wait before failing (default: 30)")
+        @InputProperty("Max seconds to wait (default: 30).")
         var timeout: Double?
         @InputProperty("Seconds between AX polls (default: 0.2, minimum 0.05)")
         var poll: Double?
@@ -407,7 +407,7 @@ enum PeekTools {
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running macOS applications and their windows with IDs, titles, frames. Use this first to discover available apps and window IDs. Off-screen windows are trimmed by default — pass include_offscreen=true to see hidden / other-Space windows. Always filter by app name when you know it."
+        description: "List running apps and their windows with IDs and frames. Pass `app=X` when known — no-arg form lists every running app and is for discovery only. If peek_launch with wait_for_window=true was just called, the windowID/title are in its result — skip this call. Off-screen windows trimmed by default; include_offscreen=true to see them."
     ) { (args: AppsArgs) in
         try await withTimeout("peek_apps") {
             let windows = try await WindowManager.listWindows()
@@ -433,7 +433,7 @@ enum PeekTools {
 
     static let tree = MCPTool(
         name: "peek_tree",
-        description: "Inspect the accessibility tree of a window. Returns the UI element hierarchy down to a depth limit (default: 10). For deeply-nested apps (Xcode, System Settings), the default keeps the response from blowing out the context; pass a higher 'depth' to drill further. To explore a subtree cheaply, narrow first with peek_find."
+        description: "Inspect a window's accessibility tree (default depth 5). Prefer peek_find for labeled elements — peek_tree is for learning unfamiliar structure. Bump depth for deeply-nested apps (Xcode, System Settings)."
     ) { (args: TreeArgs) in
         try await withTimeout("peek_tree") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -445,7 +445,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title (matches AXTitle OR AXDescription), value, or enabled state. Each match comes back as a flat node — title/role/value/frame — WITHOUT its child subtree; for the subtree of a specific element, use peek_tree. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click. Best uses: pre-read state to learn what's currently visible (button labels, display values, dialog presence, enabled state) before peek_wait, peek_click, or peek_action — that way you target labels you've confirmed exist. Pass limit=1 when you only need to confirm something exists or grab one element — early-exits the tree walk and roughly halves cost on deep trees."
+        description: "Search UI elements by role/title/value/description (read-only). Pass limit=1 for existence checks. title matches AXTitle OR AXDescription. Each match is a flat node (no subtree). To interact with a match, call peek_action with the same filters — do NOT peek_find then peek_click. Use to pre-read state before peek_wait/peek_click/peek_action so you target labels that actually exist."
     ) { (args: FindArgs) in
         try await withTimeout("peek_find") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -468,7 +468,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (images, canvas areas) — for UI elements with labels, use peek_action instead, which finds the element and clicks it in one step. For drag gestures (drag-reorder, drag-and-drop, marquee select), use peek_drag — two peek_clicks won't synthesize a drag. Always provide app/pid/window_id to auto-activate the target. Re-read element/window frames via peek_find or peek_apps when a recent peek_activate, peek_action ShowMenu, or menu click could have shifted them — windows commonly move on activation."
+        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass app/pid/window_id to auto-activate. Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -479,7 +479,7 @@ enum PeekTools {
 
     static let drag = MCPTool(
         name: "peek_drag",
-        description: "Drag from one screen point to another via synthesized mouse events (mouseDown → interpolated mouseDragged → mouseUp). Use this for drag-reorder (tabs, list rows), drag-and-drop, marquee selection, or moving items — anything peek_click and peek_action can't express. Both points are absolute screen coordinates; read them from peek_find frames. Always pass app/pid/window_id to auto-activate the target before the gesture. For scroll-style touch swipes (iOS Simulator), use peek_scroll with drag=true instead."
+        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate. For touch-style scroll swipes (iOS Simulator), use peek_scroll drag=true instead."
     ) { (args: DragArgs) in
         try await withTimeout("peek_drag") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -496,7 +496,7 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. deltaY: use POSITIVE values to scroll DOWN (reveal content below), NEGATIVE to scroll UP. deltaX: positive = right, negative = left. Set drag=true for touch-based apps like iOS Simulator (uses drag gesture instead of scroll wheel) — this is still a scroll/swipe primitive. For non-scroll drag gestures (drag-reorder, drag-and-drop, range select), use peek_drag instead. Always provide app/pid/window_id to auto-activate the target app."
+        description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -516,7 +516,7 @@ enum PeekTools {
 
     static let type = MCPTool(
         name: "peek_type",
-        description: "Type text via keyboard events to the focused element. Many apps accept typed input directly when their main view is focused — prefer one peek_type call over many peek_action Press calls for any digit/operator/character sequence. If keystrokes need to land in a specific text field, focus it first with peek_click or peek_action; for apps with a global key handler (calculators, games, single-document editors) just call peek_type directly. Passing app/pid/window_id auto-activates the target, so a separate peek_activate is not needed. For modifier chords (⌘S, ⌘W, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys), use peek_key instead — peek_type only types literal characters."
+        description: "Type literal text via keyboard events. Prefer one peek_type over many peek_action Press calls for character/digit sequences. For modifier chords (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys), use peek_key. Focus a specific text field first via peek_click/peek_action when needed. Pass app/pid/window_id to auto-activate."
     ) { (args: TypeArgs) in
         let delayMs = UInt32(max(0, args.delay_ms ?? 5))
         let budget = max(defaultTimeout, Double(args.text.count) * Double(delayMs + 5) / 1000.0 + 5)
@@ -529,7 +529,7 @@ enum PeekTools {
 
     static let key = MCPTool(
         name: "peek_key",
-        description: "Send a single key chord (with optional modifiers) via keyboard events. Use this for keyboard shortcuts like ⌘1, ⇧⌘T, Esc, Tab, arrows, or F-keys — anything peek_type can't express because it only types literal characters. The chord is routed by virtual key code so it triggers app shortcuts, not text input. Key is a single character (e.g. '1', '/') or a named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). Modifiers is any subset of cmd, shift, option, control, fn. Passing app/pid/window_id auto-activates the target."
+        description: "Send a single key chord — routes by virtual key code so it triggers app shortcuts (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys). Key is a single character or named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). Modifiers: any of cmd, shift, option, control, fn. Pass app/pid/window_id to auto-activate."
     ) { (args: KeyArgs) in
         try await withTimeout("peek_key") {
             let mods = args.modifiers ?? []
@@ -545,7 +545,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes; also menu items in an ALREADY-OPEN menu — for menu BAR items use peek_menu --click; most controls labeled 'popup' in casual terms take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). For keyboard shortcuts (⌘S, ⌘W, Esc, F-keys, ⌘1-9), prefer peek_key over walking the menu — one call vs find-then-press. Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
+        description: "Find an element by role/title/desc and act on it in one call. Actions: Press (buttons, checkboxes, items in an ALREADY-OPEN menu — for menu BAR use peek_menu --click), Confirm (text fields), ShowMenu (rare; try Press first and read unsupportedAction errors), Increment/Decrement (sliders). For shortcuts (⌘S, ⌘W, Esc, F-keys), prefer peek_key. Verification: default to verify='diff' for 'did this update?' checks — much smaller than verify='tree'. Bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 0.15
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
@@ -553,7 +553,10 @@ enum PeekTools {
             let all = args.all ?? false
             let verify = args.verify?.lowercased() ?? "none"
 
-            // For verify=diff we need a snapshot taken BEFORE the action.
+            // verify=tree/diff uses the explicit depth or the full tree — Calculator's
+            // display value, for example, lives deeper than peek_tree's small default,
+            // and the agent's question is "did this control update?" not "give me a
+            // shallow snapshot".
             let beforeFlat: [AXNode]? = if verify == "diff" {
                 try MonitorManager.flattenNodes(
                     AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
@@ -595,7 +598,7 @@ enum PeekTools {
 
     static let activate = MCPTool(
         name: "peek_activate",
-        description: "Bring an app to the foreground and raise its window. Most read-only tools (peek_tree, peek_find, peek_capture, peek_menu --find) and peek_action Press work on backgrounded apps and do NOT auto-activate. Use this when you need to interact with the app's keyboard focus (e.g. before peek_type) or to show UI that requires the app's event loop (popovers, sheets)."
+        description: "Bring an app to the foreground and raise its window. Read-only tools (peek_tree/peek_find/peek_capture/peek_menu --find) and peek_action Press work on backgrounded apps — no need to activate first. Use before peek_type or to surface UI that needs the app's event loop (popovers, sheets)."
     ) { (args: WindowArgs) in
         try await withTimeout("peek_activate") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -606,7 +609,7 @@ enum PeekTools {
 
     static let capture = MCPTool(
         name: "peek_capture",
-        description: "Capture a screenshot of a window. Returns the image inline unless an output path is specified. For manual crop, provide x/y/width/height in WINDOW-relative pixels — subtract the window's frame origin (from peek_apps) from screen coordinates returned by peek_tree/peek_find. If capture fails, run peek_doctor: Screen Recording permission is tied to the binary signature and can be revoked after rebuilds even when System Settings shows it as granted."
+        description: "Screenshot a window. Returns image inline unless output path given. Crop x/y/w/h is WINDOW-relative (subtract window frame origin from screen coords). If capture fails, run peek_doctor — Screen Recording permission is binary-signature-bound and can revoke after rebuilds."
     ) { (args: CaptureArgs) in
         try await withTimeout("peek_capture") {
             let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -629,7 +632,7 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Interact with an app's menu bar. 'find' and tree reads are read-only and do NOT steal focus. 'find' returns each match with its full path (e.g. 'Edit > Copy') — use when unsure the item exists or need its exact label. If you already know the leaf title (Copy, Paste, Save, Quit), skip find and call click directly. 'path' returns only that submenu (e.g. 'Debug' or 'Edit > Find') — prefer over no-arg dumps for large apps where the full menu tree would overflow. 'click' triggers a menu item and activates the target app first because menus must be visible to execute. Works on apps with no open windows (menus are per-app). Avoid calling with no args on a large app — the full menu tree can be very large. Hidden items (NSMenuItem.isHidden=true, e.g. Safari's per-tab ⌘1-9) are filtered out by macOS Accessibility and won't appear here — if you know the shortcut, send it directly with peek_key."
+        description: "Read or click an app's menu bar. Modes: 'find' (read-only, returns matches with paths like 'Edit > Copy'); 'path' (read-only, scoped submenu — 'Debug' or 'Edit > Find'); 'click' (triggers an item, activates the app first). No-arg form truncates on large menus — pass find or path. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via peek_key."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
             // The menu bar is per-app, not per-window — resolving a window would
@@ -650,16 +653,15 @@ enum PeekTools {
                 let subtree = try MenuBarManager.menuSubtree(pid: pid, path: scopedPath)
                 return try json(subtree)
             } else {
-                // Read-only menu tree — same.
                 let tree = try MenuBarManager.menuBar(pid: pid)
-                return try json(tree)
+                return try cappedMenuTree(tree)
             }
         }
     }
 
     static let launch = MCPTool(
         name: "peek_launch",
-        description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — returns once an AX-visible window appears (with windowID + windowTitle in the result, so you can skip a follow-up peek_apps call), errors on 10s timeout. Prefer bundle_id when known. Note: many apps persist view mode, expression, or document state across runs — peek_quit + peek_launch may not reset that. Plan an explicit reset (clear button, mode menu, fresh document) when you need a known starting state."
+        description: "Launch an app by bundle_id, name, or path. Pass wait_for_window=true when the next call needs a window_id — returns once a window appears (windowID/windowTitle in result, skip follow-up peek_apps), errors on 10s timeout. Prefer bundle_id when known. Many apps persist state across launches — plan an explicit reset (clear button, fresh document) when you need a known starting state."
     ) { (args: LaunchArgs) in
         try await withTimeout("peek_launch", seconds: 15) {
             let url = try AppLifecycleManager.resolveAppURL(
@@ -674,7 +676,7 @@ enum PeekTools {
 
     static let quit = MCPTool(
         name: "peek_quit",
-        description: "Terminate a running application gracefully (force=true uses forceTerminate). Resolve by pid, bundle_id, or name — prefer pid when known. Returns immediately after dispatching the terminate signal; the app's shutdown may continue asynchronously."
+        description: "Terminate an app (force=true uses forceTerminate). Resolve by pid (preferred), bundle_id, or name. Returns immediately; shutdown may continue async."
     ) { (args: QuitArgs) in
         try await withTimeout("peek_quit") {
             let result = try AppLifecycleManager.quit(
@@ -689,7 +691,7 @@ enum PeekTools {
 
     static let wait = MCPTool(
         name: "peek_wait",
-        description: "Poll for a UI element to appear, returning as soon as it matches. Use this when you're waiting on a known element (a 'Done' button after a save, a dialog to open, a spinner to vanish) — change you don't directly trigger. For changes you DO trigger, peek_action verify='diff' is more direct. Same filter shape as peek_find. Pre-read state with peek_find first to confirm the label/role you're going to wait for actually appears in this app's UI — waiting on a label that never shows burns the full timeout. Errors with timeout on miss."
+        description: "Poll for a UI element to appear (returns at first match). Use for changes you DON'T trigger (Done after save, dialog opens, spinner vanishes). For changes you DO trigger, peek_action verify='diff' is more direct. Same filters as peek_find. Pre-read with peek_find to confirm the label exists — waiting on a missing label burns the full timeout."
     ) { (args: WaitArgs) in
         let timeout = args.timeout ?? 30.0
         let poll = max(args.poll ?? 0.2, 0.05)
