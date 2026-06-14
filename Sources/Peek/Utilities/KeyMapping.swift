@@ -16,6 +16,56 @@ enum KeyMapping {
         return (0, false)
     }
 
+    static func keyCode(named name: String) -> CGKeyCode? {
+        if let code = namedKeys[name.lowercased()] {
+            return code
+        }
+        guard name.count == 1, let char = name.first else { return nil }
+        let (code, _) = lookup(char)
+        return code == 0 ? nil : code
+    }
+
+    /// Whitespace chars (space/tab/return) are exposed only by their named form to keep the error message readable.
+    static var allKeyNames: [String] {
+        let chars = table.keys.filter { !$0.isWhitespace && !$0.isNewline }.map(String.init)
+        return (namedKeys.keys + chars).sorted()
+    }
+
+    static func parseModifiers(_ tokens: [String]) throws -> CGEventFlags {
+        var flags: CGEventFlags = []
+        for token in tokens {
+            guard let flag = modifierMap[token.lowercased()] else {
+                throw PeekError.invalidArgument(name: "modifier", value: token, valid: modifierMap.keys.sorted())
+            }
+            flags.insert(flag)
+        }
+        return flags
+    }
+
+    private static let modifierMap: [String: CGEventFlags] = [
+        "cmd": .maskCommand, "command": .maskCommand,
+        "shift": .maskShift,
+        "option": .maskAlternate, "alt": .maskAlternate,
+        "control": .maskControl, "ctrl": .maskControl,
+        "fn": .maskSecondaryFn
+    ]
+
+    /// Virtual key codes for non-printing / named keys (Carbon HIToolbox/Events.h).
+    private static let namedKeys: [String: CGKeyCode] = [
+        "return": 0x24, "enter": 0x24,
+        "tab": 0x30,
+        "space": 0x31,
+        "delete": 0x33, "backspace": 0x33,
+        "forwarddelete": 0x75, "fwddelete": 0x75,
+        "escape": 0x35, "esc": 0x35,
+        "left": 0x7B, "right": 0x7C, "down": 0x7D, "up": 0x7E,
+        "home": 0x73, "end": 0x77,
+        "pageup": 0x74, "pagedown": 0x79,
+        "f1": 0x7A, "f2": 0x78, "f3": 0x63, "f4": 0x76,
+        "f5": 0x60, "f6": 0x61, "f7": 0x62, "f8": 0x64,
+        "f9": 0x65, "f10": 0x6D, "f11": 0x67, "f12": 0x6F
+    ]
+
     /// Virtual key codes from Carbon HIToolbox/Events.h (US keyboard layout)
     private static let table: [Character: (keyCode: CGKeyCode, shift: Bool)] = [
         // Letters (lowercase, unshifted)

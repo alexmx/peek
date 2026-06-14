@@ -15,6 +15,7 @@ struct Peek: AsyncParsableCommand {
             ClickCommand.self,
             ScrollCommand.self,
             TypeCommand.self,
+            KeyCommand.self,
             ActionCommand.self,
             ActivateCommand.self,
             LaunchCommand.self,

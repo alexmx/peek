@@ -21,6 +21,7 @@ enum PeekError: LocalizedError {
     case windowHidden(CGWindowID)
     case appNotFound(String)
     case launchFailed(String, String)
+    case invalidArgument(name: String, value: String, valid: [String])
 
     var errorDescription: String? {
         switch self {
@@ -64,6 +65,8 @@ enum PeekError: LocalizedError {
             "Could not locate an app matching '\(identifier)'. Provide a valid bundle_id (e.g. com.apple.calculator), an exact name (e.g. 'Calculator'), or an absolute .app path."
         case .launchFailed(let name, let reason):
             "Failed to launch or terminate '\(name)': \(reason)."
+        case .invalidArgument(let name, let value, let valid):
+            "Invalid \(name) '\(value)'. Valid values: \(valid.joined(separator: ", "))."
         }
     }
 }

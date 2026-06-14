@@ -121,7 +121,9 @@ enum PeekTools {
     struct AppsArgs: MCPToolInput {
         @InputProperty("App name (case-insensitive substring)")
         var app: String?
-        @InputProperty("Include off-screen / minimized / other-Space windows (default: false). Off-screen windows aren't interactable without peek_activate, so they're trimmed by default.")
+        @InputProperty(
+            "Include off-screen / minimized / other-Space windows (default: false). Off-screen windows aren't interactable without peek_activate, so they're trimmed by default."
+        )
         var include_offscreen: Bool?
     }
 
@@ -145,13 +147,21 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
-        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title. If title returns empty, fall back to the `value` filter — some apps (notably System Settings on macOS 14+) store labels in AXStaticText.value rather than title/description.")
+        @InputProperty(
+            "Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Use this first; buttons often expose their label via description rather than title. If title returns empty, fall back to the `value` filter — some apps (notably System Settings on macOS 14+) store labels in AXStaticText.value rather than title/description."
+        )
         var title: String?
-        @InputProperty("Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string.")
+        @InputProperty(
+            "Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string."
+        )
         var value: String?
-        @InputProperty("Strict description-only filter (case-insensitive substring). Prefer 'title' for label searches — it already includes description.")
+        @InputProperty(
+            "Strict description-only filter (case-insensitive substring). Prefer 'title' for label searches — it already includes description."
+        )
         var desc: String?
-        @InputProperty("Filter by enabled state. true → only enabled controls, false → only disabled. Omit to include both.")
+        @InputProperty(
+            "Filter by enabled state. true → only enabled controls, false → only disabled. Omit to include both."
+        )
         var enabled: Bool?
         @InputProperty("Hit-test X screen coordinate (use with y instead of filters)")
         var x: Int?
@@ -184,9 +194,13 @@ enum PeekTools {
         var x: Int
         @InputProperty("Y coordinate")
         var y: Int
-        @InputProperty("Vertical scroll amount in pixels. Positive = scroll DOWN (reveal content below), negative = scroll UP")
+        @InputProperty(
+            "Vertical scroll amount in pixels. Positive = scroll DOWN (reveal content below), negative = scroll UP"
+        )
         var deltaY: Int
-        @InputProperty("Horizontal scroll amount in pixels. Positive = scroll RIGHT (reveal content to the right), negative = scroll LEFT")
+        @InputProperty(
+            "Horizontal scroll amount in pixels. Positive = scroll RIGHT (reveal content to the right), negative = scroll LEFT"
+        )
         var deltaX: Int?
         @InputProperty("Use drag gesture instead of scroll wheel (required for touch-based apps like iOS Simulator)")
         var drag: Bool?
@@ -203,6 +217,21 @@ enum PeekTools {
         var text: String
     }
 
+    struct KeyArgs: MCPToolInput {
+        @InputProperty("Window ID (from peek_apps)")
+        var window_id: Int?
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty(
+            "Key name: a single character (e.g. '1', 'a', '/') or a named key (escape, tab, return, delete, up, down, left, right, home, end, pageup, pagedown, f1-f12, space)"
+        )
+        var key: String
+        @InputProperty("Modifier keys: any subset of cmd, shift, option, control, fn")
+        var modifiers: [String]?
+    }
+
     struct ActionArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -217,19 +246,29 @@ enum PeekTools {
 
         @InputProperty("Filter by role")
         var role: String?
-        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches. If empty, fall back to `value` — some apps store labels in AXStaticText.value rather than title/description.")
+        @InputProperty(
+            "Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. Prefer this for label-based searches. If empty, fall back to `value` — some apps store labels in AXStaticText.value rather than title/description."
+        )
         var title: String?
-        @InputProperty("Filter by value (case-insensitive substring). App-formatted text (thousands separators, currency, percent) may not match a literal — use a short partial substring.")
+        @InputProperty(
+            "Filter by value (case-insensitive substring). App-formatted text (thousands separators, currency, percent) may not match a literal — use a short partial substring."
+        )
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring).")
         var desc: String?
         @InputProperty("Perform on all matches (default: first only)")
         var all: Bool?
-        @InputProperty("Verification mode after the action. 'none' (default) returns just confirmation. 'tree' captures the post-action accessibility tree (saves a separate peek_tree call). 'diff' snapshots before and after the action and returns only what changed — usually the ideal choice for 'did this control update?' checks (smaller payload than tree, focused on the delta).")
+        @InputProperty(
+            "Verification mode after the action. 'none' (default) returns just confirmation. 'tree' captures the post-action accessibility tree (saves a separate peek_tree call). 'diff' snapshots before and after the action and returns only what changed — usually the ideal choice for 'did this control update?' checks (smaller payload than tree, focused on the delta)."
+        )
         var verify: String?
-        @InputProperty("Tree depth limit for verify=tree or verify=diff (default: full tree). For verify=diff, a shallow depth can silently hide changes — anything rendered deeper than the limit won't appear in the diff. Leave unset unless payload size is a problem.")
+        @InputProperty(
+            "Tree depth limit for verify=tree or verify=diff (default: full tree). For verify=diff, a shallow depth can silently hide changes — anything rendered deeper than the limit won't appear in the diff. Leave unset unless payload size is a problem."
+        )
         var depth: Int?
-        @InputProperty("Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 1). Bump for apps that lazy-paint values.")
+        @InputProperty(
+            "Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 1). Bump for apps that lazy-paint values."
+        )
         var delay: Double?
     }
 
@@ -269,18 +308,26 @@ enum PeekTools {
             "Search for menu items by title (case-insensitive substring) — returns matches with their menu path"
         )
         var find: String?
-        @InputProperty("Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find'). Use this when the full menu tree would overflow (Xcode, Safari).")
+        @InputProperty(
+            "Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find'). Use this when the full menu tree would overflow (Xcode, Safari)."
+        )
         var path: String?
     }
 
     struct LaunchArgs: MCPToolInput {
-        @InputProperty("Bundle identifier (e.g. com.apple.calculator). Prefer this when known — it's the most reliable resolver.")
+        @InputProperty(
+            "Bundle identifier (e.g. com.apple.calculator). Prefer this when known — it's the most reliable resolver."
+        )
         var bundle_id: String?
-        @InputProperty("App display name (e.g. 'Calculator'). Searches /Applications, /System/Applications, /System/Applications/Utilities.")
+        @InputProperty(
+            "App display name (e.g. 'Calculator'). Searches /Applications, /System/Applications, /System/Applications/Utilities."
+        )
         var name: String?
         @InputProperty("Absolute path to a .app bundle (e.g. /Applications/Notes.app)")
         var path: String?
-        @InputProperty("Wait until at least one AX-visible window appears before returning (default: false). Useful when the next call needs a window_id.")
+        @InputProperty(
+            "Wait until at least one AX-visible window appears before returning (default: false). Useful when the next call needs a window_id."
+        )
         var wait_for_window: Bool?
     }
 
@@ -291,7 +338,9 @@ enum PeekTools {
         var bundle_id: String?
         @InputProperty("App display name (case-insensitive substring; first match wins)")
         var name: String?
-        @InputProperty("Force-terminate with forceTerminate() instead of graceful terminate() (default: false). Use only when graceful quit has failed.")
+        @InputProperty(
+            "Force-terminate with forceTerminate() instead of graceful terminate() (default: false). Use only when graceful quit has failed."
+        )
         var force: Bool?
     }
 
@@ -304,9 +353,13 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Filter by role (exact match, e.g. Button)")
         var role: String?
-        @InputProperty("Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. If empty, fall back to `value` — some apps store labels in AXStaticText.value.")
+        @InputProperty(
+            "Filter by label — matches AXTitle OR AXDescription, case-insensitive substring. If empty, fall back to `value` — some apps store labels in AXStaticText.value."
+        )
         var title: String?
-        @InputProperty("Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string.")
+        @InputProperty(
+            "Filter by value (case-insensitive substring). Display text may be formatted by the app (thousands separators like '1,804', currency symbols, percent signs, locale-specific decimals); use a short partial substring or pre-read the raw value with peek_find rather than guessing the exact string."
+        )
         var value: String?
         @InputProperty("Strict description-only filter (case-insensitive substring).")
         var desc: String?
@@ -324,7 +377,7 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, scroll, type, action, activate, launch, quit, capture, menu, wait, doctor]
+        [apps, tree, find, click, scroll, type, key, action, activate, launch, quit, capture, menu, wait, doctor]
     }
 
     static let apps = MCPTool(
@@ -431,6 +484,22 @@ enum PeekTools {
         }
     }
 
+    static let key = MCPTool(
+        name: "peek_key",
+        description: "Send a single key chord (with optional modifiers) via keyboard events. Use this for keyboard shortcuts like ⌘1, ⇧⌘T, Esc, Tab, arrows, or F-keys — anything peek_type can't express because it only types literal characters. The chord is routed by virtual key code so it triggers app shortcuts, not text input. Key is a single character (e.g. '1', '/') or a named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). Modifiers is any subset of cmd, shift, option, control, fn. Passing app/pid/window_id auto-activates the target."
+    ) { (args: KeyArgs) in
+        try await withTimeout("peek_key") {
+            let mods = args.modifiers ?? []
+            let flags = try KeyMapping.parseModifiers(mods)
+            guard let code = KeyMapping.keyCode(named: args.key) else {
+                throw PeekError.invalidArgument(name: "key", value: args.key, valid: KeyMapping.allKeyNames)
+            }
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            InteractionManager.sendKey(keyCode: code, flags: flags)
+            return try json(["key": args.key, "modifiers": mods.joined(separator: ","), "keyCode": String(code)])
+        }
+    }
+
     static let action = MCPTool(
         name: "peek_action",
         description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes; also menu items in an ALREADY-OPEN menu — for menu BAR items use peek_menu --click; most controls labeled 'popup' in casual terms take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
@@ -443,8 +512,8 @@ enum PeekTools {
 
             // For verify=diff we need a snapshot taken BEFORE the action.
             let beforeFlat: [AXNode]? = if verify == "diff" {
-                MonitorManager.flattenNodes(
-                    try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
+                try MonitorManager.flattenNodes(
+                    AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
                 )
             } else {
                 nil

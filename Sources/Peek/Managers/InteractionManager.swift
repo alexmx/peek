@@ -47,7 +47,7 @@ enum InteractionManager {
         return ActivateResult(pid: pid, windowID: 0, app: name)
     }
 
-    private static let tickNanoseconds: UInt64 = 25_000_000   // 25ms
+    private static let tickNanoseconds: UInt64 = 25_000_000 // 25ms
     private static let settleNanoseconds: UInt64 = 50_000_000 // 50ms
 
     private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) async throws -> Bool {
@@ -228,6 +228,17 @@ enum InteractionManager {
             keyUp?.post(tap: .cghidEventTap)
             usleep(10000) // 10ms between keystrokes
         }
+    }
+
+    /// Unlike `type`, this does NOT attach a unicode override — the OS routes the
+    /// chord by virtual key code, so `Cmd+1` lands as ⌘1, not the literal "1".
+    static func sendKey(keyCode: CGKeyCode, flags: CGEventFlags) {
+        let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
+        let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
+        keyDown?.flags = flags
+        keyUp?.flags = flags
+        keyDown?.post(tap: .cghidEventTap)
+        keyUp?.post(tap: .cghidEventTap)
     }
 
     /// AX actions that only take visible effect when the target app is frontmost.
