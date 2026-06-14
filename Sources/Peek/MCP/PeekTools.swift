@@ -460,7 +460,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (images, canvas areas) — for UI elements with labels, use peek_action instead, which finds the element and clicks it in one step. Always provide app/pid/window_id to auto-activate the target. Re-read element/window frames via peek_find or peek_apps when a recent peek_activate, peek_action ShowMenu, or menu click could have shifted them — windows commonly move on activation."
+        description: "Low-level click at screen coordinates. Only use for raw coordinate clicks (images, canvas areas) — for UI elements with labels, use peek_action instead, which finds the element and clicks it in one step. For drag gestures (drag-reorder, drag-and-drop, marquee select), use peek_drag — two peek_clicks won't synthesize a drag. Always provide app/pid/window_id to auto-activate the target. Re-read element/window frames via peek_find or peek_apps when a recent peek_activate, peek_action ShowMenu, or menu click could have shifted them — windows commonly move on activation."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -488,7 +488,7 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. deltaY: use POSITIVE values to scroll DOWN (reveal content below), NEGATIVE to scroll UP. deltaX: positive = right, negative = left. Set drag=true for touch-based apps like iOS Simulator (uses drag gesture instead of scroll wheel). Always provide app/pid/window_id to auto-activate the target app."
+        description: "Scroll at screen coordinates. deltaY: use POSITIVE values to scroll DOWN (reveal content below), NEGATIVE to scroll UP. deltaX: positive = right, negative = left. Set drag=true for touch-based apps like iOS Simulator (uses drag gesture instead of scroll wheel) — this is still a scroll/swipe primitive. For non-scroll drag gestures (drag-reorder, drag-and-drop, range select), use peek_drag instead. Always provide app/pid/window_id to auto-activate the target app."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -508,7 +508,7 @@ enum PeekTools {
 
     static let type = MCPTool(
         name: "peek_type",
-        description: "Type text via keyboard events to the focused element. Many apps accept typed input directly when their main view is focused — prefer one peek_type call over many peek_action Press calls for any digit/operator/character sequence. If keystrokes need to land in a specific text field, focus it first with peek_click or peek_action; for apps with a global key handler (calculators, games, single-document editors) just call peek_type directly. Passing app/pid/window_id auto-activates the target, so a separate peek_activate is not needed."
+        description: "Type text via keyboard events to the focused element. Many apps accept typed input directly when their main view is focused — prefer one peek_type call over many peek_action Press calls for any digit/operator/character sequence. If keystrokes need to land in a specific text field, focus it first with peek_click or peek_action; for apps with a global key handler (calculators, games, single-document editors) just call peek_type directly. Passing app/pid/window_id auto-activates the target, so a separate peek_activate is not needed. For modifier chords (⌘S, ⌘W, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys), use peek_key instead — peek_type only types literal characters."
     ) { (args: TypeArgs) in
         // Generous budget — `type` posts a key event per character with 10ms gaps.
         try await withTimeout("peek_type", seconds: max(defaultTimeout, Double(args.text.count) * 0.05 + 5)) {
@@ -536,7 +536,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes; also menu items in an ALREADY-OPEN menu — for menu BAR items use peek_menu --click; most controls labeled 'popup' in casual terms take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
+        description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes; also menu items in an ALREADY-OPEN menu — for menu BAR items use peek_menu --click; most controls labeled 'popup' in casual terms take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). For keyboard shortcuts (⌘S, ⌘W, Esc, F-keys, ⌘1-9), prefer peek_key over walking the menu — one call vs find-then-press. Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 1.0
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
