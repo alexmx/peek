@@ -57,11 +57,17 @@ enum AppLifecycleManager {
                 launcher.attach(cont)
                 NSWorkspace.shared.openApplication(at: url, configuration: config) { running, error in
                     if let error {
-                        launcher.complete(.failure(PeekError.launchFailed(url.lastPathComponent, error.localizedDescription)))
+                        launcher.complete(.failure(PeekError.launchFailed(
+                            url.lastPathComponent,
+                            error.localizedDescription
+                        )))
                     } else if let running {
                         launcher.complete(.success(running))
                     } else {
-                        launcher.complete(.failure(PeekError.launchFailed(url.lastPathComponent, "openApplication returned no running app")))
+                        launcher.complete(.failure(PeekError.launchFailed(
+                            url.lastPathComponent,
+                            "openApplication returned no running app"
+                        )))
                     }
                 }
             }
@@ -146,7 +152,11 @@ enum AppLifecycleManager {
         }
     }
 
-    private static func resolveRunningApp(pid: pid_t?, bundleID: String?, name: String?) throws -> NSRunningApplication {
+    private static func resolveRunningApp(
+        pid: pid_t?,
+        bundleID: String?,
+        name: String?
+    ) throws -> NSRunningApplication {
         if let pid {
             guard let app = NSRunningApplication(processIdentifier: pid) else {
                 throw PeekError.appNotFound("pid \(pid)")

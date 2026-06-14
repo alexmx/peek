@@ -6,7 +6,7 @@ import Testing
 struct KeyMappingTests {
     // MARK: - Lowercase Letters
 
-    @Test("lookup - lowercase letters")
+    @Test
     func lookupLowercaseLetters() {
         let letters: [(Character, CGKeyCode)] = [
             ("a", 0x00), ("s", 0x01), ("d", 0x02), ("f", 0x03),
@@ -27,7 +27,7 @@ struct KeyMappingTests {
 
     // MARK: - Uppercase Letters
 
-    @Test("lookup - uppercase letters use shift")
+    @Test
     func lookupUppercaseLetters() {
         let letters: [(Character, CGKeyCode)] = [
             ("A", 0x00), ("S", 0x01), ("D", 0x02), ("F", 0x03),
@@ -41,7 +41,7 @@ struct KeyMappingTests {
         }
     }
 
-    @Test("lookup - uppercase and lowercase same keyCode")
+    @Test
     func lookupUppercaseLowercaseSameKeyCode() {
         let pairs: [(Character, Character)] = [
             ("a", "A"), ("z", "Z"), ("m", "M"), ("q", "Q")
@@ -59,7 +59,7 @@ struct KeyMappingTests {
 
     // MARK: - Numbers
 
-    @Test("lookup - number keys")
+    @Test
     func lookupNumbers() {
         let numbers: [(Character, CGKeyCode)] = [
             ("1", 0x12), ("2", 0x13), ("3", 0x14), ("4", 0x15),
@@ -76,7 +76,7 @@ struct KeyMappingTests {
 
     // MARK: - Unshifted Symbols
 
-    @Test("lookup - unshifted symbols")
+    @Test
     func lookupUnshiftedSymbols() {
         let symbols: [(Character, CGKeyCode)] = [
             ("-", 0x1B), ("=", 0x18), ("]", 0x1E), ("[", 0x21),
@@ -93,7 +93,7 @@ struct KeyMappingTests {
 
     // MARK: - Shifted Symbols
 
-    @Test("lookup - shifted symbols")
+    @Test
     func lookupShiftedSymbols() {
         let symbols: [(Character, CGKeyCode)] = [
             ("!", 0x12), ("@", 0x13), ("#", 0x14), ("$", 0x15),
@@ -111,7 +111,7 @@ struct KeyMappingTests {
         }
     }
 
-    @Test("lookup - shifted and unshifted pairs")
+    @Test
     func lookupShiftedUnshiftedPairs() {
         let pairs: [(unshifted: Character, shifted: Character, keyCode: CGKeyCode)] = [
             ("1", "!", 0x12),
@@ -140,21 +140,21 @@ struct KeyMappingTests {
 
     // MARK: - Whitespace
 
-    @Test("lookup - space")
+    @Test
     func lookupSpace() {
         let (keyCode, shift) = KeyMapping.lookup(" ")
         #expect(keyCode == 0x31)
         #expect(shift == false)
     }
 
-    @Test("lookup - tab")
+    @Test
     func lookupTab() {
         let (keyCode, shift) = KeyMapping.lookup("\t")
         #expect(keyCode == 0x30)
         #expect(shift == false)
     }
 
-    @Test("lookup - newline")
+    @Test
     func lookupNewline() {
         let (keyCode, shift) = KeyMapping.lookup("\n")
         #expect(keyCode == 0x24)
@@ -163,7 +163,7 @@ struct KeyMappingTests {
 
     // MARK: - Unmapped Characters
 
-    @Test("lookup - unmapped character returns zero keyCode")
+    @Test
     func lookupUnmappedCharacter() {
         let unmappedChars: [Character] = [
             "€", "£", "¥", "©", "®", "™",
@@ -181,7 +181,7 @@ struct KeyMappingTests {
 
     // MARK: - Edge Cases
 
-    @Test("lookup - complete alphabet coverage")
+    @Test
     func lookupCompleteAlphabet() {
         // All lowercase letters should be mapped (keyCode 0 is valid for 'a')
         // So we check that each returns a valid (finite) keyCode
@@ -194,7 +194,7 @@ struct KeyMappingTests {
         }
     }
 
-    @Test("lookup - complete uppercase alphabet coverage")
+    @Test
     func lookupCompleteUppercaseAlphabet() {
         // Uppercase letters should map to the same keyCodes as lowercase but with shift
         let alphabet = Array("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -205,7 +205,7 @@ struct KeyMappingTests {
         }
     }
 
-    @Test("lookup - all digits coverage")
+    @Test
     func lookupAllDigits() {
         let digits = "0123456789"
         for char in digits {
@@ -215,7 +215,7 @@ struct KeyMappingTests {
         }
     }
 
-    @Test("lookup - common punctuation")
+    @Test
     func lookupCommonPunctuation() {
         let punctuation = ".,;:!?'\"-_()[]{}/"
         for char in punctuation {
@@ -226,7 +226,7 @@ struct KeyMappingTests {
 
     // MARK: - Real-world Strings
 
-    @Test("lookup - real string can be typed")
+    @Test
     func lookupRealString() {
         let testStrings = [
             "Hello, World!",

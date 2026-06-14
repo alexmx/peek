@@ -10,7 +10,10 @@ struct LaunchCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Bundle identifier (e.g. com.apple.calculator)")
     var bundleID: String?
 
-    @Option(name: .long, help: "App display name (searches /Applications, /System/Applications, /System/Applications/Utilities)")
+    @Option(
+        name: .long,
+        help: "App display name (searches /Applications, /System/Applications, /System/Applications/Utilities)"
+    )
     var name: String?
 
     @Option(name: .long, help: "Absolute path to a .app bundle")

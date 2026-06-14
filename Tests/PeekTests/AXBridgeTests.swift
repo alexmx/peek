@@ -6,7 +6,7 @@ import Testing
 struct AXBridgeTests {
     // MARK: - stripAXPrefix() Tests
 
-    @Test("stripAXPrefix - removes AX prefix")
+    @Test
     func stripAXPrefixRemoves() {
         #expect(AXBridge.stripAXPrefix("AXButton") == "Button")
         #expect(AXBridge.stripAXPrefix("AXWindow") == "Window")
@@ -14,14 +14,14 @@ struct AXBridgeTests {
         #expect(AXBridge.stripAXPrefix("AXMenuItem") == "MenuItem")
     }
 
-    @Test("stripAXPrefix - already stripped")
+    @Test
     func stripAXPrefixAlreadyStripped() {
         #expect(AXBridge.stripAXPrefix("Button") == "Button")
         #expect(AXBridge.stripAXPrefix("Window") == "Window")
         #expect(AXBridge.stripAXPrefix("TextField") == "TextField")
     }
 
-    @Test("stripAXPrefix - edge cases")
+    @Test
     func stripAXPrefixEdgeCases() {
         #expect(AXBridge.stripAXPrefix("AX") == "")
         #expect(AXBridge.stripAXPrefix("A") == "A")
@@ -30,24 +30,24 @@ struct AXBridgeTests {
         #expect(AXBridge.stripAXPrefix("AxButton") == "AxButton") // Mixed case not stripped
     }
 
-    @Test("stripAXPrefix - preserves case after prefix")
+    @Test
     func stripAXPrefixPreservesCase() {
         #expect(AXBridge.stripAXPrefix("AXbutton") == "button")
         #expect(AXBridge.stripAXPrefix("AXBUTTON") == "BUTTON")
     }
 
-    @Test("stripAXPrefix - multiple AX not recursively stripped")
+    @Test
     func stripAXPrefixNotRecursive() {
         #expect(AXBridge.stripAXPrefix("AXAXButton") == "AXButton")
     }
 
-    @Test("stripAXPrefix - special characters")
+    @Test
     func stripAXPrefixSpecialChars() {
         #expect(AXBridge.stripAXPrefix("AX_Button") == "_Button")
         #expect(AXBridge.stripAXPrefix("AX123") == "123")
     }
 
-    @Test("stripAXPrefix - real role names")
+    @Test
     func stripAXPrefixRealRoles() {
         let roles = [
             ("AXApplication", "Application"),
@@ -69,7 +69,7 @@ struct AXBridgeTests {
 
     // MARK: - ensureAXPrefix() Tests
 
-    @Test("ensureAXPrefix - adds prefix")
+    @Test
     func ensureAXPrefixAdds() {
         #expect(AXBridge.ensureAXPrefix("Button") == "AXButton")
         #expect(AXBridge.ensureAXPrefix("Window") == "AXWindow")
@@ -77,14 +77,14 @@ struct AXBridgeTests {
         #expect(AXBridge.ensureAXPrefix("MenuItem") == "AXMenuItem")
     }
 
-    @Test("ensureAXPrefix - already has prefix")
+    @Test
     func ensureAXPrefixAlreadyHas() {
         #expect(AXBridge.ensureAXPrefix("AXButton") == "AXButton")
         #expect(AXBridge.ensureAXPrefix("AXWindow") == "AXWindow")
         #expect(AXBridge.ensureAXPrefix("AXTextField") == "AXTextField")
     }
 
-    @Test("ensureAXPrefix - idempotent")
+    @Test
     func ensureAXPrefixIdempotent() {
         let result1 = AXBridge.ensureAXPrefix("Button")
         let result2 = AXBridge.ensureAXPrefix(result1)
@@ -92,7 +92,7 @@ struct AXBridgeTests {
         #expect(result1 == "AXButton")
     }
 
-    @Test("ensureAXPrefix - edge cases")
+    @Test
     func ensureAXPrefixEdgeCases() {
         #expect(AXBridge.ensureAXPrefix("") == "AX")
         #expect(AXBridge.ensureAXPrefix("AX") == "AX")
@@ -100,19 +100,19 @@ struct AXBridgeTests {
         #expect(AXBridge.ensureAXPrefix("ax") == "AXax") // lowercase not recognized
     }
 
-    @Test("ensureAXPrefix - preserves original case")
+    @Test
     func ensureAXPrefixPreservesCase() {
         #expect(AXBridge.ensureAXPrefix("button") == "AXbutton")
         #expect(AXBridge.ensureAXPrefix("BUTTON") == "AXBUTTON")
     }
 
-    @Test("ensureAXPrefix - special characters")
+    @Test
     func ensureAXPrefixSpecialChars() {
         #expect(AXBridge.ensureAXPrefix("_Button") == "AX_Button")
         #expect(AXBridge.ensureAXPrefix("123") == "AX123")
     }
 
-    @Test("ensureAXPrefix - real role names")
+    @Test
     func ensureAXPrefixRealRoles() {
         let roles = [
             ("Application", "AXApplication"),
@@ -134,7 +134,7 @@ struct AXBridgeTests {
 
     // MARK: - Round-trip Tests
 
-    @Test("roundtrip - strip then ensure")
+    @Test
     func roundtripStripThenEnsure() {
         let original = "AXButton"
         let stripped = AXBridge.stripAXPrefix(original)
@@ -142,7 +142,7 @@ struct AXBridgeTests {
         #expect(ensured == original)
     }
 
-    @Test("roundtrip - ensure then strip")
+    @Test
     func roundtripEnsureThenStrip() {
         let original = "Button"
         let ensured = AXBridge.ensureAXPrefix(original)
@@ -150,7 +150,7 @@ struct AXBridgeTests {
         #expect(stripped == original)
     }
 
-    @Test("roundtrip - multiple cycles")
+    @Test
     func roundtripMultipleCycles() {
         var current = "Window"
 
@@ -164,13 +164,13 @@ struct AXBridgeTests {
 
     // MARK: - Unicode and Edge Cases
 
-    @Test("stripAXPrefix - unicode characters")
+    @Test
     func stripAXPrefixUnicode() {
         #expect(AXBridge.stripAXPrefix("AX文字") == "文字")
         #expect(AXBridge.stripAXPrefix("AX🔥") == "🔥")
     }
 
-    @Test("ensureAXPrefix - unicode characters")
+    @Test
     func ensureAXPrefixUnicode() {
         #expect(AXBridge.ensureAXPrefix("文字") == "AX文字")
         #expect(AXBridge.ensureAXPrefix("🔥") == "AX🔥")

@@ -7,7 +7,7 @@ import Testing
 struct PeekErrorTests {
     // MARK: - Error Description Tests
 
-    @Test("windowNotFound - includes window ID")
+    @Test
     func windowNotFoundDescription() throws {
         let error = PeekError.windowNotFound(12345)
         let description = error.errorDescription
@@ -17,7 +17,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("peek apps")))
     }
 
-    @Test("accessibilityNotTrusted - mentions permission")
+    @Test
     func accessibilityNotTrustedDescription() throws {
         let error = PeekError.accessibilityNotTrusted
         let description = error.errorDescription
@@ -27,7 +27,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("System Settings")))
     }
 
-    @Test("noWindows - clear message")
+    @Test
     func noWindowsDescription() throws {
         let error = PeekError.noWindows
         let description = error.errorDescription
@@ -36,7 +36,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("application")))
     }
 
-    @Test("failedToWrite - includes path")
+    @Test
     func failedToWriteDescription() throws {
         let testPath = "/tmp/test.png"
         let error = PeekError.failedToWrite(testPath)
@@ -46,7 +46,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("Failed to write")))
     }
 
-    @Test("elementNotFound - clear message")
+    @Test
     func elementNotFoundDescription() throws {
         let error = PeekError.elementNotFound
         let description = error.errorDescription
@@ -55,7 +55,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("found")))
     }
 
-    @Test("actionFailed - includes action name and error")
+    @Test
     func actionFailedDescription() throws {
         let error = PeekError.actionFailed("Press", .actionUnsupported)
         let description = error.errorDescription
@@ -65,7 +65,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("not supported")))
     }
 
-    @Test("actionFailed - different AX errors")
+    @Test
     func actionFailedDifferentErrors() throws {
         let testCases: [(String, AXError, String)] = [
             ("Press", .actionUnsupported, "not supported"),
@@ -83,7 +83,7 @@ struct PeekErrorTests {
         }
     }
 
-    @Test("noMenuBar - includes PID")
+    @Test
     func noMenuBarDescription() throws {
         let error = PeekError.noMenuBar(54321)
         let description = error.errorDescription
@@ -92,7 +92,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("menu bar")))
     }
 
-    @Test("menuItemNotFound - includes title")
+    @Test
     func menuItemNotFoundDescription() throws {
         let error = PeekError.menuItemNotFound("File > Open")
         let description = error.errorDescription
@@ -101,7 +101,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("menu item")))
     }
 
-    @Test("screenCaptureNotGranted - mentions permission")
+    @Test
     func screenCaptureNotGrantedDescription() throws {
         let error = PeekError.screenCaptureNotGranted
         let description = error.errorDescription
@@ -111,7 +111,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("System Settings")))
     }
 
-    @Test("invalidCropRegion - clear message")
+    @Test
     func invalidCropRegionDescription() throws {
         let error = PeekError.invalidCropRegion
         let description = error.errorDescription
@@ -121,7 +121,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("bounds")))
     }
 
-    @Test("captureFailed - mentions timeout and doctor command")
+    @Test
     func captureFailedDescription() throws {
         let error = PeekError.captureFailed
         let description = error.errorDescription
@@ -130,7 +130,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("peek doctor")))
     }
 
-    @Test("encodingFailed - clear message")
+    @Test
     func encodingFailedDescription() throws {
         let error = PeekError.encodingFailed
         let description = error.errorDescription
@@ -139,7 +139,7 @@ struct PeekErrorTests {
         #expect(try #require(description?.contains("JSON")))
     }
 
-    @Test("activationFailed - includes pid and app name with remediation")
+    @Test
     func activationFailedDescription() throws {
         let error = PeekError.activationFailed(54321, "TestApp")
         let description = try #require(error.errorDescription)
@@ -149,7 +149,7 @@ struct PeekErrorTests {
         #expect(description.contains("Dock"))
     }
 
-    @Test("unsupportedAction - lists supported actions when known")
+    @Test
     func unsupportedActionWithSupported() throws {
         let error = PeekError.unsupportedAction("AXShowMenu", supported: ["AXPress", "AXConfirm"])
         let description = try #require(error.errorDescription)
@@ -159,7 +159,7 @@ struct PeekErrorTests {
         #expect(description.localizedCaseInsensitiveContains("not supported"))
     }
 
-    @Test("unsupportedAction - suggests alternative when no actions")
+    @Test
     func unsupportedActionWithEmpty() throws {
         let error = PeekError.unsupportedAction("AXPress", supported: [])
         let description = try #require(error.errorDescription)
@@ -168,17 +168,18 @@ struct PeekErrorTests {
         #expect(description.contains("peek_click"))
     }
 
-    @Test("timeout - includes operation name and seconds")
+    @Test
     func timeoutDescription() throws {
         let error = PeekError.timeout("peek_find", 20)
         let description = try #require(error.errorDescription)
         #expect(description.contains("peek_find"))
         #expect(description.contains("20"))
         #expect(description.localizedCaseInsensitiveContains("timed out"))
-        #expect(description.localizedCaseInsensitiveContains("retry") || description.localizedCaseInsensitiveContains("depth"))
+        #expect(description.localizedCaseInsensitiveContains("retry") || description
+            .localizedCaseInsensitiveContains("depth"))
     }
 
-    @Test("windowHidden - suggests peek_activate")
+    @Test
     func windowHiddenDescription() throws {
         let error = PeekError.windowHidden(42)
         let description = try #require(error.errorDescription)
@@ -187,7 +188,7 @@ struct PeekErrorTests {
         #expect(description.contains("peek_activate"))
     }
 
-    @Test("appNotFound - lists accepted identifier shapes")
+    @Test
     func appNotFoundDescription() throws {
         let error = PeekError.appNotFound("NoSuchApp")
         let description = try #require(error.errorDescription)
@@ -197,7 +198,7 @@ struct PeekErrorTests {
         #expect(description.contains(".app"))
     }
 
-    @Test("launchFailed - includes name and reason")
+    @Test
     func launchFailedDescription() throws {
         let error = PeekError.launchFailed("TestApp", "process exited")
         let description = try #require(error.errorDescription)
@@ -207,7 +208,7 @@ struct PeekErrorTests {
 
     // MARK: - All Errors Have Descriptions
 
-    @Test("all error cases have non-empty descriptions")
+    @Test
     func allErrorsHaveDescriptions() throws {
         let errors: [PeekError] = [
             .windowNotFound(123),
@@ -233,13 +234,13 @@ struct PeekErrorTests {
         for error in errors {
             let description = error.errorDescription
             #expect(description != nil, "Error \(error) should have a description")
-            #expect(try !(#require(description?.isEmpty)), "Error \(error) description should not be empty")
+            #expect(try !#require(description?.isEmpty), "Error \(error) description should not be empty")
         }
     }
 
     // MARK: - Error Context
 
-    @Test("permission errors mention System Settings")
+    @Test
     func permissionErrorsMentionSystemSettings() throws {
         let permissionErrors: [PeekError] = [
             .accessibilityNotTrusted,
@@ -253,7 +254,7 @@ struct PeekErrorTests {
         }
     }
 
-    @Test("error messages provide actionable guidance")
+    @Test
     func errorMessagesProvideGuidance() throws {
         let testCases: [(PeekError, String)] = [
             (.windowNotFound(123), "peek apps"),

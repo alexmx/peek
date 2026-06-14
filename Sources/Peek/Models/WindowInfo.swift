@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-struct WindowInfo: Sendable, Encodable {
+struct WindowInfo: Encodable {
     let windowID: CGWindowID
     let ownerName: String
     let windowTitle: String

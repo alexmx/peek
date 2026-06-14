@@ -83,7 +83,7 @@ struct MenuBarManagerTests {
 
     // MARK: - searchMenuNode() Tests
 
-    @Test("searchMenuNode - find by exact title")
+    @Test
     func searchMenuNodeExactTitle() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "Open", path: [], results: &results)
@@ -92,7 +92,7 @@ struct MenuBarManagerTests {
         #expect(results[0].role == "MenuItem")
     }
 
-    @Test("searchMenuNode - case insensitive search")
+    @Test
     func searchMenuNodeCaseInsensitive() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "open", path: [], results: &results)
@@ -100,7 +100,7 @@ struct MenuBarManagerTests {
         #expect(results[0].title == "Open")
     }
 
-    @Test("searchMenuNode - partial match")
+    @Test
     func searchMenuNodePartialMatch() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "Sav", path: [], results: &results)
@@ -108,21 +108,21 @@ struct MenuBarManagerTests {
         #expect(results[0].title == "Save")
     }
 
-    @Test("searchMenuNode - multiple matches")
+    @Test
     func searchMenuNodeMultipleMatches() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(nestedMenu, title: "Find", path: [], results: &results)
         #expect(results.count == 4) // "Find" + "Find..." + "Find Next" + "Find Previous"
     }
 
-    @Test("searchMenuNode - no matches")
+    @Test
     func searchMenuNodeNoMatches() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "Delete", path: [], results: &results)
         #expect(results.isEmpty)
     }
 
-    @Test("searchMenuNode - nested items found")
+    @Test
     func searchMenuNodeNested() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(nestedMenu, title: "Find Next", path: [], results: &results)
@@ -130,7 +130,7 @@ struct MenuBarManagerTests {
         #expect(results[0].title == "Find Next")
     }
 
-    @Test("searchMenuNode - path building")
+    @Test
     func searchMenuNodePathBuilding() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "New", path: [], results: &results)
@@ -138,7 +138,7 @@ struct MenuBarManagerTests {
         #expect(results[0].path == "File > New")
     }
 
-    @Test("searchMenuNode - nested path building")
+    @Test
     func searchMenuNodeNestedPath() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(nestedMenu, title: "Find...", path: [], results: &results)
@@ -146,7 +146,7 @@ struct MenuBarManagerTests {
         #expect(results[0].path == "Edit > Find > Find...")
     }
 
-    @Test("searchMenuNode - with initial path")
+    @Test
     func searchMenuNodeInitialPath() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "Open", path: ["App"], results: &results)
@@ -154,7 +154,7 @@ struct MenuBarManagerTests {
         #expect(results[0].path == "App > File > Open")
     }
 
-    @Test("searchMenuNode - only MenuItem role matches")
+    @Test
     func searchMenuNodeOnlyMenuItem() {
         var results: [MenuNode] = []
         // "Edit" is a Menu, not MenuItem, so shouldn't match even though title contains substring
@@ -162,7 +162,7 @@ struct MenuBarManagerTests {
         #expect(results.isEmpty)
     }
 
-    @Test("searchMenuNode - empty title node skipped")
+    @Test
     func searchMenuNodeEmptyTitle() {
         let menuWithEmpty = MenuNode(
             title: "Test",
@@ -179,7 +179,7 @@ struct MenuBarManagerTests {
         #expect(results.isEmpty) // Empty titles are skipped
     }
 
-    @Test("searchMenuNode - accumulates results")
+    @Test
     func searchMenuNodeAccumulates() {
         var results: [MenuNode] = [
             MenuNode(
@@ -197,7 +197,7 @@ struct MenuBarManagerTests {
         #expect(results[1].title == "New")
     }
 
-    @Test("searchMenuNode - results have no children")
+    @Test
     func searchMenuNodeNoChildren() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(nestedMenu, title: "Find", path: [], results: &results)
@@ -206,7 +206,7 @@ struct MenuBarManagerTests {
         }
     }
 
-    @Test("searchMenuNode - preserves properties")
+    @Test
     func searchMenuNodePreservesProperties() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(simpleMenu, title: "New", path: [], results: &results)
@@ -218,7 +218,7 @@ struct MenuBarManagerTests {
         #expect(found.shortcut == "⌘N")
     }
 
-    @Test("searchMenuNode - complex menu bar")
+    @Test
     func searchMenuNodeComplex() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(complexMenu, title: "File", path: [], results: &results)
@@ -227,7 +227,7 @@ struct MenuBarManagerTests {
         #expect(results.contains { $0.title == "Open File" })
     }
 
-    @Test("searchMenuNode - paths in complex menu")
+    @Test
     func searchMenuNodeComplexPaths() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(complexMenu, title: "Copy", path: [], results: &results)
@@ -235,7 +235,7 @@ struct MenuBarManagerTests {
         #expect(results[0].path == "Edit > Copy")
     }
 
-    @Test("searchMenuNode - empty path for root items")
+    @Test
     func searchMenuNodeEmptyPath() {
         let rootMenu = MenuNode(
             title: "",
@@ -252,7 +252,7 @@ struct MenuBarManagerTests {
         #expect(results[0].path == "Item")
     }
 
-    @Test("searchMenuNode - disabled items still match")
+    @Test
     func searchMenuNodeDisabled() {
         var results: [MenuNode] = []
         MenuBarManager.searchMenuNode(menuWithDisabled, title: "Zoom Out", path: [], results: &results)
@@ -261,7 +261,7 @@ struct MenuBarManagerTests {
         #expect(results[0].enabled == false)
     }
 
-    @Test("searchMenuNode - deeply nested structure")
+    @Test
     func searchMenuNodeDeeplyNested() {
         let deep = MenuNode(
             title: "L1",

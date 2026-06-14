@@ -45,7 +45,10 @@ enum ScreenCaptureManager {
     }
 
     /// Capture a window and return the PNG data in memory (no file written).
-    static func capturePNGData(windowID: CGWindowID, crop: CGRect? = nil) async throws -> (data: Data, width: Int, height: Int) {
+    static func capturePNGData(
+        windowID: CGWindowID,
+        crop: CGRect? = nil
+    ) async throws -> (data: Data, width: Int, height: Int) {
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {

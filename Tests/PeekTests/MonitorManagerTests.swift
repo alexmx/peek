@@ -126,7 +126,7 @@ struct MonitorManagerTests {
 
     // MARK: - flattenNodes() Tests
 
-    @Test("flattenNodes - single node with no children")
+    @Test
     func flattenSingleNode() {
         let result = MonitorManager.flattenNodes(singleNode)
         #expect(result.count == 1)
@@ -134,21 +134,21 @@ struct MonitorManagerTests {
         #expect(result[0].role == "Button")
     }
 
-    @Test("flattenNodes - node with direct children")
+    @Test
     func flattenWithChildren() {
         let result = MonitorManager.flattenNodes(treeWithChildren)
         // Window + 3 children = 4 nodes
         #expect(result.count == 4)
     }
 
-    @Test("flattenNodes - first element is root")
+    @Test
     func flattenRootFirst() {
         let result = MonitorManager.flattenNodes(treeWithChildren)
         #expect(result[0].role == "Window")
         #expect(result[0].title == "Main")
     }
 
-    @Test("flattenNodes - includes all children")
+    @Test
     func flattenIncludesAllChildren() {
         let result = MonitorManager.flattenNodes(treeWithChildren)
         let titles = result.compactMap { $0.title }
@@ -158,7 +158,7 @@ struct MonitorManagerTests {
         #expect(titles.contains("Input"))
     }
 
-    @Test("flattenNodes - deeply nested tree")
+    @Test
     func flattenDeeplyNested() {
         let result = MonitorManager.flattenNodes(deeplyNestedTree)
         // Window + Level1 + Level2 + Level3 + Deep button = 5 nodes
@@ -172,14 +172,14 @@ struct MonitorManagerTests {
         #expect(titles.contains("Deep"))
     }
 
-    @Test("flattenNodes - wide tree")
+    @Test
     func flattenWideTree() {
         let result = MonitorManager.flattenNodes(wideTree)
         // Window + 10 buttons = 11 nodes
         #expect(result.count == 11)
     }
 
-    @Test("flattenNodes - preserves node order (depth-first)")
+    @Test
     func flattenPreservesOrder() {
         let tree = AXNode(
             role: "Root",
@@ -227,7 +227,7 @@ struct MonitorManagerTests {
         #expect(titles == ["A", "B", "C", "D"])
     }
 
-    @Test("flattenNodes - all nodes have no children")
+    @Test
     func flattenNodesHaveNoChildren() {
         let result = MonitorManager.flattenNodes(treeWithChildren)
         for node in result {
@@ -235,7 +235,7 @@ struct MonitorManagerTests {
         }
     }
 
-    @Test("flattenNodes - preserves all properties")
+    @Test
     func flattenPreservesProperties() {
         let result = MonitorManager.flattenNodes(singleNode)
         let flattened = result[0]
@@ -248,7 +248,7 @@ struct MonitorManagerTests {
         #expect(flattened.frame == singleNode.frame)
     }
 
-    @Test("flattenNodes - handles nil properties")
+    @Test
     func flattenNilProperties() {
         let nodeWithNils = AXNode(
             role: "Button",
@@ -269,7 +269,7 @@ struct MonitorManagerTests {
         #expect(result[0].frame == nil)
     }
 
-    @Test("flattenNodes - large tree performance")
+    @Test
     func flattenLargeTree() {
         // Create a tree with many nodes
         let largeTree = AXNode(
@@ -307,7 +307,7 @@ struct MonitorManagerTests {
         #expect(result.count == 301)
     }
 
-    @Test("flattenNodes - balanced tree")
+    @Test
     func flattenBalancedTree() {
         let balanced = AXNode(
             role: "Root",
@@ -381,7 +381,7 @@ struct MonitorManagerTests {
         #expect(result.count == 7)
     }
 
-    @Test("flattenNodes - empty children array")
+    @Test
     func flattenEmptyChildren() {
         let nodeEmptyChildren = AXNode(
             role: "Window",
@@ -398,7 +398,7 @@ struct MonitorManagerTests {
         #expect(result[0].title == "Empty")
     }
 
-    @Test("flattenNodes - mixed depth tree")
+    @Test
     func flattenMixedDepth() {
         let mixed = AXNode(
             role: "Window",
@@ -460,7 +460,7 @@ struct MonitorManagerTests {
 
     // MARK: - computeDiff() Tests
 
-    @Test("computeDiff - no changes")
+    @Test
     func computeDiffNoChanges() {
         let nodes = [
             AXNode(role: "Window", title: "Test", value: nil, description: nil, enabled: true, frame: nil, children: [])
@@ -471,7 +471,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - added nodes")
+    @Test
     func computeDiffAdded() {
         let before = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: [])
@@ -487,7 +487,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - removed nodes")
+    @Test
     func computeDiffRemoved() {
         let before = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: []),
@@ -503,7 +503,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - title swap at same position stays as removed+added (different element)")
+    @Test
     func computeDiffChangedTitle() {
         // Title conflict blocks pairing: we can't tell from before/after alone
         // whether a button was renamed or replaced with a different button at the
@@ -537,15 +537,29 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - toolbar context swap (different buttons at same coords) reported as add+remove")
+    @Test
     func computeDiffToolbarSwap() {
         let before = [
-            AXNode(role: "Button", title: "Save", value: nil, description: nil, enabled: true,
-                   frame: AXNode.FrameInfo(x: 10, y: 20, width: 50, height: 30), children: [])
+            AXNode(
+                role: "Button",
+                title: "Save",
+                value: nil,
+                description: nil,
+                enabled: true,
+                frame: AXNode.FrameInfo(x: 10, y: 20, width: 50, height: 30),
+                children: []
+            )
         ]
         let after = [
-            AXNode(role: "Button", title: "Print", value: nil, description: nil, enabled: true,
-                   frame: AXNode.FrameInfo(x: 10, y: 20, width: 50, height: 30), children: [])
+            AXNode(
+                role: "Button",
+                title: "Print",
+                value: nil,
+                description: nil,
+                enabled: true,
+                frame: AXNode.FrameInfo(x: 10, y: 20, width: 50, height: 30),
+                children: []
+            )
         ]
         let diff = MonitorManager.computeDiff(before: before, after: after)
         #expect(diff.added.count == 1)
@@ -553,7 +567,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - changed value")
+    @Test
     func computeDiffChangedValue() {
         let before = [
             AXNode(
@@ -583,7 +597,7 @@ struct MonitorManagerTests {
         #expect(diff.changed[0].after.value == "new text")
     }
 
-    @Test("computeDiff - resizing display reported as changed (Calculator shape)")
+    @Test
     func computeDiffResizingDisplay() {
         // Mirrors Calculator's StaticText display going from "9" to "95+7" — the value
         // changes and the frame width shifts, but the element is the same one.
@@ -618,7 +632,7 @@ struct MonitorManagerTests {
         #expect(diff.changed[0].after.value == "95+7")
     }
 
-    @Test("computeDiff - non-overlapping frame move stays as removed+added")
+    @Test
     func computeDiffChangedFrame() {
         // Identity includes frame position, so moving = different identity = removed + added
         let before = [
@@ -650,7 +664,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - complex scenario")
+    @Test
     func computeDiffComplex() {
         let before = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: []),
@@ -724,7 +738,7 @@ struct MonitorManagerTests {
         #expect(diff.changed[0].role == "TextField")
     }
 
-    @Test("computeDiff - empty lists")
+    @Test
     func computeDiffEmptyLists() {
         let diff = MonitorManager.computeDiff(before: [], after: [])
         #expect(diff.added.isEmpty)
@@ -732,7 +746,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - before empty")
+    @Test
     func computeDiffBeforeEmpty() {
         let after = [
             AXNode(role: "Button", title: "New", value: nil, description: nil, enabled: true, frame: nil, children: [])
@@ -743,7 +757,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - after empty")
+    @Test
     func computeDiffAfterEmpty() {
         let before = [
             AXNode(role: "Button", title: "Old", value: nil, description: nil, enabled: true, frame: nil, children: [])
@@ -754,7 +768,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - identity-based matching")
+    @Test
     func computeDiffIdentityBased() {
         // Same role and title but different positions = different identities
         let before = [
@@ -787,7 +801,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - description swap at same position stays as removed+added")
+    @Test
     func computeDiffDescriptionChange() {
         // Description conflict blocks pairing for the same reason as title: a
         // descriptionchange could be a rename or a substitution.
@@ -819,7 +833,7 @@ struct MonitorManagerTests {
         #expect(diff.changed.isEmpty)
     }
 
-    @Test("computeDiff - detects frame size change")
+    @Test
     func computeDiffFrameSizeChange() {
         // Same identity (position unchanged) but frame size changed
         let before = [

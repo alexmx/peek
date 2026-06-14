@@ -53,28 +53,28 @@ struct WindowTargetTests {
 
     // MARK: - findWindow by windowID Tests
 
-    @Test("findWindow - by windowID exists")
+    @Test
     func findWindowByIDExists() throws {
         let result = try WindowTarget.findWindow(in: testWindows, windowID: 100)
         #expect(result.windowID == 100)
         #expect(result.pid == 1001)
     }
 
-    @Test("findWindow - by windowID not found")
+    @Test
     func findWindowByIDNotFound() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: testWindows, windowID: 999)
         }
     }
 
-    @Test("findWindow - by windowID in empty list")
+    @Test
     func findWindowByIDEmptyList() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: [], windowID: 100)
         }
     }
 
-    @Test("findWindow - by windowID ignores other params")
+    @Test
     func findWindowByIDIgnoresOthers() throws {
         // When windowID is provided, app and pid are ignored
         let result = try WindowTarget.findWindow(in: testWindows, windowID: 100, app: "NonExistent", pid: 9999)
@@ -83,26 +83,26 @@ struct WindowTargetTests {
 
     // MARK: - findWindow by app Tests
 
-    @Test("findWindow - by app exact match")
+    @Test
     func findWindowByAppExact() throws {
         let result = try WindowTarget.findWindow(in: testWindows, app: "TextEdit")
         #expect(result.windowID == 200)
         #expect(result.pid == 2001)
     }
 
-    @Test("findWindow - by app case insensitive")
+    @Test
     func findWindowByAppCaseInsensitive() throws {
         let result = try WindowTarget.findWindow(in: testWindows, app: "safari")
         #expect(result.pid == 1001)
     }
 
-    @Test("findWindow - by app partial match")
+    @Test
     func findWindowByAppPartial() throws {
         let result = try WindowTarget.findWindow(in: testWindows, app: "Text")
         #expect(result.windowID == 200)
     }
 
-    @Test("findWindow - by app prefers on-screen")
+    @Test
     func findWindowByAppPrefersOnScreen() throws {
         // Safari has two windows: 100 (on-screen) and 101 (off-screen)
         let result = try WindowTarget.findWindow(in: testWindows, app: "Safari")
@@ -110,7 +110,7 @@ struct WindowTargetTests {
         #expect(result.pid == 1001)
     }
 
-    @Test("findWindow - by app returns off-screen if no on-screen")
+    @Test
     func findWindowByAppOffScreenFallback() throws {
         // Create test data with only off-screen windows
         let offScreenWindows = [
@@ -127,14 +127,14 @@ struct WindowTargetTests {
         #expect(result.windowID == 400)
     }
 
-    @Test("findWindow - by app not found")
+    @Test
     func findWindowByAppNotFound() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: testWindows, app: "NonExistent")
         }
     }
 
-    @Test("findWindow - by app multiple matches prefers first on-screen")
+    @Test
     func findWindowByAppMultipleMatches() throws {
         // Finder has two windows: 300 (on-screen) and 301 (off-screen)
         let result = try WindowTarget.findWindow(in: testWindows, app: "Finder")
@@ -143,21 +143,21 @@ struct WindowTargetTests {
 
     // MARK: - findWindow by pid Tests
 
-    @Test("findWindow - by pid exists")
+    @Test
     func findWindowByPIDExists() throws {
         let result = try WindowTarget.findWindow(in: testWindows, pid: 2001)
         #expect(result.windowID == 200)
         #expect(result.pid == 2001)
     }
 
-    @Test("findWindow - by pid prefers on-screen")
+    @Test
     func findWindowByPIDPrefersOnScreen() throws {
         // Finder PID 3001 has two windows: 300 (on-screen) and 301 (off-screen)
         let result = try WindowTarget.findWindow(in: testWindows, pid: 3001)
         #expect(result.windowID == 300) // Should prefer on-screen
     }
 
-    @Test("findWindow - by pid returns off-screen if no on-screen")
+    @Test
     func findWindowByPIDOffScreenFallback() throws {
         let offScreenWindows = [
             WindowInfo(
@@ -173,14 +173,14 @@ struct WindowTargetTests {
         #expect(result.windowID == 500)
     }
 
-    @Test("findWindow - by pid not found")
+    @Test
     func findWindowByPIDNotFound() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: testWindows, pid: 9999)
         }
     }
 
-    @Test("findWindow - by pid multiple windows")
+    @Test
     func findWindowByPIDMultipleWindows() throws {
         // Safari PID 1001 has windows 100 and 101
         let result = try WindowTarget.findWindow(in: testWindows, pid: 1001)
@@ -189,21 +189,21 @@ struct WindowTargetTests {
 
     // MARK: - findWindow priority Tests
 
-    @Test("findWindow - windowID takes priority over app")
+    @Test
     func findWindowPriorityWindowIDOverApp() throws {
         let result = try WindowTarget.findWindow(in: testWindows, windowID: 200, app: "Safari")
         #expect(result.windowID == 200) // windowID wins, not Safari
         #expect(result.pid == 2001)
     }
 
-    @Test("findWindow - windowID takes priority over pid")
+    @Test
     func findWindowPriorityWindowIDOverPID() throws {
         let result = try WindowTarget.findWindow(in: testWindows, windowID: 200, pid: 1001)
         #expect(result.windowID == 200)
         #expect(result.pid == 2001) // Not 1001
     }
 
-    @Test("findWindow - app takes priority over pid")
+    @Test
     func findWindowPriorityAppOverPID() throws {
         let result = try WindowTarget.findWindow(in: testWindows, app: "TextEdit", pid: 1001)
         #expect(result.windowID == 200) // TextEdit window
@@ -212,35 +212,35 @@ struct WindowTargetTests {
 
     // MARK: - findWindow error cases Tests
 
-    @Test("findWindow - no parameters throws")
+    @Test
     func findWindowNoParameters() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: testWindows)
         }
     }
 
-    @Test("findWindow - all nil parameters throws")
+    @Test
     func findWindowAllNil() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: testWindows, windowID: nil, app: nil, pid: nil)
         }
     }
 
-    @Test("findWindow - empty windows list with windowID")
+    @Test
     func findWindowEmptyListWindowID() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: [], windowID: 100)
         }
     }
 
-    @Test("findWindow - empty windows list with app")
+    @Test
     func findWindowEmptyListApp() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: [], app: "Safari")
         }
     }
 
-    @Test("findWindow - empty windows list with pid")
+    @Test
     func findWindowEmptyListPID() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: [], pid: 1001)
@@ -249,7 +249,7 @@ struct WindowTargetTests {
 
     // MARK: - Edge Cases
 
-    @Test("findWindow - app with special characters")
+    @Test
     func findWindowAppSpecialChars() throws {
         let specialWindows = [
             WindowInfo(
@@ -265,14 +265,14 @@ struct WindowTargetTests {
         #expect(result.windowID == 600)
     }
 
-    @Test("findWindow - single window matches all criteria")
+    @Test
     func findWindowSingleWindow() throws {
         let singleWindow = [testWindows[0]]
         let result = try WindowTarget.findWindow(in: singleWindow, windowID: 100)
         #expect(result.windowID == 100)
     }
 
-    @Test("findWindow - preserves exact window info")
+    @Test
     func findWindowPreservesInfo() throws {
         let result = try WindowTarget.findWindow(in: testWindows, windowID: 200)
         #expect(result.windowID == 200)
@@ -280,7 +280,7 @@ struct WindowTargetTests {
         // Resolved only contains windowID and pid, not full WindowInfo
     }
 
-    @Test("findWindow - app substring in middle")
+    @Test
     func findWindowAppSubstring() throws {
         let result = try WindowTarget.findWindow(in: testWindows, app: "Edit")
         #expect(result.windowID == 200) // TextEdit

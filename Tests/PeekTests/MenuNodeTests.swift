@@ -55,59 +55,59 @@ struct MenuNodeTests {
 
     // MARK: - withPath() Tests
 
-    @Test("withPath - sets path")
+    @Test
     func withPathSetsPath() {
         let result = simpleMenuItem.withPath("File > Open")
         #expect(result.path == "File > Open")
     }
 
-    @Test("withPath - clears children")
+    @Test
     func withPathClearsChildren() {
         let result = menuWithChildren.withPath("File")
         #expect(result.children.isEmpty)
     }
 
-    @Test("withPath - preserves title")
+    @Test
     func withPathPreservesTitle() {
         let result = simpleMenuItem.withPath("File > Open")
         #expect(result.title == simpleMenuItem.title)
     }
 
-    @Test("withPath - preserves role")
+    @Test
     func withPathPreservesRole() {
         let result = simpleMenuItem.withPath("File > Open")
         #expect(result.role == simpleMenuItem.role)
     }
 
-    @Test("withPath - preserves enabled")
+    @Test
     func withPathPreservesEnabled() {
         let result = disabledMenuItem.withPath("Edit > Undo")
         #expect(result.enabled == disabledMenuItem.enabled)
         #expect(result.enabled == false)
     }
 
-    @Test("withPath - preserves shortcut")
+    @Test
     func withPathPreservesShortcut() {
         let result = simpleMenuItem.withPath("File > Open")
         #expect(result.shortcut == simpleMenuItem.shortcut)
         #expect(result.shortcut == "⌘O")
     }
 
-    @Test("withPath - handles empty path")
+    @Test
     func withPathEmptyPath() {
         let result = simpleMenuItem.withPath("")
         #expect(result.path == "")
         #expect(result.title == simpleMenuItem.title)
     }
 
-    @Test("withPath - handles complex path")
+    @Test
     func withPathComplexPath() {
         let complexPath = "File > Open Recent > Documents > Today"
         let result = simpleMenuItem.withPath(complexPath)
         #expect(result.path == complexPath)
     }
 
-    @Test("withPath - node without shortcut")
+    @Test
     func withPathNoShortcut() {
         let nodeNoShortcut = MenuNode(
             title: "Preferences",
@@ -121,7 +121,7 @@ struct MenuNodeTests {
         #expect(result.path == "Settings > Preferences")
     }
 
-    @Test("withPath - nested menu becomes flat")
+    @Test
     func withPathNestedBecomesFlat() {
         #expect(nestedMenu.children.count > 0)
         let result = nestedMenu.withPath("View")
@@ -130,7 +130,7 @@ struct MenuNodeTests {
 
     // MARK: - Initialization Tests
 
-    @Test("init - all properties set correctly")
+    @Test
     func initAllProperties() {
         let node = MenuNode(
             title: "Test",
@@ -149,7 +149,7 @@ struct MenuNodeTests {
         #expect(node.children.isEmpty)
     }
 
-    @Test("init - default path is nil")
+    @Test
     func initDefaultPathNil() {
         let node = MenuNode(
             title: "Test",
@@ -162,7 +162,7 @@ struct MenuNodeTests {
         #expect(node.path == nil)
     }
 
-    @Test("init - with children")
+    @Test
     func initWithChildren() {
         let child1 = MenuNode(title: "A", role: "MenuItem", enabled: true, shortcut: nil, children: [])
         let child2 = MenuNode(title: "B", role: "MenuItem", enabled: true, shortcut: nil, children: [])
@@ -182,7 +182,7 @@ struct MenuNodeTests {
 
     // MARK: - Encodable Tests
 
-    @Test("encodable - simple menu item")
+    @Test
     func encodableSimpleMenuItem() throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
@@ -195,7 +195,7 @@ struct MenuNodeTests {
         #expect(json.contains("\"shortcut\":\"⌘O\""))
     }
 
-    @Test("encodable - disabled menu item")
+    @Test
     func encodableDisabledMenuItem() throws {
         let encoder = JSONEncoder()
         let data = try encoder.encode(disabledMenuItem)
@@ -204,7 +204,7 @@ struct MenuNodeTests {
         #expect(json.contains("\"enabled\":false"))
     }
 
-    @Test("encodable - menu with children")
+    @Test
     func encodableMenuWithChildren() throws {
         let encoder = JSONEncoder()
         let data = try encoder.encode(menuWithChildren)
@@ -217,7 +217,7 @@ struct MenuNodeTests {
         #expect(json.contains("\"Save\""))
     }
 
-    @Test("encodable - node with path")
+    @Test
     func encodableWithPath() throws {
         let nodeWithPath = simpleMenuItem.withPath("File > Open")
         let encoder = JSONEncoder()
@@ -227,7 +227,7 @@ struct MenuNodeTests {
         #expect(json.contains("\"path\":\"File > Open\""))
     }
 
-    @Test("encodable - node without shortcut")
+    @Test
     func encodableNoShortcut() throws {
         let nodeNoShortcut = MenuNode(
             title: "Item",
@@ -246,7 +246,7 @@ struct MenuNodeTests {
 
     // MARK: - Edge Cases
 
-    @Test("empty title menu node")
+    @Test
     func emptyTitle() {
         let node = MenuNode(
             title: "",
@@ -261,7 +261,7 @@ struct MenuNodeTests {
         #expect(result.title == "")
     }
 
-    @Test("menu node with many children")
+    @Test
     func manyChildren() {
         let children = (1...100).map { i in
             MenuNode(
@@ -286,7 +286,7 @@ struct MenuNodeTests {
         #expect(result.children.isEmpty)
     }
 
-    @Test("deeply nested menu structure")
+    @Test
     func deeplyNested() {
         let level3 = MenuNode(title: "L3", role: "MenuItem", enabled: true, shortcut: nil, children: [])
         let level2 = MenuNode(title: "L2", role: "Menu", enabled: true, shortcut: nil, children: [level3])
@@ -298,7 +298,7 @@ struct MenuNodeTests {
         #expect(root.children[0].children[0].children.count == 1)
     }
 
-    @Test("special characters in menu shortcuts")
+    @Test
     func specialCharactersInShortcuts() {
         let shortcuts = ["⌘⇧N", "⌃⌥⌘T", "⇧⌘P", "⌘,", "⌘."]
 
@@ -317,7 +317,7 @@ struct MenuNodeTests {
         }
     }
 
-    @Test("unicode characters in title and path")
+    @Test
     func unicodeCharacters() {
         let node = MenuNode(
             title: "文件 📁",

@@ -57,13 +57,13 @@ struct AXNodeTests {
 
     // MARK: - matches() Tests
 
-    @Test("matches - exact role match")
+    @Test
     func matchesExactRole() {
         #expect(sampleNode.matches(role: "Button", title: nil, value: nil, description: nil))
         #expect(!sampleNode.matches(role: "TextField", title: nil, value: nil, description: nil))
     }
 
-    @Test("matches - title case insensitive")
+    @Test
     func matchesTitleCaseInsensitive() {
         #expect(sampleNode.matches(role: nil, title: "click", value: nil, description: nil))
         #expect(sampleNode.matches(role: nil, title: "CLICK ME", value: nil, description: nil))
@@ -71,28 +71,28 @@ struct AXNodeTests {
         #expect(!sampleNode.matches(role: nil, title: "Submit", value: nil, description: nil))
     }
 
-    @Test("matches - title partial match")
+    @Test
     func matchesTitlePartial() {
         #expect(sampleNode.matches(role: nil, title: "Click", value: nil, description: nil))
         #expect(sampleNode.matches(role: nil, title: "Me", value: nil, description: nil))
         #expect(!sampleNode.matches(role: nil, title: "Submit", value: nil, description: nil))
     }
 
-    @Test("matches - value case insensitive")
+    @Test
     func matchesValueCaseInsensitive() {
         #expect(sampleNode.matches(role: nil, title: nil, value: "pressed", description: nil))
         #expect(sampleNode.matches(role: nil, title: nil, value: "PRESSED", description: nil))
         #expect(sampleNode.matches(role: nil, title: nil, value: "press", description: nil))
     }
 
-    @Test("matches - description case insensitive")
+    @Test
     func matchesDescriptionCaseInsensitive() {
         #expect(sampleNode.matches(role: nil, title: nil, value: nil, description: "clickable"))
         #expect(sampleNode.matches(role: nil, title: nil, value: nil, description: "BUTTON"))
         #expect(!sampleNode.matches(role: nil, title: nil, value: nil, description: "text field"))
     }
 
-    @Test("matches - title filter also matches description (Calc number key shape)")
+    @Test
     func matchesTitleFallsBackToDescription() {
         // Mirrors Calculator's number buttons: no AXTitle, label lives in AXDescription.
         let descOnlyNode = AXNode(
@@ -104,7 +104,7 @@ struct AXNodeTests {
         #expect(!descOnlyNode.matches(role: nil, title: "9", value: nil, description: nil))
     }
 
-    @Test("matches - desc filter stays strict (description-only)")
+    @Test
     func matchesDescFilterRemainsStrict() {
         // A node whose label lives only in title should NOT match a desc filter.
         let titleOnlyNode = AXNode(
@@ -115,14 +115,35 @@ struct AXNodeTests {
         #expect(!titleOnlyNode.matches(role: nil, title: nil, value: nil, description: "save"))
     }
 
-    @Test("matches - enabled filter selects by state")
+    @Test
     func matchesEnabledFilter() {
-        let enabledNode = AXNode(role: "Button", title: "Go", value: nil, description: nil,
-                                  enabled: true, frame: nil, children: [])
-        let disabledNode = AXNode(role: "Button", title: "Stop", value: nil, description: nil,
-                                   enabled: false, frame: nil, children: [])
-        let implicitNode = AXNode(role: "Button", title: "X", value: nil, description: nil,
-                                   enabled: nil, frame: nil, children: [])
+        let enabledNode = AXNode(
+            role: "Button",
+            title: "Go",
+            value: nil,
+            description: nil,
+            enabled: true,
+            frame: nil,
+            children: []
+        )
+        let disabledNode = AXNode(
+            role: "Button",
+            title: "Stop",
+            value: nil,
+            description: nil,
+            enabled: false,
+            frame: nil,
+            children: []
+        )
+        let implicitNode = AXNode(
+            role: "Button",
+            title: "X",
+            value: nil,
+            description: nil,
+            enabled: nil,
+            frame: nil,
+            children: []
+        )
         #expect(enabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
         #expect(!enabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
         #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
@@ -136,20 +157,20 @@ struct AXNodeTests {
         #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil))
     }
 
-    @Test("matches - multiple filters combined")
+    @Test
     func matchesMultipleFilters() {
         #expect(sampleNode.matches(role: "Button", title: "Click", value: "pressed", description: "clickable"))
         #expect(!sampleNode.matches(role: "Button", title: "Submit", value: "pressed", description: "clickable"))
         #expect(!sampleNode.matches(role: "TextField", title: "Click", value: "pressed", description: "clickable"))
     }
 
-    @Test("matches - all nil filters matches everything")
+    @Test
     func matchesAllNil() {
         #expect(sampleNode.matches(role: nil, title: nil, value: nil, description: nil))
         #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil))
     }
 
-    @Test("matches - nil value doesn't match filter")
+    @Test
     func matchesNilValue() {
         let nodeWithoutValue = AXNode(
             role: "Button",
@@ -163,7 +184,7 @@ struct AXNodeTests {
         #expect(!nodeWithoutValue.matches(role: nil, title: nil, value: "something", description: nil))
     }
 
-    @Test("matches - empty title doesn't match non-empty filter")
+    @Test
     func matchesEmptyTitle() {
         let nodeWithEmptyTitle = AXNode(
             role: "Button",
@@ -179,7 +200,7 @@ struct AXNodeTests {
 
     // MARK: - formatted Tests
 
-    @Test("formatted - full node with all properties")
+    @Test
     func formattedFullNode() {
         let formatted = sampleNode.formatted
         #expect(formatted.contains("Button"))
@@ -190,19 +211,19 @@ struct AXNodeTests {
         #expect(formatted.contains("100x50"))
     }
 
-    @Test("formatted - disabled node shows disabled marker")
+    @Test
     func formattedDisabledNode() {
         let formatted = disabledNode.formatted
         #expect(formatted.contains("(disabled)"))
     }
 
-    @Test("formatted - enabled node doesn't show disabled marker")
+    @Test
     func formattedEnabledNode() {
         let formatted = sampleNode.formatted
         #expect(!formatted.contains("(disabled)"))
     }
 
-    @Test("formatted - node without frame")
+    @Test
     func formattedNoFrame() {
         let formatted = disabledNode.formatted
         #expect(formatted.contains("TextField"))
@@ -213,7 +234,7 @@ struct AXNodeTests {
         #expect(!formatted.contains(#/\(\d+,\s*\d+\)/#))
     }
 
-    @Test("formatted - minimal node")
+    @Test
     func formattedMinimalNode() {
         let minimal = AXNode(
             role: "Unknown",
@@ -228,7 +249,7 @@ struct AXNodeTests {
         #expect(formatted == "Unknown")
     }
 
-    @Test("formatted - empty strings are omitted")
+    @Test
     func formattedEmptyStrings() {
         let node = AXNode(
             role: "Button",
@@ -248,7 +269,7 @@ struct AXNodeTests {
 
     // MARK: - identity Tests
 
-    @Test("identity - includes role, title, description")
+    @Test
     func identityBasic() {
         let identity = sampleNode.identity
         #expect(identity.contains("Button"))
@@ -256,13 +277,13 @@ struct AXNodeTests {
         #expect(identity.contains("A clickable button"))
     }
 
-    @Test("identity - includes frame position when present")
+    @Test
     func identityWithFrame() {
         let identity = sampleNode.identity
         #expect(identity.contains("10,20"))
     }
 
-    @Test("identity - without frame")
+    @Test
     func identityWithoutFrame() {
         let identity = disabledNode.identity
         #expect(!identity.contains(","))
@@ -270,7 +291,7 @@ struct AXNodeTests {
         #expect(identity.contains("Input"))
     }
 
-    @Test("identity - handles nil title and description")
+    @Test
     func identityNilFields() {
         let node = AXNode(
             role: "Button",
@@ -286,7 +307,7 @@ struct AXNodeTests {
         #expect(identity.contains("|")) // Separators for empty fields
     }
 
-    @Test("identity - different nodes have different identities")
+    @Test
     func identityUniqueness() {
         let node1 = AXNode(
             role: "Button",
@@ -309,7 +330,7 @@ struct AXNodeTests {
         #expect(node1.identity != node2.identity)
     }
 
-    @Test("identity - same position different roles")
+    @Test
     func identitySamePositionDifferentRoles() {
         let node1 = AXNode(
             role: "Button",
@@ -334,13 +355,13 @@ struct AXNodeTests {
 
     // MARK: - withoutChildren Tests
 
-    @Test("withoutChildren - removes children")
+    @Test
     func withoutChildrenRemovesChildren() {
         let result = parentNode.withoutChildren
         #expect(result.children.isEmpty)
     }
 
-    @Test("withoutChildren - preserves all other properties")
+    @Test
     func withoutChildrenPreservesProperties() {
         let result = parentNode.withoutChildren
         #expect(result.role == parentNode.role)
@@ -351,7 +372,7 @@ struct AXNodeTests {
         #expect(result.frame == parentNode.frame)
     }
 
-    @Test("withoutChildren - already no children")
+    @Test
     func withoutChildrenAlreadyEmpty() {
         let result = sampleNode.withoutChildren
         #expect(result.children.isEmpty)
@@ -360,7 +381,7 @@ struct AXNodeTests {
 
     // MARK: - Encodable Tests
 
-    @Test("encode - enabled false is encoded")
+    @Test
     func encodeDisabledNode() throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
@@ -369,7 +390,7 @@ struct AXNodeTests {
         #expect(json.contains("\"enabled\":false"))
     }
 
-    @Test("encode - enabled true is omitted")
+    @Test
     func encodeEnabledNode() throws {
         let encoder = JSONEncoder()
         let data = try encoder.encode(sampleNode)
@@ -377,7 +398,7 @@ struct AXNodeTests {
         #expect(!json.contains("\"enabled\""))
     }
 
-    @Test("encode - enabled nil is omitted")
+    @Test
     func encodeEnabledNil() throws {
         let node = AXNode(
             role: "Button",
@@ -394,7 +415,7 @@ struct AXNodeTests {
         #expect(!json.contains("\"enabled\""))
     }
 
-    @Test("encode - includes all non-nil properties")
+    @Test
     func encodeFullNode() throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .sortedKeys
@@ -409,7 +430,7 @@ struct AXNodeTests {
 
     // MARK: - Equatable Tests
 
-    @Test("equatable - identical nodes are equal")
+    @Test
     func equatableIdenticalNodes() {
         let node1 = AXNode(
             role: "Button",
@@ -432,7 +453,7 @@ struct AXNodeTests {
         #expect(node1 == node2)
     }
 
-    @Test("equatable - different roles are not equal")
+    @Test
     func equatableDifferentRoles() {
         let node1 = AXNode(
             role: "Button",
@@ -455,7 +476,7 @@ struct AXNodeTests {
         #expect(node1 != node2)
     }
 
-    @Test("equatable - different children are not equal")
+    @Test
     func equatableDifferentChildren() {
         let child1 = AXNode(
             role: "Button",

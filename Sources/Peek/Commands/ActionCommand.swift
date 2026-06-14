@@ -32,7 +32,10 @@ struct ActionCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Perform the action on all matching elements (default: first match only)")
     var all: Bool = false
 
-    @Option(name: .long, help: "Verification mode after the action: 'none' (default), 'tree' (post-action snapshot), 'diff' (only what changed)")
+    @Option(
+        name: .long,
+        help: "Verification mode after the action: 'none' (default), 'tree' (post-action snapshot), 'diff' (only what changed)"
+    )
     var verify: VerifyMode = .none
 
     @Option(name: .long, help: "Tree depth limit when --verify=tree or --verify=diff")
@@ -56,8 +59,8 @@ struct ActionCommand: AsyncParsableCommand {
         let settleDelay = delay ?? 1.0
 
         let beforeFlat: [AXNode]? = if verify == .diff {
-            MonitorManager.flattenNodes(
-                try AccessibilityManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
+            try MonitorManager.flattenNodes(
+                AccessibilityManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
             )
         } else {
             nil

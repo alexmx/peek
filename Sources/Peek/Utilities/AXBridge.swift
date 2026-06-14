@@ -155,7 +155,6 @@ enum AXBridge {
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
     }
 
-
     // MARK: - Menu Attributes
 
     /// Read the keyboard shortcut from a menu item element.
