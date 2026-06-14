@@ -41,7 +41,7 @@ struct ActionCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Tree depth limit when --verify=tree or --verify=diff")
     var depth: Int?
 
-    @Option(name: .long, help: "Seconds to wait before the post-action snapshot (default: 1)")
+    @Option(name: .long, help: "Seconds to wait before the post-action snapshot (default: 0.15)")
     var delay: Double?
 
     @Option(name: .long, help: "Output format")
@@ -56,7 +56,7 @@ struct ActionCommand: AsyncParsableCommand {
     func run() async throws {
         let resolved = try await target.resolve()
         let action = self.do
-        let settleDelay = delay ?? 1.0
+        let settleDelay = delay ?? 0.15
 
         let beforeFlat: [AXNode]? = if verify == .diff {
             try MonitorManager.flattenNodes(

@@ -109,11 +109,14 @@ enum AccessibilityManager {
         title: String?,
         value: String?,
         description: String?,
-        enabled: Bool? = nil
+        enabled: Bool? = nil,
+        limit: Int? = nil
     ) throws -> [AXNode] {
         let window = try resolveWindow(pid: pid, windowID: windowID)
-        return findAll(in: window, role: role, title: title, value: value, description: description, enabled: enabled)
-            .map(\.node)
+        return findAll(
+            in: window, role: role, title: title, value: value,
+            description: description, enabled: enabled, limit: limit
+        ).map(\.node)
     }
 
     /// Find the deepest element at the given screen coordinates.
@@ -153,7 +156,8 @@ enum AccessibilityManager {
         title: String?,
         value: String?,
         description: String?,
-        enabled: Bool? = nil
+        enabled: Bool? = nil,
+        limit: Int? = nil
     ) -> [ElementMatch] {
         var results: [ElementMatch] = []
         searchAll(
@@ -163,6 +167,7 @@ enum AccessibilityManager {
             value: value,
             description: description,
             enabled: enabled,
+            limit: limit,
             depth: 0,
             results: &results
         )
@@ -181,9 +186,10 @@ enum AccessibilityManager {
     ) -> ElementMatch? {
         guard depth < maxDepth else { return nil }
 
-        let node = AXBridge.nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description) {
-            return ElementMatch(ref: element, node: node)
+        if AXBridge.elementMatches(
+            element, role: role, title: title, value: value, description: description, enabled: nil
+        ) {
+            return ElementMatch(ref: element, node: AXBridge.nodeFromElement(element))
         }
 
         if let children = AXBridge.children(of: element) {
@@ -211,14 +217,18 @@ enum AccessibilityManager {
         value: String?,
         description: String?,
         enabled: Bool?,
+        limit: Int?,
         depth: Int,
         results: inout [ElementMatch]
     ) {
         guard depth < maxDepth else { return }
+        if let limit, results.count >= limit { return }
 
-        let node = AXBridge.nodeFromElement(element)
-        if node.matches(role: role, title: title, value: value, description: description, enabled: enabled) {
-            results.append(ElementMatch(ref: element, node: node))
+        if AXBridge.elementMatches(
+            element, role: role, title: title, value: value, description: description, enabled: enabled
+        ) {
+            results.append(ElementMatch(ref: element, node: AXBridge.nodeFromElement(element)))
+            if let limit, results.count >= limit { return }
         }
 
         if let children = AXBridge.children(of: element) {
@@ -230,9 +240,11 @@ enum AccessibilityManager {
                     value: value,
                     description: description,
                     enabled: enabled,
+                    limit: limit,
                     depth: depth + 1,
                     results: &results
                 )
+                if let limit, results.count >= limit { return }
             }
         }
     }

@@ -32,7 +32,9 @@ struct LaunchCommand: AsyncParsableCommand {
         case .json: try printJSON(result)
         case .toon: try printTOON(result)
         case .default:
-            print("Launched \(result.name) (pid \(result.pid), bundle \(result.bundleID ?? "?"))")
+            var line = "Launched \(result.name) (pid \(result.pid), bundle \(result.bundleID ?? "?"))"
+            if let wid = result.windowID { line += ", window \(wid)" }
+            print(line)
         }
     }
 }

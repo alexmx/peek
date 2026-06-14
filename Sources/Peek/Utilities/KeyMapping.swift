@@ -25,7 +25,6 @@ enum KeyMapping {
         return code == 0 ? nil : code
     }
 
-    /// Whitespace chars (space/tab/return) are exposed only by their named form to keep the error message readable.
     static var allKeyNames: [String] {
         let chars = table.keys.filter { !$0.isWhitespace && !$0.isNewline }.map(String.init)
         return (namedKeys.keys + chars).sorted()
@@ -50,7 +49,6 @@ enum KeyMapping {
         "fn": .maskSecondaryFn
     ]
 
-    /// Virtual key codes for non-printing / named keys (Carbon HIToolbox/Events.h).
     private static let namedKeys: [String: CGKeyCode] = [
         "return": 0x24, "enter": 0x24,
         "tab": 0x30,

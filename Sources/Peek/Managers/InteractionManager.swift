@@ -14,9 +14,14 @@ enum InteractionManager {
             throw PeekError.windowNotFound(windowID)
         }
 
+        let name = app.localizedName ?? "Unknown"
+
+        if isFrontmost(app), isWindowTopmost(windowID) {
+            return ActivateResult(pid: pid, windowID: windowID, app: name)
+        }
+
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
 
-        let name = app.localizedName ?? "Unknown"
         if try await !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.5) {
             // One bounded retry — cooperative activation occasionally drops the first call.
             if try await !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.3) {
@@ -38,6 +43,10 @@ enum InteractionManager {
         }
         let name = app.localizedName ?? "Unknown"
 
+        if isFrontmost(app) {
+            return ActivateResult(pid: pid, windowID: 0, app: name)
+        }
+
         if try await !activateAppAndAwait(app: app, timeout: 0.5) {
             if try await !activateAppAndAwait(app: app, timeout: 0.3) {
                 throw PeekError.activationFailed(pid, name)
@@ -48,7 +57,7 @@ enum InteractionManager {
     }
 
     private static let tickNanoseconds: UInt64 = 25_000_000 // 25ms
-    private static let settleNanoseconds: UInt64 = 50_000_000 // 50ms
+    private static let settleNanoseconds: UInt64 = 20_000_000 // 20ms
 
     private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) async throws -> Bool {
         app.activate()
@@ -133,11 +142,10 @@ enum InteractionManager {
         )
 
         mouseDown?.post(tap: .cghidEventTap)
-        usleep(50000) // 50ms between down and up
+        usleep(30000)
         mouseUp?.post(tap: .cghidEventTap)
     }
 
-    /// Drag from one screen point to another.
     static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
         let dx = toX - fromX
         let dy = toY - fromY
@@ -150,15 +158,14 @@ enum InteractionManager {
             mouseButton: .left
         )
         mouseDown?.post(tap: .cghidEventTap)
-        usleep(100_000) // dwell so drag-source views (tab strips, list cells) enter tracking
+        usleep(100_000)
 
         let steps = max(10, min(40, Int(distance / 5)))
+        let dragInitThreshold = 6.0
         for i in 1...steps {
             var t = Double(i) / Double(steps)
-            // Force the first event past the ~5px system drag-init threshold so AppKit
-            // treats short drags as a drag-start instead of a click.
             if i == 1, distance > 0 {
-                t = max(t, min(1.0, 6.0 / distance))
+                t = max(t, min(1.0, dragInitThreshold / distance))
             }
             let point = CGPoint(x: fromX + dx * t, y: fromY + dy * t)
             let drag = CGEvent(
@@ -210,8 +217,8 @@ enum InteractionManager {
         event?.post(tap: .cghidEventTap)
     }
 
-    /// Type a string by posting key events for each character.
-    static func type(text: String) {
+    static func type(text: String, delayMs: UInt32 = 5) {
+        let usec = delayMs * 1000
         for char in text {
             let (keyCode, shift) = KeyMapping.lookup(char)
             let utf16 = Array(String(char).utf16)
@@ -229,12 +236,10 @@ enum InteractionManager {
 
             keyDown?.post(tap: .cghidEventTap)
             keyUp?.post(tap: .cghidEventTap)
-            usleep(10000) // 10ms between keystrokes
+            usleep(usec)
         }
     }
 
-    /// Unlike `type`, this does NOT attach a unicode override — the OS routes the
-    /// chord by virtual key code, so `Cmd+1` lands as ⌘1, not the literal "1".
     static func sendKey(keyCode: CGKeyCode, flags: CGEventFlags) {
         let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)

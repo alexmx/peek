@@ -12,6 +12,12 @@ struct TypeCommand: AsyncParsableCommand {
     @Option(name: .long, help: "The text to type")
     var text: String
 
+    @Option(
+        name: .long,
+        help: "Per-character delay in milliseconds (default: 5). Bump to 10-20 if a lazy text field drops or duplicates characters."
+    )
+    var delayMs: UInt32 = 5
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -25,7 +31,7 @@ struct TypeCommand: AsyncParsableCommand {
             _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
         }
 
-        InteractionManager.type(text: text)
+        InteractionManager.type(text: text, delayMs: delayMs)
 
         switch format {
         case .json:

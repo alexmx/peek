@@ -48,13 +48,45 @@ enum MenuBarManager {
     /// Search for menu items matching a title (case-insensitive substring).
     static func findMenuItems(pid: pid_t, title: String) throws -> [MenuNode] {
         let menuBarEl = try AccessibilityManager.menuBar(pid: pid)
-        let tree = buildMenuNode(from: menuBarEl)
         var results: [MenuNode] = []
-        searchMenuNode(tree, title: title, path: [], results: &results)
+        searchMenuElements(in: menuBarEl, title: title, path: [], depth: 0, results: &results)
         guard !results.isEmpty else {
             throw PeekError.menuItemNotFound(title)
         }
         return results
+    }
+
+    private static func searchMenuElements(
+        in element: AXUIElement,
+        title: String,
+        path: [String],
+        depth: Int,
+        results: inout [MenuNode]
+    ) {
+        guard depth < maxDepth else { return }
+        let elementTitle = AXBridge.title(of: element) ?? ""
+        let currentPath = elementTitle.isEmpty ? path : path + [elementTitle]
+
+        if AXBridge.elementMatches(
+            element, role: "MenuItem", title: title, value: nil, description: nil, enabled: nil
+        ), !elementTitle.isEmpty {
+            let node = AXBridge.nodeFromElement(element)
+            let shortcut = AXBridge.menuShortcut(of: element)
+            let menuNode = MenuNode(
+                title: node.title ?? "",
+                role: node.role,
+                enabled: node.enabled ?? true,
+                shortcut: shortcut,
+                children: []
+            )
+            results.append(menuNode.withPath(currentPath.joined(separator: " > ")))
+        }
+
+        if let children = AXBridge.children(of: element) {
+            for child in children {
+                searchMenuElements(in: child, title: title, path: currentPath, depth: depth + 1, results: &results)
+            }
+        }
     }
 
     /// Find and press a menu item by title (case-insensitive substring match).

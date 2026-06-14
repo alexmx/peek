@@ -8,6 +8,8 @@ enum AppLifecycleManager {
         let bundleID: String?
         let name: String
         let path: String
+        let windowID: UInt32?
+        let windowTitle: String?
     }
 
     struct QuitResult: Encodable {
@@ -75,28 +77,33 @@ enum AppLifecycleManager {
             launcher.cancel()
         }
 
+        WindowManager.invalidateCache()
+        var firstWindow: WindowInfo?
         if waitForWindow {
             let budget: TimeInterval = 10
             let deadline = Date().addingTimeInterval(budget)
-            var appeared = false
             while Date() < deadline {
+                WindowManager.invalidateCache()
                 let windows = try await WindowManager.listWindows()
-                if windows.contains(where: { $0.pid == app.processIdentifier }) {
-                    appeared = true
+                if let win = windows.first(where: { $0.pid == app.processIdentifier }) {
+                    firstWindow = win
                     break
                 }
                 try await Task.sleep(nanoseconds: 100_000_000)
             }
-            if !appeared {
+            if firstWindow == nil {
                 throw PeekError.timeout("peek_launch wait_for_window", budget)
             }
+            AXBridge.prewarm(pid: app.processIdentifier)
         }
 
         return LaunchResult(
             pid: app.processIdentifier,
             bundleID: app.bundleIdentifier,
             name: app.localizedName ?? url.deletingPathExtension().lastPathComponent,
-            path: url.path
+            path: url.path,
+            windowID: firstWindow?.windowID,
+            windowTitle: firstWindow?.windowTitle
         )
     }
 
@@ -111,6 +118,7 @@ enum AppLifecycleManager {
         if !success {
             throw PeekError.launchFailed(appName, force ? "forceTerminate returned false" : "terminate returned false")
         }
+        WindowManager.invalidateCache()
         return QuitResult(pid: appPid, name: appName, forced: force)
     }
 

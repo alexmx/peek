@@ -167,6 +167,10 @@ enum PeekTools {
         var x: Int?
         @InputProperty("Hit-test Y screen coordinate (use with x instead of filters)")
         var y: Int?
+        @InputProperty(
+            "Stop after this many matches (1 = first match; omit = return all). Big speedup on deep trees when you only need to confirm something exists or grab one element."
+        )
+        var limit: Int?
     }
 
     struct ClickArgs: MCPToolInput {
@@ -232,6 +236,10 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("The text to type")
         var text: String
+        @InputProperty(
+            "Per-character delay in milliseconds (default: 5). Bump to 10-20 only if a lazy field drops/duplicates characters."
+        )
+        var delay_ms: Int?
     }
 
     struct KeyArgs: MCPToolInput {
@@ -284,7 +292,7 @@ enum PeekTools {
         )
         var depth: Int?
         @InputProperty(
-            "Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 1). Bump for apps that lazy-paint values."
+            "Seconds to wait between the action and the post-action snapshot for verify=tree/diff (default: 0.15). Bump to 0.5+ for apps that lazy-paint values."
         )
         var delay: Double?
     }
@@ -382,7 +390,7 @@ enum PeekTools {
         var desc: String?
         @InputProperty("Maximum seconds to wait before failing (default: 30)")
         var timeout: Double?
-        @InputProperty("Seconds between AX polls (default: 0.5)")
+        @InputProperty("Seconds between AX polls (default: 0.2, minimum 0.05)")
         var poll: Double?
     }
 
@@ -437,7 +445,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title (matches AXTitle OR AXDescription), value, or enabled state. Each match comes back as a flat node — title/role/value/frame — WITHOUT its child subtree; for the subtree of a specific element, use peek_tree. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click. Best uses: pre-read state to learn what's currently visible (button labels, display values, dialog presence, enabled state) before peek_wait, peek_click, or peek_action — that way you target labels you've confirmed exist."
+        description: "Search for UI elements (read-only). Start broad with role only, then narrow with title (matches AXTitle OR AXDescription), value, or enabled state. Each match comes back as a flat node — title/role/value/frame — WITHOUT its child subtree; for the subtree of a specific element, use peek_tree. To interact with found elements, use peek_action directly with the same filters — do NOT use peek_find then peek_click. Best uses: pre-read state to learn what's currently visible (button labels, display values, dialog presence, enabled state) before peek_wait, peek_click, or peek_action — that way you target labels you've confirmed exist. Pass limit=1 when you only need to confirm something exists or grab one element — early-exits the tree walk and roughly halves cost on deep trees."
     ) { (args: FindArgs) in
         try await withTimeout("peek_find") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -451,7 +459,7 @@ enum PeekTools {
                     pid: pid, windowID: windowID,
                     role: args.role, title: args.title,
                     value: args.value, description: args.desc,
-                    enabled: args.enabled
+                    enabled: args.enabled, limit: args.limit
                 )
                 return try json(results)
             }
@@ -510,10 +518,11 @@ enum PeekTools {
         name: "peek_type",
         description: "Type text via keyboard events to the focused element. Many apps accept typed input directly when their main view is focused — prefer one peek_type call over many peek_action Press calls for any digit/operator/character sequence. If keystrokes need to land in a specific text field, focus it first with peek_click or peek_action; for apps with a global key handler (calculators, games, single-document editors) just call peek_type directly. Passing app/pid/window_id auto-activates the target, so a separate peek_activate is not needed. For modifier chords (⌘S, ⌘W, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys), use peek_key instead — peek_type only types literal characters."
     ) { (args: TypeArgs) in
-        // Generous budget — `type` posts a key event per character with 10ms gaps.
-        try await withTimeout("peek_type", seconds: max(defaultTimeout, Double(args.text.count) * 0.05 + 5)) {
+        let delayMs = UInt32(max(0, args.delay_ms ?? 5))
+        let budget = max(defaultTimeout, Double(args.text.count) * Double(delayMs + 5) / 1000.0 + 5)
+        return try await withTimeout("peek_type", seconds: budget) {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            InteractionManager.type(text: args.text)
+            InteractionManager.type(text: args.text, delayMs: delayMs)
             return try json(["characters": args.text.count])
         }
     }
@@ -538,7 +547,7 @@ enum PeekTools {
         name: "peek_action",
         description: "The primary tool for interacting with UI elements. Finds an element by role/title/desc and performs an action on it in one step — no need to peek_find first. Actions: Press (buttons, popup buttons, checkboxes; also menu items in an ALREADY-OPEN menu — for menu BAR items use peek_menu --click; most controls labeled 'popup' in casual terms take Press, not ShowMenu), Confirm (text fields), ShowMenu (a narrow set of widgets that explicitly advertise AXShowMenu — when in doubt, try Press first and consult the unsupportedAction error which lists what's actually supported), Increment/Decrement (sliders). For keyboard shortcuts (⌘S, ⌘W, Esc, F-keys, ⌘1-9), prefer peek_key over walking the menu — one call vs find-then-press. Set verify='diff' to snapshot before+after and return only what changed — the most efficient way to answer 'did this control update?'. Set verify='tree' to get the full post-action tree instead. Both run after `delay` seconds (default 1s) — bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
-        let settleDelay = args.delay ?? 1.0
+        let settleDelay = args.delay ?? 0.15
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let all = args.all ?? false
@@ -650,7 +659,7 @@ enum PeekTools {
 
     static let launch = MCPTool(
         name: "peek_launch",
-        description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — returns once an AX-visible window appears, errors on 10s timeout. Prefer bundle_id when known. Note: many apps persist view mode, expression, or document state across runs — peek_quit + peek_launch may not reset that. Plan an explicit reset (clear button, mode menu, fresh document) when you need a known starting state."
+        description: "Launch a macOS application by bundle_id, name, or absolute path. Pass wait_for_window=true when the next tool call needs a window_id — returns once an AX-visible window appears (with windowID + windowTitle in the result, so you can skip a follow-up peek_apps call), errors on 10s timeout. Prefer bundle_id when known. Note: many apps persist view mode, expression, or document state across runs — peek_quit + peek_launch may not reset that. Plan an explicit reset (clear button, mode menu, fresh document) when you need a known starting state."
     ) { (args: LaunchArgs) in
         try await withTimeout("peek_launch", seconds: 15) {
             let url = try AppLifecycleManager.resolveAppURL(
@@ -683,7 +692,7 @@ enum PeekTools {
         description: "Poll for a UI element to appear, returning as soon as it matches. Use this when you're waiting on a known element (a 'Done' button after a save, a dialog to open, a spinner to vanish) — change you don't directly trigger. For changes you DO trigger, peek_action verify='diff' is more direct. Same filter shape as peek_find. Pre-read state with peek_find first to confirm the label/role you're going to wait for actually appears in this app's UI — waiting on a label that never shows burns the full timeout. Errors with timeout on miss."
     ) { (args: WaitArgs) in
         let timeout = args.timeout ?? 30.0
-        let poll = max(args.poll ?? 0.5, 0.1)
+        let poll = max(args.poll ?? 0.2, 0.05)
         return try await withTimeout("peek_wait", seconds: timeout + defaultTimeout) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let deadline = Date().addingTimeInterval(timeout)
@@ -691,7 +700,8 @@ enum PeekTools {
                 let results = try AccessibilityManager.find(
                     pid: pid, windowID: windowID,
                     role: args.role, title: args.title,
-                    value: args.value, description: args.desc
+                    value: args.value, description: args.desc,
+                    limit: 1
                 )
                 if let first = results.first {
                     return try json(first)

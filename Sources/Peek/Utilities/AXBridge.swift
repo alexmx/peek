@@ -19,6 +19,10 @@ enum AXBridge {
 
     // MARK: - Attribute Helpers
 
+    static func title(of element: AXUIElement) -> String? {
+        string(of: element, key: kAXTitleAttribute)
+    }
+
     private static func string(of element: AXUIElement, key: String) -> String? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
@@ -44,9 +48,17 @@ enum AXBridge {
     }
 
     private static func frame(of element: AXUIElement) -> CGRect? {
+        var frameRef: CFTypeRef?
+        if AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef) == .success,
+           let frameRef, CFGetTypeID(frameRef) == AXValueGetTypeID() {
+            var rect = CGRect.zero
+            if AXValueGetValue(frameRef as! AXValue, .cgRect, &rect) {
+                return rect
+            }
+        }
+
         var posRef: CFTypeRef?
         var sizeRef: CFTypeRef?
-
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &posRef) == .success,
               AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
               CFGetTypeID(posRef!) == AXValueGetTypeID(),
@@ -55,7 +67,6 @@ enum AXBridge {
 
         var point = CGPoint.zero
         var size = CGSize.zero
-
         guard AXValueGetValue(posRef as! AXValue, .cgPoint, &point),
               AXValueGetValue(sizeRef as! AXValue, .cgSize, &size)
         else { return nil }
@@ -81,6 +92,11 @@ enum AXBridge {
         AXUIElementCreateApplication(pid)
     }
 
+    static func prewarm(pid: pid_t) {
+        var ref: CFTypeRef?
+        _ = AXUIElementCopyAttributeValue(application(pid: pid), kAXWindowsAttribute as CFString, &ref)
+    }
+
     /// Get the AXUIElement for a specific window by CGWindowID.
     /// Returns nil if the AX tree is inaccessible (e.g. app on another Space).
     static func window(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
@@ -98,9 +114,36 @@ enum AXBridge {
 
     // MARK: - Node Extraction
 
+    nonisolated(unsafe) private static let nodeAttributeKeys: CFArray = [
+        kAXRoleAttribute,
+        kAXTitleAttribute,
+        kAXValueAttribute,
+        kAXDescriptionAttribute,
+        kAXEnabledAttribute,
+        "AXFrame"
+    ] as CFArray
+
     /// Read all standard attributes from an element and produce an AXNode (no children).
+    /// Batches the six attribute reads into a single AX IPC roundtrip when supported,
+    /// falling back per-attribute when the batched call fails.
     static func nodeFromElement(_ element: AXUIElement) -> AXNode {
-        AXNode(
+        var valuesRef: CFArray?
+        let result = AXUIElementCopyMultipleAttributeValues(
+            element, nodeAttributeKeys, AXCopyMultipleAttributeOptions(rawValue: 0), &valuesRef
+        )
+        if result == .success, let values = valuesRef as? [Any], values.count == 6 {
+            return AXNode(
+                role: stripAXPrefix((values[0] as? String) ?? "unknown"),
+                title: values[1] as? String,
+                value: stringValue(values[2]),
+                description: values[3] as? String,
+                enabled: (values[4] as? NSNumber)?.boolValue,
+                frame: frameInfoFromAXValue(values[5]),
+                children: []
+            )
+        }
+
+        return AXNode(
             role: stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown"),
             title: string(of: element, key: kAXTitleAttribute),
             value: string(of: element, key: kAXValueAttribute),
@@ -109,6 +152,63 @@ enum AXBridge {
             frame: frameInfo(of: element),
             children: []
         )
+    }
+
+    private static func stringValue(_ raw: Any) -> String? {
+        if let s = raw as? String { return s }
+        if let n = raw as? NSNumber { return n.stringValue }
+        return nil
+    }
+
+    private static func frameInfoFromAXValue(_ raw: Any) -> AXNode.FrameInfo? {
+        guard CFGetTypeID(raw as CFTypeRef) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(raw as! AXValue, .cgRect, &rect) else { return nil }
+        return AXNode.FrameInfo(
+            x: Int(rect.origin.x),
+            y: Int(rect.origin.y),
+            width: Int(rect.size.width),
+            height: Int(rect.size.height)
+        )
+    }
+
+    /// Check whether an element matches the given filter set without building a
+    /// full AXNode. Reads only the attributes each active filter needs, in order
+    /// of cheapest-first; returns on first mismatch. `role` is expected to be
+    /// already stripped of its "AX" prefix.
+    static func elementMatches(
+        _ element: AXUIElement,
+        role: String?,
+        title: String?,
+        value: String?,
+        description: String?,
+        enabled: Bool?
+    ) -> Bool {
+        if let role {
+            let elementRole = stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown")
+            if elementRole != role { return false }
+        }
+        if let title {
+            let elementTitle = string(of: element, key: kAXTitleAttribute) ?? ""
+            let titleHit = elementTitle.localizedCaseInsensitiveContains(title)
+            if !titleHit {
+                let elementDesc = string(of: element, key: kAXDescriptionAttribute) ?? ""
+                if !elementDesc.localizedCaseInsensitiveContains(title) { return false }
+            }
+        }
+        if let value {
+            let elementValue = string(of: element, key: kAXValueAttribute) ?? ""
+            if !elementValue.localizedCaseInsensitiveContains(value) { return false }
+        }
+        if let description {
+            let elementDesc = string(of: element, key: kAXDescriptionAttribute) ?? ""
+            if !elementDesc.localizedCaseInsensitiveContains(description) { return false }
+        }
+        if let enabled {
+            let elementEnabled = bool(of: element, key: kAXEnabledAttribute) ?? true
+            if elementEnabled != enabled { return false }
+        }
+        return true
     }
 
     // MARK: - Actions

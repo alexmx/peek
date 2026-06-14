@@ -5,8 +5,34 @@ import ScreenCaptureKit
 enum WindowManager {
     private static let minWindowSize: CGFloat = 200
 
-    /// Fetch all real windows using ScreenCaptureKit.
+    private static let cacheTTL: TimeInterval = 0.3
+    nonisolated(unsafe) private static var cache: (windows: [WindowInfo], timestamp: Date)?
+    private static let cacheLock = NSLock()
+
+    private static func cachedSnapshot() -> [WindowInfo]? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        if let cached = cache, Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+            return cached.windows
+        }
+        return nil
+    }
+
+    private static func storeSnapshot(_ windows: [WindowInfo]) {
+        cacheLock.lock()
+        cache = (windows, Date())
+        cacheLock.unlock()
+    }
+
+    static func invalidateCache() {
+        cacheLock.lock()
+        cache = nil
+        cacheLock.unlock()
+    }
+
     static func listWindows() async throws -> [WindowInfo] {
+        if let cached = cachedSnapshot() { return cached }
+
         let content = try await SCShareableContent.excludingDesktopWindows(
             true,
             onScreenWindowsOnly: false
@@ -14,7 +40,7 @@ enum WindowManager {
 
         let onScreenIDs = onScreenWindowIDs()
 
-        return content.windows.compactMap { scWindow in
+        let result = content.windows.compactMap { scWindow -> WindowInfo? in
             guard let app = scWindow.owningApplication,
                   scWindow.windowLayer == 0 else { return nil }
 
@@ -39,6 +65,9 @@ enum WindowManager {
                 isOnScreen: isOnScreen
             )
         }
+
+        storeSnapshot(result)
+        return result
     }
 
     // MARK: - Private

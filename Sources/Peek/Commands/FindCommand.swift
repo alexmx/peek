@@ -31,6 +31,9 @@ struct FindCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Hit-test Y screen coordinate (use with --x)")
     var y: Int?
 
+    @Option(name: .long, help: "Stop after this many matches (1 = first match; omit = all). Big speedup on deep trees.")
+    var limit: Int?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -88,7 +91,8 @@ struct FindCommand: AsyncParsableCommand {
             title: title,
             value: value,
             description: desc,
-            enabled: enabled
+            enabled: enabled,
+            limit: limit
         )
 
         switch format {

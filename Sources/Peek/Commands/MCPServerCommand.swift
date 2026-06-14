@@ -17,6 +17,8 @@ struct MCPServerCommand: AsyncParsableCommand {
             return
         }
 
+        _ = try? await WindowManager.listWindows()
+
         let server = MCPServer(
             name: "peek",
             version: peekVersion,
