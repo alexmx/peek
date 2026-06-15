@@ -124,25 +124,34 @@ enum InteractionManager {
         let app: String
     }
 
+    enum MouseButton: String {
+        case left, right
+    }
+
     /// Click at screen coordinates. `count` posts that many consecutive click pairs
     /// with the `clickState` field set (1, 2, or 3) so AppKit treats them as a single
     /// click, double-click, or triple-click — used for word/line selection in text views.
-    static func click(x: Double, y: Double, count: Int = 1) {
+    /// `button` picks the mouse button (left or right).
+    static func click(x: Double, y: Double, count: Int = 1, button: MouseButton = .left) {
         let point = CGPoint(x: x, y: y)
         let clamped = max(1, min(count, 3))
+        let (downType, upType, btn): (CGEventType, CGEventType, CGMouseButton) = switch button {
+        case .left: (.leftMouseDown, .leftMouseUp, .left)
+        case .right: (.rightMouseDown, .rightMouseUp, .right)
+        }
 
         for i in 1...clamped {
             let down = CGEvent(
                 mouseEventSource: nil,
-                mouseType: .leftMouseDown,
+                mouseType: downType,
                 mouseCursorPosition: point,
-                mouseButton: .left
+                mouseButton: btn
             )
             let up = CGEvent(
                 mouseEventSource: nil,
-                mouseType: .leftMouseUp,
+                mouseType: upType,
                 mouseCursorPosition: point,
-                mouseButton: .left
+                mouseButton: btn
             )
             down?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
             up?.setIntegerValueField(.mouseEventClickState, value: Int64(i))

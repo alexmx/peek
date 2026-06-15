@@ -206,6 +206,8 @@ enum PeekTools {
         var y: Int
         @InputProperty("Click count: 1 (single, default), 2 (double — selects word in text views), 3 (triple — selects line).")
         var count: Int?
+        @InputProperty("Mouse button: 'left' (default) or 'right'. Right-click opens context menus on canvases / web views.")
+        var button: String?
     }
 
     struct DragArgs: MCPToolInput {
@@ -469,13 +471,23 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass app/pid/window_id to auto-activate. Re-read frames after activate/ShowMenu/menu click — windows can move."
+        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass app/pid/window_id to auto-activate. Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
             let count = max(1, min(args.count ?? 1, 3))
-            InteractionManager.click(x: Double(args.x), y: Double(args.y), count: count)
-            return try json(["x": args.x, "y": args.y, "count": count])
+            let buttonRaw = (args.button ?? "left").lowercased()
+            guard let button = InteractionManager.MouseButton(rawValue: buttonRaw) else {
+                throw PeekError.invalidArgument(name: "button", value: buttonRaw, valid: ["left", "right"])
+            }
+            InteractionManager.click(x: Double(args.x), y: Double(args.y), count: count, button: button)
+            struct Result: Encodable {
+                let x: Int
+                let y: Int
+                let count: Int
+                let button: String
+            }
+            return try json(Result(x: args.x, y: args.y, count: count, button: button.rawValue))
         }
     }
 
