@@ -202,9 +202,10 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("X coordinate")
         var x: Int
-
         @InputProperty("Y coordinate")
         var y: Int
+        @InputProperty("Click count: 1 (single, default), 2 (double — selects word in text views), 3 (triple — selects line).")
+        var count: Int?
     }
 
     struct DragArgs: MCPToolInput {
@@ -468,12 +469,13 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass app/pid/window_id to auto-activate. Re-read frames after activate/ShowMenu/menu click — windows can move."
+        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass app/pid/window_id to auto-activate. Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            InteractionManager.click(x: Double(args.x), y: Double(args.y))
-            return try json(["x": args.x, "y": args.y])
+            let count = max(1, min(args.count ?? 1, 3))
+            InteractionManager.click(x: Double(args.x), y: Double(args.y), count: count)
+            return try json(["x": args.x, "y": args.y, "count": count])
         }
     }
 

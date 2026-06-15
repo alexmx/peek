@@ -89,7 +89,7 @@ peek key --key escape --app Calculator
 
 ### `peek click` — click at screen coordinates
 
-`--x N --y N`. For labeled elements, use `peek action --do Press` instead. For drag gestures, use `peek drag`.
+`--x N --y N`. `--count 2` for double-click (selects word in text views), `--count 3` for triple-click (selects line). For labeled elements, use `peek action --do Press` instead. For drag gestures, use `peek drag`.
 
 ### `peek drag` — drag between two screen points
 

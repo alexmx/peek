@@ -72,7 +72,7 @@ All commands support `--format json` for JSON output (default: text). Most comma
 - **menu** — Menu bar structure. `--find` searches items, `--click` triggers an item, `--path` returns just a scoped submenu (e.g. `--path Debug`) to avoid dumping the full menu tree on large apps. The MCP variant soft-caps no-arg responses.
 
 ### Interaction
-- **click** — Click at `--x`/`--y` screen coordinates.
+- **click** — Click at `--x`/`--y` screen coordinates. `--count 2`/`3` for double/triple click (word/line selection in text views).
 - **drag** — Drag between two screen points with `--from-x`/`--from-y`/`--to-x`/`--to-y`. For drag-reorder, drag-and-drop, marquee selection.
 - **scroll** — Scroll at `--x`/`--y` screen coordinates with `--delta-y` (required) and `--delta-x` (optional). `--drag` for touch-based apps like iOS Simulator.
 - **type** — Type `--text` via keyboard events. `--delay-ms` per-character delay (default 5).

@@ -113,7 +113,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | Command | Description | Key options |
 |---|---|---|
 | `action` | Find an element and perform an AX action | `--do Press\|Confirm\|Cancel\|ShowMenu\|Increment\|Decrement\|Raise`; filters as `find`; `--all`; `--verify none\|tree\|diff` (default `none`), `--depth`, `--delay` (default 0.15s) |
-| `click` | Click at screen coordinates | `--x --y`; `--app` to auto-activate |
+| `click` | Click at screen coordinates | `--x --y`; `--count 1\|2\|3` (double-click selects a word, triple a line); `--app` to auto-activate |
 | `drag` | Drag between two screen points | `--from-x --from-y --to-x --to-y` |
 | `scroll` | Scroll at coordinates | `--x --y --delta-y` (positive = DOWN); `--delta-x`; `--drag` for touch apps |
 | `type` | Type literal text via key events | `--text`; `--delay-ms` per-character delay (default 5) |

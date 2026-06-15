@@ -124,26 +124,36 @@ enum InteractionManager {
         let app: String
     }
 
-    /// Click at screen coordinates.
-    static func click(x: Double, y: Double) {
+    /// Click at screen coordinates. `count` posts that many consecutive click pairs
+    /// with the `clickState` field set (1, 2, or 3) so AppKit treats them as a single
+    /// click, double-click, or triple-click — used for word/line selection in text views.
+    static func click(x: Double, y: Double, count: Int = 1) {
         let point = CGPoint(x: x, y: y)
+        let clamped = max(1, min(count, 3))
 
-        let mouseDown = CGEvent(
-            mouseEventSource: nil,
-            mouseType: .leftMouseDown,
-            mouseCursorPosition: point,
-            mouseButton: .left
-        )
-        let mouseUp = CGEvent(
-            mouseEventSource: nil,
-            mouseType: .leftMouseUp,
-            mouseCursorPosition: point,
-            mouseButton: .left
-        )
+        for i in 1...clamped {
+            let down = CGEvent(
+                mouseEventSource: nil,
+                mouseType: .leftMouseDown,
+                mouseCursorPosition: point,
+                mouseButton: .left
+            )
+            let up = CGEvent(
+                mouseEventSource: nil,
+                mouseType: .leftMouseUp,
+                mouseCursorPosition: point,
+                mouseButton: .left
+            )
+            down?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
+            up?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
 
-        mouseDown?.post(tap: .cghidEventTap)
-        usleep(30000)
-        mouseUp?.post(tap: .cghidEventTap)
+            down?.post(tap: .cghidEventTap)
+            usleep(30000)
+            up?.post(tap: .cghidEventTap)
+            if i < clamped {
+                usleep(50000) // inter-click gap, well under macOS's ~500ms double-click threshold
+            }
+        }
     }
 
     static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
