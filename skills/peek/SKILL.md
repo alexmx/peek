@@ -32,6 +32,8 @@ peek action --app Calculator --do Press --role Button --title 5 --verify diff
 
 All UI commands accept one of: `--app NAME` (case-insensitive substring), `--pid PID`, or a positional `<window-id>`. `--app` is simplest. Doesn't apply to `launch` / `quit` (use `--bundle-id` / `--name`).
 
+**Window-less apps** (Dock, Control Center, status-menu helpers): `--app NAME` or `--pid` scopes `find`/`tree`/`action` to the AXApplication root. Not in `peek apps` — go straight to `peek find --app Dock --role AXDockItem`.
+
 ## Commands
 
 ### `peek apps` — list running apps + windows
@@ -90,6 +92,10 @@ peek key --key escape --app Calculator
 ### `peek click` — click at screen coordinates
 
 `--x N --y N`. `--count 2`/`3` for double/triple click (word/line selection in text views). `--button right` opens context menus on canvases / web views. For labeled elements, use `peek action --do Press` instead. For drag gestures, use `peek drag`.
+
+### `peek move` — move the cursor without clicking
+
+`--x N --y N`. Drives hover state, tooltips, Dock magnification. `--from-x --from-y --steps N` interpolates for apps needing continuous motion. `--dwell-ms N` holds the cursor so hover renders. Returns `cursor` (OS-reported position — verifies the event landed) and `element` (system-wide hit-test under cursor; null over empty desktop) — use these to verify hover without a follow-up `peek find` / `peek capture`.
 
 ### `peek drag` — drag between two screen points
 

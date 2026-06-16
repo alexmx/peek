@@ -63,6 +63,8 @@ Formula location: `alexmx/homebrew-tools/Formula/peek.rb`
 
 All commands support `--format json` for JSON output (default: text). Most commands accept window targeting via `--app <name>`, `--pid <pid>`, or positional `<window-id>`.
 
+Window-less UI (Dock, Control Center, status-menu helpers) is addressable by `--app`/`--pid` — `find`/`tree`/`action` scope to the AXApplication root. Not listed by `peek apps`.
+
 ### Discovery
 - **apps** — List running apps and windows. `--app` to filter by name.
 
@@ -73,6 +75,7 @@ All commands support `--format json` for JSON output (default: text). Most comma
 
 ### Interaction
 - **click** — Click at `--x`/`--y` screen coordinates. `--count 2`/`3` for double/triple click (word/line selection in text views). `--button right` for right-click (opens context menus).
+- **move** — Move cursor to `--x`/`--y` (no click). Drives hover state, tooltips, Dock magnification. `--from-x`/`--from-y` + `--steps N` for smoothed motion; `--dwell-ms` holds at destination so hover renders. Returns `cursor` (OS-reported position) and `element` (system-wide AX hit-test under cursor; null over empty desktop).
 - **drag** — Drag between two screen points with `--from-x`/`--from-y`/`--to-x`/`--to-y`. For drag-reorder, drag-and-drop, marquee selection.
 - **scroll** — Scroll at `--x`/`--y` screen coordinates with `--delta-y` (required) and `--delta-x` (optional). `--drag` for touch-based apps like iOS Simulator.
 - **type** — Type `--text` via keyboard events. `--delay-ms` per-character delay (default 5).

@@ -10,61 +10,57 @@ Inspect any UI, click any button, fire any shortcut, drag any tab, type into any
 
 ## See it in action
 
-### Click a button, see what changed — in one call
+A complete automation — discover, act, verify, capture — in five calls. Run it yourself with the macOS Calculator.
+
+### 1. Discover — launch the app and get its window handle
 
 ```bash
-$ peek launch --name Calculator --wait-for-window --format json
+peek launch --name Calculator --wait-for-window --format json
 {"pid":12345,"windowID":4977,"windowTitle":"Calculator", ...}
+```
 
-$ peek action --app Calculator --do Press --role Button --title 5 --verify diff --format json
+`--wait-for-window` blocks until an AX-visible window appears and returns the `windowID` directly. Skip the usual follow-up `peek apps` call.
+
+### 2. Inspect — find the element you want to drive
+
+```bash
+peek find --app Calculator --role Button --title 5 --limit 1 --format json
+[{"role":"Button","description":"5","frame":{"x":902,"y":422,"width":48,"height":48}}]
+```
+
+Read-only check. `--limit 1` stops at the first hit — a cheap existence test before committing to an action. `--title` matches AXTitle OR AXDescription, so labels and accessibility descriptions both resolve.
+
+### 3. Act — press the button and capture what changed, atomically
+
+```bash
+peek action --app Calculator --do Press --role Button --title 5 --verify diff --format json
 {
   "action": [{"role":"Button","description":"5", ...}],
   "diff": {
-    "changed": [{
-      "role": "StaticText",
-      "before": {"value": "‎0"},
-      "after":  {"value": "‎5"}
-    }],
+    "changed": [{"role":"StaticText","before":{"value":"‎0"},"after":{"value":"‎5"}}],
     "added":   [{"role":"Button","description":"Clear"}],
     "removed": [{"role":"Button","description":"All Clear"}]
   }
 }
 ```
 
-The display went from `0` to `5`, and the `All Clear` button became a `Clear` button — captured atomically in the same call that pressed the button. No second tool call to re-inspect the tree.
+`--verify diff` snapshots the post-action tree and returns only the delta in the same call that pressed the button. No race window between acting and observing.
 
-### Hit-test any pixel
-
-```bash
-$ peek find --app Calculator --x 902 --y 422 --format json
-{"role":"Button","description":"5","frame":{"x":902,"y":422,"width":48,"height":48}}
-```
-
-Click anywhere on screen → tells you what control is there. The inverse of "find the button by name" — useful when you have a screenshot and want to know what's interactive.
-
-### Search by attributes, not just by title
+### 4. Screenshot the area — just the display
 
 ```bash
-$ peek find --app "System Settings" --value "General" --format json
-[
-  {"role":"StaticText","value":"General","frame":{"x":339,"y":367, ...}},
-  {"role":"StaticText","value":"General","frame":{"x":750,"y":171, ...}}
-]
+peek capture --app Calculator --output display.png --x 10 --y 86 --width 210 --height 42
 ```
 
-System Settings puts its labels in `value`, not `title` — peek lets you filter on every AX attribute, so you don't have to know which one the app chose.
+`--x --y --width --height` crops in window-relative coordinates, so the same script works no matter where the user dragged the window. Drop straight into a test artifact or a PR comment.
 
-### Read the menu bar — including shortcuts
+### 5. Screenshot everything — the full window
 
 ```bash
-$ peek menu --app Safari --find "New Tab" --format json
-[
-  {"role":"MenuItem","title":"New Tab","shortcut":"⌘T","path":"File > New Tab"},
-  {"role":"MenuItem","title":"New Tab at End","shortcut":"⌥⌘T","path":"File > New Tab at End"}
-]
+peek capture --app Calculator --output calculator.png
 ```
 
-Once you have the shortcut, fire it directly with `peek key --key t --modifiers cmd` — faster than opening the menu, and works on backgrounded apps.
+Omit the crop flags for the whole window. Use the cropped shot for "did the display update?", the full shot for "here's the end state."
 
 ## Install
 
@@ -87,6 +83,25 @@ mise use --global github:alexmx/peek
 - **Screen Recording permission** for `peek capture`
 
 Run `peek doctor --prompt` to check and request permissions.
+
+## More examples
+
+```bash
+# Hit-test: what's behind this pixel?
+peek find --app Xcode --x 280 --y 50
+
+# Filter by AX attribute, not just title (System Settings stores labels in `value`)
+peek find --app "System Settings" --value "General"
+
+# Read the menu bar and discover shortcuts
+peek menu --app Safari --find "New Tab"
+
+# Fire any shortcut at a specific app — ⌘-combos, F-keys, Escape, arrows
+peek key --key s --modifiers cmd --app TextEdit
+
+# Drag for reorder / drag-and-drop (positions from peek find)
+peek drag --app Safari --from-x 420 --from-y 60 --to-x 220 --to-y 60
+```
 
 ## Command reference
 
@@ -114,11 +129,14 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 |---|---|---|
 | `action` | Find an element and perform an AX action | `--do Press\|Confirm\|Cancel\|ShowMenu\|Increment\|Decrement\|Raise`; filters as `find`; `--all`; `--verify none\|tree\|diff` (default `none`), `--depth`, `--delay` (default 0.15s) |
 | `click` | Click at screen coordinates | `--x --y`; `--count 1\|2\|3` (double = word, triple = line); `--button left\|right` (right opens context menus); `--app` to auto-activate |
+| `move` | Move the cursor without clicking — drives hover state, tooltips, cursor updates | `--x --y`; `--from-x --from-y` + `--steps N` for smoothed motion; `--dwell-ms N`; returns `cursor` + `element` for hover verification |
 | `drag` | Drag between two screen points | `--from-x --from-y --to-x --to-y` |
 | `scroll` | Scroll at coordinates | `--x --y --delta-y` (positive = DOWN); `--delta-x`; `--drag` for touch apps |
 | `type` | Type literal text via key events | `--text`; `--delay-ms` per-character delay (default 5) |
 | `key` | Send a single key chord | `--key` (character or named: escape, tab, return, delete, arrows, home, end, pageup, pagedown, f1-f12, space); `--modifiers cmd,shift,option,control,fn` |
 | `activate` | Bring an app to the foreground | `--app`, `--pid` |
+
+Window-less system UI (Dock, Control Center, status-menu helpers) is addressable too — pass `--app` or `--pid` and `find`/`tree`/`action`/`move` scope to the app's AX root. These processes don't appear in `peek apps`.
 
 ### Monitoring & System
 
@@ -128,28 +146,9 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | `doctor` | Check Accessibility + Screen Recording permissions | `--prompt` to open System Settings |
 | `mcp` | Start the MCP server | `--setup` for client config snippets |
 
-## A few representative calls
-
-```bash
-# What's behind this pixel?
-peek find --app Xcode --x 280 --y 50
-
-# Press a button and confirm the UI changed
-peek action --app Xcode --do Press --role Button --desc "Run" --verify diff
-
-# Reorder Safari tabs (positions from peek find)
-peek drag --app Safari --from-x 420 --from-y 60 --to-x 220 --to-y 60
-
-# Send a shortcut to a backgrounded app
-peek key --key s --modifiers cmd --app TextEdit
-
-# Crop a region of a window (window-relative coords)
-peek capture --app Xcode --output toolbar.png --x 0 --y 0 --width 400 --height 50
-```
-
 ## MCP server
 
-Peek runs as a stdio MCP server. Every command is exposed as a `peek_*` tool (`peek_apps`, `peek_tree`, `peek_find`, `peek_action`, `peek_click`, `peek_drag`, `peek_scroll`, `peek_type`, `peek_key`, `peek_menu`, `peek_launch`, `peek_quit`, `peek_activate`, `peek_capture`, `peek_wait`, `peek_doctor`).
+Peek runs as a stdio MCP server. Every CLI command is exposed as a `peek_*` tool (`peek_click`, `peek_find`, …) mirroring the CLI 1:1. Plus `peek_wait` (MCP-only) — polls for an element to appear, useful when waiting on UI you don't trigger directly (a dialog opens, a spinner vanishes).
 
 ```bash
 peek mcp --setup   # prints config for Claude Code, Cursor, Codex CLI, etc.
@@ -165,9 +164,9 @@ Manual configuration:
 }
 ```
 
-`peek_wait` (MCP-only) polls for an element to appear, returning at first match — useful when waiting on UI you don't trigger directly (a dialog opens, a spinner vanishes).
+## Use with AI agents
 
-A skill guide for agents driving peek via the CLI is at [`skills/peek/SKILL.md`](skills/peek/SKILL.md). Install it with [Skillman](https://github.com/alexmx/skillman):
+A skill guide for agents driving peek via the CLI lives at [`skills/peek/SKILL.md`](skills/peek/SKILL.md). Install it with [Skillman](https://github.com/alexmx/skillman):
 
 ```bash
 skillman install github.com/alexmx/peek
