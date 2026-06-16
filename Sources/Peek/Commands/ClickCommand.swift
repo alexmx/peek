@@ -15,10 +15,16 @@ struct ClickCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Y screen coordinate")
     var y: Int
 
-    @Option(name: .long, help: "Click count: 1 (single), 2 (double — selects word in text views), 3 (triple — selects line). Default 1.")
+    @Option(
+        name: .long,
+        help: "Click count: 1 (single), 2 (double — selects word in text views), 3 (triple — selects line). Default 1."
+    )
     var count: Int = 1
 
-    @Option(name: .long, help: "Mouse button: left (default) or right. Right-click opens context menus on canvases / web views.")
+    @Option(
+        name: .long,
+        help: "Mouse button: left (default) or right. Right-click opens context menus on canvases / web views."
+    )
     var button: String = "left"
 
     @Option(name: .long, help: "Output format")

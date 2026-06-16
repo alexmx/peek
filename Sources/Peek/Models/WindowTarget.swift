@@ -1,3 +1,4 @@
+import AppKit
 import ArgumentParser
 import CoreGraphics
 
@@ -28,6 +29,12 @@ struct WindowTarget: ParsableArguments {
     }
 
     /// Find a window from a list based on search criteria.
+    ///
+    /// If the targeted app exists but exposes no AXWindow (Dock, Control Center,
+    /// Notification Center, window-less menu-bar apps), returns a sentinel
+    /// `Resolved(windowID: 0, pid:)` so the caller can scope to the AXApplication
+    /// root — see `AccessibilityManager.resolveWindow` for the read side of this
+    /// contract. Explicit `windowID` lookups never fall back; only `--app`/`--pid`.
     static func findWindow(
         in windows: [WindowInfo],
         windowID: UInt32? = nil,
@@ -42,18 +49,38 @@ struct WindowTarget: ParsableArguments {
         }
         if let app {
             let matching = windows.filter { $0.ownerName.localizedCaseInsensitiveContains(app) }
-            guard let window = matching.first(where: { $0.isOnScreen }) ?? matching.first else {
-                throw ValidationError("No window found for app '\(app)'. Run 'peek apps' to see available apps.")
+            if let window = matching.first(where: { $0.isOnScreen }) ?? matching.first {
+                return Resolved(windowID: window.windowID, pid: window.pid)
             }
-            return Resolved(windowID: window.windowID, pid: window.pid)
+            if let runningPID = findRunningPID(byName: app) {
+                return Resolved(windowID: 0, pid: runningPID)
+            }
+            throw ValidationError("No window found for app '\(app)'. Run 'peek apps' to see available apps.")
         }
         if let pid {
             let matching = windows.filter { $0.pid == pid }
-            guard let window = matching.first(where: { $0.isOnScreen }) ?? matching.first else {
-                throw ValidationError("No window found for PID \(pid). Run 'peek apps' to see available apps.")
+            if let window = matching.first(where: { $0.isOnScreen }) ?? matching.first {
+                return Resolved(windowID: window.windowID, pid: window.pid)
             }
-            return Resolved(windowID: window.windowID, pid: window.pid)
+            if NSRunningApplication(processIdentifier: pid) != nil {
+                return Resolved(windowID: 0, pid: pid)
+            }
+            throw ValidationError("No window found for PID \(pid). Run 'peek apps' to see available apps.")
         }
         throw ValidationError("Provide a window ID, --app, or --pid.")
+    }
+
+    /// Look up a running app's PID by case-insensitive name substring. Used to address
+    /// window-less apps (Dock, Control Center) by name when SC has nothing to match.
+    private static func findRunningPID(byName name: String) -> pid_t? {
+        for running in NSWorkspace.shared.runningApplications {
+            if running.localizedName?.localizedCaseInsensitiveContains(name) == true {
+                return running.processIdentifier
+            }
+            if running.bundleIdentifier?.localizedCaseInsensitiveContains(name) == true {
+                return running.processIdentifier
+            }
+        }
+        return nil
     }
 }

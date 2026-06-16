@@ -204,9 +204,13 @@ enum PeekTools {
         var x: Int
         @InputProperty("Y coordinate")
         var y: Int
-        @InputProperty("Click count: 1 (single, default), 2 (double — selects word in text views), 3 (triple — selects line).")
+        @InputProperty(
+            "Click count: 1 (single, default), 2 (double — selects word in text views), 3 (triple — selects line)."
+        )
         var count: Int?
-        @InputProperty("Mouse button: 'left' (default) or 'right'. Right-click opens context menus on canvases / web views.")
+        @InputProperty(
+            "Mouse button: 'left' (default) or 'right'. Right-click opens context menus on canvases / web views."
+        )
         var button: String?
     }
 
@@ -225,6 +229,29 @@ enum PeekTools {
         var to_x: Int
         @InputProperty("Destination Y screen coordinate")
         var to_y: Int
+    }
+
+    struct MoveArgs: MCPToolInput {
+        @InputProperty("Window ID (from peek_apps)")
+        var window_id: Int?
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty("Destination X screen coordinate")
+        var x: Int
+        @InputProperty("Destination Y screen coordinate")
+        var y: Int
+        @InputProperty("Smoothed-motion start X. Pair with from_y + steps>1.")
+        var from_x: Int?
+        @InputProperty("Smoothed-motion start Y. Pair with from_x + steps>1.")
+        var from_y: Int?
+        @InputProperty(
+            "Interpolated moves between (from_x, from_y) and (x, y). Default 1 (single jump); needs from_x/from_y."
+        )
+        var steps: Int?
+        @InputProperty("Sleep after the final move so hover renders. Default 0.")
+        var dwell_ms: Int?
     }
 
     struct ScrollArgs: MCPToolInput {
@@ -405,7 +432,25 @@ enum PeekTools {
     // MARK: - All Tools
 
     static var all: [MCPTool] {
-        [apps, tree, find, click, drag, scroll, type, key, action, activate, launch, quit, capture, menu, wait, doctor]
+        [
+            apps,
+            tree,
+            find,
+            click,
+            move,
+            drag,
+            scroll,
+            type,
+            key,
+            action,
+            activate,
+            launch,
+            quit,
+            capture,
+            menu,
+            wait,
+            doctor
+        ]
     }
 
     static let apps = MCPTool(
@@ -489,6 +534,53 @@ enum PeekTools {
             }
             return try json(Result(x: args.x, y: args.y, count: count, button: button.rawValue))
         }
+    }
+
+    static let move = MCPTool(
+        name: "peek_move",
+        description: "Move the cursor (no click) to drive hover state, tooltips, Dock magnification. Pass from_x/from_y + steps for smoothed motion when an app needs continuous movement. dwell_ms holds the cursor so hover renders. Returns OS-reported cursor position and system-wide AX hit-test under it — use these to verify the hover landed (no follow-up peek_find/peek_capture needed). Pass app/pid/window_id to auto-activate."
+    ) { (args: MoveArgs) in
+        try await withTimeout("peek_move") {
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            let steps = max(1, args.steps ?? 1)
+            let dwell = max(0, args.dwell_ms ?? 0)
+            InteractionManager.move(
+                fromX: args.from_x.map(Double.init),
+                fromY: args.from_y.map(Double.init),
+                toX: Double(args.x),
+                toY: Double(args.y),
+                steps: steps,
+                dwellMs: UInt32(dwell)
+            )
+            let cursorLoc = CGEvent(source: nil)?.location
+            let cursor = cursorLoc.map { CursorPoint(x: Int($0.x.rounded()), y: Int($0.y.rounded())) }
+            let element: AXNode? = if let cursorLoc {
+                try? AccessibilityManager.elementAtScreenPoint(x: cursorLoc.x, y: cursorLoc.y)
+            } else {
+                nil
+            }
+            struct Result: Encodable {
+                let x: Int
+                let y: Int
+                let from_x: Int?
+                let from_y: Int?
+                let steps: Int
+                let dwell_ms: Int
+                let cursor: CursorPoint?
+                let element: AXNode?
+            }
+            return try json(Result(
+                x: args.x, y: args.y,
+                from_x: args.from_x, from_y: args.from_y,
+                steps: steps, dwell_ms: dwell,
+                cursor: cursor, element: element
+            ))
+        }
+    }
+
+    struct CursorPoint: Encodable {
+        let x: Int
+        let y: Int
     }
 
     static let drag = MCPTool(

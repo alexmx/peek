@@ -13,6 +13,7 @@ struct Peek: AsyncParsableCommand {
             MenuCommand.self,
             // Interaction
             ClickCommand.self,
+            MoveCommand.self,
             ScrollCommand.self,
             DragCommand.self,
             TypeCommand.self,

@@ -10,8 +10,17 @@ enum AccessibilityManager {
     // MARK: - Resolution
 
     /// Resolve a window element, activating the app and retrying if needed.
+    ///
+    /// `windowID == 0` is a sentinel meaning "this app has no AXWindow" — the AXApplication
+    /// element is returned instead. Used for window-less system UI (Dock, Control Center,
+    /// Notification Center, menu-bar status items) whose AX tree is rooted directly on the
+    /// application element with no intermediate window.
     static func resolveWindow(pid: pid_t, windowID: CGWindowID) throws -> AXUIElement {
         try PermissionManager.requireAccessibility()
+
+        if windowID == 0 {
+            return AXBridge.application(pid: pid)
+        }
 
         if let w = AXBridge.window(pid: pid, windowID: windowID) {
             return w
@@ -129,6 +138,29 @@ enum AccessibilityManager {
         let window = try resolveWindow(pid: pid, windowID: windowID)
         let tree = buildTree(from: window, depth: 0)
         return deepestNode(in: tree, x: x, y: y)
+    }
+
+    /// System-wide hit-test: returns the topmost AXNode at a screen point across any app or
+    /// layer. Used by `peek_move` to identify what the cursor is hovering, including elements
+    /// in apps not addressable by window (Dock, menu bar, status items). Returns nil if no
+    /// element is reported under the point — common over empty desktop / wallpaper.
+    ///
+    /// The returned node has `value` stripped: hover-target identification needs role/title/
+    /// description/frame, not the full text content of a hovered TextArea (which can be
+    /// kilobytes of unrelated text).
+    static func elementAtScreenPoint(x: CGFloat, y: CGFloat) throws -> AXNode? {
+        try PermissionManager.requireAccessibility()
+        guard let element = AXBridge.elementAtSystemWide(x: x, y: y) else { return nil }
+        let node = AXBridge.nodeFromElement(element)
+        return AXNode(
+            role: node.role,
+            title: node.title,
+            value: nil,
+            description: node.description,
+            enabled: node.enabled,
+            frame: node.frame,
+            children: []
+        )
     }
 
     /// DFS to find the first element matching filters.

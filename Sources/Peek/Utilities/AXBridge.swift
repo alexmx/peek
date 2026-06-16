@@ -92,6 +92,17 @@ enum AXBridge {
         AXUIElementCreateApplication(pid)
     }
 
+    /// System-wide hit-test: returns the topmost AX element at a screen point regardless of
+    /// owning process. Used to identify what's under the cursor across any app or layer
+    /// (Dock, menu bar, status items, popovers) without scoping to a known window or pid.
+    static func elementAtSystemWide(x: CGFloat, y: CGFloat) -> AXUIElement? {
+        let sysWide = AXUIElementCreateSystemWide()
+        var element: AXUIElement?
+        let result = AXUIElementCopyElementAtPosition(sysWide, Float(x), Float(y), &element)
+        guard result == .success else { return nil }
+        return element
+    }
+
     static func prewarm(pid: pid_t) {
         var ref: CFTypeRef?
         _ = AXUIElementCopyAttributeValue(application(pid: pid), kAXWindowsAttribute as CFString, &ref)

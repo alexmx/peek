@@ -8,6 +8,12 @@ enum InteractionManager {
     /// Polls frontmost + z-order after activation; retries once if macOS dropped the request.
     /// Throws `PeekError.activationFailed` if the app is still not frontmost after the budget.
     static func activate(pid: pid_t, windowID: CGWindowID) async throws -> ActivateResult {
+        // Windowless apps (Dock, Control Center, status-menu helpers) — there's no
+        // AXWindow to raise. Activate the app only; skip the window-topmost check.
+        if windowID == 0 {
+            return try await activateApp(pid: pid)
+        }
+
         try PermissionManager.requireAccessibility()
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
@@ -204,6 +210,68 @@ enum InteractionManager {
             mouseButton: .left
         )
         mouseUp?.post(tap: .cghidEventTap)
+    }
+
+    /// Move the cursor to a screen point by posting `.mouseMoved` events — no buttons pressed.
+    /// Used to drive hover-state UI (NSTrackingArea: mouseEntered/mouseMoved/mouseExited, cursorUpdate).
+    ///
+    /// - Parameters:
+    ///   - fromX/fromY: optional start point. When provided alongside `steps > 1`, intermediate
+    ///     `.mouseMoved` events are interpolated from (fromX, fromY) to (toX, toY) — useful for
+    ///     apps whose tracking logic requires continuous motion rather than a single jump.
+    ///   - toX/toY: destination screen coordinates.
+    ///   - steps: number of intermediate moves to post (clamped to >= 1). 1 = single jump.
+    ///   - dwellMs: milliseconds to sleep after the final move so the caller can capture the
+    ///     hover state before something else perturbs the cursor.
+    ///
+    /// Posts via `.cghidEventTap` with `mouseEventSource: nil` — the same path `scroll` already
+    /// uses to seed cursor position, which routes through NSTrackingArea correctly.
+    static func move(
+        fromX: Double? = nil,
+        fromY: Double? = nil,
+        toX: Double,
+        toY: Double,
+        steps: Int = 1,
+        dwellMs: UInt32 = 0
+    ) {
+        let clampedSteps = max(1, steps)
+        let startX = fromX ?? toX
+        let startY = fromY ?? toY
+
+        if clampedSteps == 1 || (fromX == nil && fromY == nil) {
+            let move = CGEvent(
+                mouseEventSource: nil,
+                mouseType: .mouseMoved,
+                mouseCursorPosition: CGPoint(x: toX, y: toY),
+                mouseButton: .left
+            )
+            move?.post(tap: .cghidEventTap)
+        } else {
+            let dx = toX - startX
+            let dy = toY - startY
+            for i in 1...clampedSteps {
+                let t = Double(i) / Double(clampedSteps)
+                let point = CGPoint(x: startX + dx * t, y: startY + dy * t)
+                let move = CGEvent(
+                    mouseEventSource: nil,
+                    mouseType: .mouseMoved,
+                    mouseCursorPosition: point,
+                    mouseButton: .left
+                )
+                move?.post(tap: .cghidEventTap)
+                if i < clampedSteps {
+                    usleep(10000) // 10ms between intermediate moves, matches drag()'s cadence
+                }
+            }
+        }
+
+        // Flush: synthetic .mouseMoved events are dispatched asynchronously by the window
+        // server, so an immediate readback of CGEvent.location or AXUIElementCopyElementAtPosition
+        // races the dispatch and reports stale state. A small floor sleep guarantees the
+        // event has been applied before move() returns. Honor an explicit dwell that's
+        // larger; otherwise just pay the 15ms flush.
+        let totalSleepMs = max(dwellMs, 15)
+        usleep(totalSleepMs * 1000)
     }
 
     /// Scroll at screen coordinates.
