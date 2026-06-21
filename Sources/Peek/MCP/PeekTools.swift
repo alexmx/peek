@@ -386,6 +386,10 @@ enum PeekTools {
             "Wait until an AX-visible window appears before returning (default: false). Result includes windowID/windowTitle so you can skip a follow-up peek_apps."
         )
         var wait_for_window: Bool?
+        @InputProperty(
+            "Paths or URLs to open in the app via application:openURLs:. Collapses launch→menu→file-dialog into one call for document-based apps. Accepts absolute paths, ~/-paths, or URLs (file://, http://, custom schemes)."
+        )
+        var documents: [String]?
     }
 
     struct QuitArgs: MCPToolInput {
@@ -767,14 +771,14 @@ enum PeekTools {
 
     static let launch = MCPTool(
         name: "peek_launch",
-        description: "Launch an app by bundle_id, name, or path. Pass wait_for_window=true when the next call needs a window_id — returns once a window appears (windowID/windowTitle in result, skip follow-up peek_apps), errors on 10s timeout. Prefer bundle_id when known. Many apps persist state across launches — plan an explicit reset (clear button, fresh document) when you need a known starting state."
+        description: "Launch an app by bundle_id, name, or path. Pass wait_for_window=true when the next call needs a window_id — returns once a window appears (windowID/windowTitle in result, skip follow-up peek_apps), errors on 10s timeout. Pass documents=[paths/URLs] to open files in the app via application:openURLs: — one deterministic call instead of launch→menu→file-dialog. Prefer bundle_id when known. Many apps persist state across launches — plan an explicit reset (clear button, fresh document) when you need a known starting state."
     ) { (args: LaunchArgs) in
         try await withTimeout("peek_launch", seconds: 15) {
             let url = try AppLifecycleManager.resolveAppURL(
                 bundleID: args.bundle_id, name: args.name, path: args.path
             )
             let result = try await AppLifecycleManager.launch(
-                url: url, waitForWindow: args.wait_for_window ?? false
+                url: url, documents: args.documents ?? [], waitForWindow: args.wait_for_window ?? false
             )
             return try json(result)
         }

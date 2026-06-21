@@ -112,7 +112,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | Command | Description | Key options |
 |---|---|---|
 | `apps` | List running applications and their windows | `--app NAME` filter |
-| `launch` | Launch an app by bundle ID, name, or path | `--bundle-id` (preferred), `--name`, `--path`; `--wait-for-window` blocks until a window appears and returns `windowID`/`windowTitle` |
+| `launch` | Launch an app by bundle ID, name, or path | `--bundle-id` (preferred), `--name`, `--path`; `--wait-for-window` blocks until a window appears and returns `windowID`/`windowTitle`; `--documents <path-or-url> ...` opens files in the app via `application:openURLs:` |
 | `quit` | Terminate a running app | `--pid` (preferred), `--bundle-id`, `--name`; `--force` |
 
 ### Inspection

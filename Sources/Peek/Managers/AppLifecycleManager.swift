@@ -49,47 +49,69 @@ enum AppLifecycleManager {
 
     /// Launch an application. Returns once the app has begun running (and, when
     /// `waitForWindow` is true, once at least one AX-visible window appears).
-    static func launch(url: URL, waitForWindow: Bool) async throws -> LaunchResult {
+    ///
+    /// When `documents` is non-empty, the inputs are handed to the app via
+    /// `application:openURLs:`, collapsing what would otherwise be a multi-step
+    /// flow (launch → wait → menu File→Open → file dialog → navigate → Open).
+    /// Each input is a filesystem path (absolute or `~/`-prefixed) or a URL with
+    /// a scheme (`file://`, `http://`, custom schemes). Works for any app that
+    /// handles `application:openURLs:` — most document-based AppKit apps and
+    /// SwiftUI apps with `DocumentGroup` do so automatically.
+    static func launch(url: URL, documents: [String] = [], waitForWindow: Bool) async throws -> LaunchResult {
         let config = NSWorkspace.OpenConfiguration()
         config.activates = true
+
+        let documentURLs = documents.map { input -> URL in
+            if input.contains("://"), let url = URL(string: input), let scheme = url.scheme, !scheme.isEmpty {
+                return url
+            }
+            return URL(fileURLWithPath: NSString(string: input).expandingTildeInPath)
+        }
 
         let launcher = LaunchContinuation()
         let app: NSRunningApplication = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { cont in
                 launcher.attach(cont)
-                NSWorkspace.shared.openApplication(at: url, configuration: config) { running, error in
+                let handler: @Sendable (NSRunningApplication?, Error?) -> Void = { running, error in
                     if let error {
                         launcher.complete(.failure(PeekError.launchFailed(
-                            url.lastPathComponent,
-                            error.localizedDescription
+                            url.lastPathComponent, error.localizedDescription
                         )))
                     } else if let running {
                         launcher.complete(.success(running))
                     } else {
                         launcher.complete(.failure(PeekError.launchFailed(
-                            url.lastPathComponent,
-                            "openApplication returned no running app"
+                            url.lastPathComponent, "openApplication returned no running app"
                         )))
                     }
                 }
+                NSWorkspace.shared.open(
+                    documentURLs,
+                    withApplicationAt: url,
+                    configuration: config,
+                    completionHandler: handler
+                )
             }
         } onCancel: {
             launcher.cancel()
         }
 
+        // Use CGWindowListCopyWindowInfo (sync, Core Graphics) instead of
+        // WindowManager.listWindows which routes through SCShareableContent. The
+        // SC API leaks `CheckedContinuation` when invoked repeatedly inside the
+        // MCP server (works for the first few calls, then its bridged completion
+        // handler stops firing). CGWindowList has no async dependency.
         WindowManager.invalidateCache()
-        var firstWindow: WindowInfo?
+        var firstWindow: (windowID: UInt32, title: String)?
         if waitForWindow {
             let budget: TimeInterval = 10
             let deadline = Date().addingTimeInterval(budget)
             while Date() < deadline {
-                WindowManager.invalidateCache()
-                let windows = try await WindowManager.listWindows()
-                if let win = windows.first(where: { $0.pid == app.processIdentifier }) {
+                if let win = firstUserWindow(forPID: app.processIdentifier) {
                     firstWindow = win
                     break
                 }
-                try await Task.sleep(nanoseconds: 100_000_000)
+                try await Task.sleep(nanoseconds: 250_000_000)
             }
             if firstWindow == nil {
                 throw PeekError.timeout("peek_launch wait_for_window", budget)
@@ -103,8 +125,30 @@ enum AppLifecycleManager {
             name: app.localizedName ?? url.deletingPathExtension().lastPathComponent,
             path: url.path,
             windowID: firstWindow?.windowID,
-            windowTitle: firstWindow?.windowTitle
+            windowTitle: firstWindow?.title
         )
+    }
+
+    /// Find the first user-visible window for `pid` via CGWindowList — sync, no async,
+    /// no SCShareableContent dependency. Filters out floating layers (menu bar, dock)
+    /// and tiny status windows; returns the first matching normal-layer window.
+    private static func firstUserWindow(forPID pid: pid_t) -> (windowID: UInt32, title: String)? {
+        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
+            return nil
+        }
+        for info in list {
+            guard (info[kCGWindowOwnerPID as String] as? pid_t) == pid else { continue }
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
+            if layer != 0 { continue }
+            guard let id = info[kCGWindowNumber as String] as? UInt32 else { continue }
+            if let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
+               let w = bounds["Width"], let h = bounds["Height"],
+               w < 200 || h < 100 { continue }
+            let title = (info[kCGWindowName as String] as? String) ?? ""
+            return (id, title)
+        }
+        return nil
     }
 
     /// Quit a running app by PID, bundle ID, or name. Graceful by default;

@@ -111,7 +111,7 @@ Most read-only commands and `peek action --do Press` work on backgrounded apps. 
 
 ### `peek launch` / `peek quit` — app lifecycle
 
-`peek launch` resolves by `--bundle-id` (preferred), `--name`, or `--path`. Pass `--wait-for-window` when the next call needs a window ID — the result then includes `windowID` and `windowTitle`, so you can skip a follow-up `peek apps`.
+`peek launch` resolves by `--bundle-id` (preferred), `--name`, or `--path`. Pass `--wait-for-window` when the next call needs a window ID — the result then includes `windowID` and `windowTitle`, so you can skip a follow-up `peek apps`. Pass `--documents <path-or-url> ...` to open files in the launched app via `application:openURLs:` — single deterministic call instead of launch → File → Open dialog → navigate → click.
 
 `peek quit` resolves by `--pid` (preferred), `--bundle-id`, or `--name`. `--force` for forceTerminate.
 
