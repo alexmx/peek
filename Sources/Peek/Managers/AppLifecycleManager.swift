@@ -29,6 +29,16 @@ enum AppLifecycleManager {
             return url
         }
         if let bundleID {
+            // Prefer a currently-running instance's bundleURL: LaunchServices'
+            // urlForApplication can return a stale registration (Xcode dev builds with
+            // multiple Build/ paths for the same bundle ID hit this often), which would
+            // cause launch() to spawn a duplicate process at that stale path instead of
+            // activating the running instance. Fall through to LS only when nothing is
+            // running for this bundle ID.
+            if let running = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID).first,
+               let url = running.bundleURL {
+                return url
+            }
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else {
                 throw PeekError.appNotFound(bundleID)
             }
