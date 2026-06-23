@@ -30,6 +30,12 @@ struct TextCommand: AsyncParsableCommand {
     )
     var length: Int?
 
+    @Flag(
+        name: .long,
+        help: "Also return the screen rect of the read range (AXBoundsForRange) — pair with a small --offset/--length to locate a word for peek click/drag"
+    )
+    var bounds: Bool = false
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -49,7 +55,8 @@ struct TextCommand: AsyncParsableCommand {
             value: value,
             description: desc,
             offset: offset,
-            length: length
+            length: length,
+            bounds: bounds
         )
 
         switch format {
@@ -59,6 +66,9 @@ struct TextCommand: AsyncParsableCommand {
             try printTOON(result)
         case .default:
             print(result.text)
+            if let b = result.bounds {
+                print("\nbounds: (\(b.x), \(b.y)) \(b.width)x\(b.height)")
+            }
             if result.truncated {
                 let next = result.offset + result.text.count
                 print("\n[\(next)/\(result.length) chars; read more with --offset \(next)]")

@@ -129,11 +129,13 @@ enum AccessibilityManager {
     }
 
     /// A range of text read from an element via parameterized AX attributes.
+    /// `bounds` is the screen rect of the returned range when requested (and supported).
     struct TextContent: Encodable {
         let length: Int
         let offset: Int
         let text: String
         let truncated: Bool
+        let bounds: AXNode.FrameInfo?
     }
 
     /// Default character ceiling for a single `readText` call.
@@ -141,7 +143,9 @@ enum AccessibilityManager {
 
     /// Read text from the first element matching the filters, paging via offset/length.
     /// Reads `AXStringForRange` so it returns content that lives behind parameterized
-    /// attributes (e.g. SwiftUI static text) where `AXValue` is empty.
+    /// attributes (e.g. SwiftUI static text) where `AXValue` is empty. When `bounds`
+    /// is true, also returns the screen rect of the returned range (AXBoundsForRange)
+    /// for feeding peek_click/peek_drag — pair it with a small explicit offset/length.
     static func readText(
         pid: pid_t,
         windowID: CGWindowID,
@@ -150,7 +154,8 @@ enum AccessibilityManager {
         value: String?,
         description: String?,
         offset: Int,
-        length: Int?
+        length: Int?,
+        bounds: Bool = false
     ) throws -> TextContent {
         let window = try resolveWindow(pid: pid, windowID: windowID)
         guard let match = findFirst(
@@ -163,13 +168,21 @@ enum AccessibilityManager {
         }
         let start = max(0, offset)
         if start >= total {
-            return TextContent(length: total, offset: start, text: "", truncated: false)
+            return TextContent(length: total, offset: start, text: "", truncated: false, bounds: nil)
         }
         let take = min(length ?? textReadCap, total - start)
         guard let text = AXBridge.string(of: match.ref, offset: start, length: take) else {
             throw PeekError.noTextContent
         }
-        return TextContent(length: total, offset: start, text: text, truncated: start + take < total)
+        let rect = bounds ? AXBridge.bounds(of: match.ref, offset: start, length: take).map {
+            AXNode.FrameInfo(
+                x: Int($0.origin.x),
+                y: Int($0.origin.y),
+                width: Int($0.size.width),
+                height: Int($0.size.height)
+            )
+        } : nil
+        return TextContent(length: total, offset: start, text: text, truncated: start + take < total, bounds: rect)
     }
 
     /// Find the deepest element at the given screen coordinates.

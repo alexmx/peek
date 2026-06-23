@@ -319,6 +319,21 @@ enum AXBridge {
         return str
     }
 
+    /// Screen-space bounding rectangle of a character range via the parameterized
+    /// AXBoundsForRange attribute (top-left origin, same convention as AXFrame).
+    /// A multi-line range returns a single enclosing rect. Nil if unsupported.
+    static func bounds(of element: AXUIElement, offset: Int, length: Int) -> CGRect? {
+        var range = CFRange(location: offset, length: length)
+        guard let param = AXValueCreate(.cfRange, &range) else { return nil }
+        var ref: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element, kAXBoundsForRangeParameterizedAttribute as CFString, param, &ref
+        ) == .success, let value = ref, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(value as! AXValue, .cgRect, &rect) else { return nil }
+        return rect
+    }
+
     // MARK: - Menu Attributes
 
     /// Read the keyboard shortcut from a menu item element.
