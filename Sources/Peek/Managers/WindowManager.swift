@@ -33,6 +33,18 @@ enum WindowManager {
     static func listWindows() async throws -> [WindowInfo] {
         if let cached = cachedSnapshot() { return cached }
 
+        // Gate the ScreenCaptureKit query behind a synchronous permission preflight.
+        // Without Screen Recording, `SCShareableContent` either throws a cryptic
+        // `-3801` (permission "denied") or — when the host's permission is "not
+        // determined" — triggers a system prompt that a headless MCP server can't
+        // present, blocking until the per-tool timeout fires (the reported hang).
+        // Failing fast here turns both into one clear, immediate error before we ever
+        // call into ScreenCaptureKit. Window resolution feeds nearly every command, so
+        // this guard covers apps/find/tree/capture/etc., not just screenshots.
+        guard CGPreflightScreenCaptureAccess() else {
+            throw PeekError.screenCaptureNotGranted
+        }
+
         let content = try await SCShareableContent.excludingDesktopWindows(
             true,
             onScreenWindowsOnly: false
