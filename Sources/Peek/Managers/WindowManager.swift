@@ -33,56 +33,72 @@ enum WindowManager {
     static func listWindows() async throws -> [WindowInfo] {
         if let cached = cachedSnapshot() { return cached }
 
-        // Gate the ScreenCaptureKit query behind a synchronous permission preflight.
-        // Without Screen Recording, `SCShareableContent` either throws a cryptic
-        // `-3801` (permission "denied") or — when the host's permission is "not
-        // determined" — triggers a system prompt that a headless MCP server can't
-        // present, blocking until the per-tool timeout fires (the reported hang).
-        // Failing fast here turns both into one clear, immediate error before we ever
-        // call into ScreenCaptureKit. Window resolution feeds nearly every command, so
-        // this guard covers apps/find/tree/capture/etc., not just screenshots.
+        // Fast gate for the denied case. Not authoritative: preflight can report
+        // granted while SCShareableContent still denies — fetchWindows handles that.
         guard CGPreflightScreenCaptureAccess() else {
             throw PeekError.screenCaptureNotGranted
         }
 
-        let content = try await SCShareableContent.excludingDesktopWindows(
-            true,
-            onScreenWindowsOnly: false
-        )
-
-        let onScreenIDs = onScreenWindowIDs()
-
-        let result = content.windows.compactMap { scWindow -> WindowInfo? in
-            guard let app = scWindow.owningApplication,
-                  scWindow.windowLayer == 0 else { return nil }
-
-            let frame = scWindow.frame
-            guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
-
-            let title = scWindow.title ?? ""
-            let isOnScreen = onScreenIDs.contains(scWindow.windowID)
-
-            // Offscreen + no title = placeholder/staging window
-            if !isOnScreen, title.isEmpty { return nil }
-
-            // Skip AutoFill helper windows
-            if app.applicationName.hasPrefix("AutoFill") { return nil }
-
-            return WindowInfo(
-                windowID: scWindow.windowID,
-                ownerName: app.applicationName,
-                windowTitle: title,
-                pid: app.processID,
-                frame: frame,
-                isOnScreen: isOnScreen
-            )
-        }
-
+        let result = try await fetchWindows()
         storeSnapshot(result)
         return result
     }
 
     // MARK: - Private
+
+    /// Per-attempt ceiling for the ScreenCaptureKit query.
+    private static let shareableContentTimeout: TimeInterval = 5
+
+    /// Window list via ScreenCaptureKit, bounded by a timeout (the query can leak its
+    /// continuation and hang) and mapping -3801 to a clear permission error. Mapping
+    /// runs inside the raced task since SCShareableContent/SCWindow aren't Sendable.
+    private static func fetchWindows() async throws -> [WindowInfo] {
+        do {
+            return try await withThrowingTaskGroup(of: [WindowInfo].self) { group in
+                group.addTask {
+                    let content = try await SCShareableContent.excludingDesktopWindows(
+                        true,
+                        onScreenWindowsOnly: false
+                    )
+                    let onScreenIDs = onScreenWindowIDs()
+                    return content.windows.compactMap { scWindow -> WindowInfo? in
+                        guard let app = scWindow.owningApplication,
+                              scWindow.windowLayer == 0 else { return nil }
+
+                        let frame = scWindow.frame
+                        guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
+
+                        let title = scWindow.title ?? ""
+                        let isOnScreen = onScreenIDs.contains(scWindow.windowID)
+
+                        // Offscreen + no title = placeholder/staging window
+                        if !isOnScreen, title.isEmpty { return nil }
+
+                        // Skip AutoFill helper windows
+                        if app.applicationName.hasPrefix("AutoFill") { return nil }
+
+                        return WindowInfo(
+                            windowID: scWindow.windowID,
+                            ownerName: app.applicationName,
+                            windowTitle: title,
+                            pid: app.processID,
+                            frame: frame,
+                            isOnScreen: isOnScreen
+                        )
+                    }
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(shareableContentTimeout * 1_000_000_000))
+                    throw PeekError.captureFailed
+                }
+                defer { group.cancelAll() }
+                return try await group.next()!
+            }
+        } catch let error as NSError where error.domain.contains("SCStream") {
+            // ScreenCaptureKit denial (-3801).
+            throw PeekError.screenCaptureNotGranted
+        }
+    }
 
     /// On-screen window IDs via CGWindowList (lightweight, no permissions needed).
     private static func onScreenWindowIDs() -> Set<CGWindowID> {

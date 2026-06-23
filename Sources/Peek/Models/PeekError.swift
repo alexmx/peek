@@ -70,11 +70,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
         }
     }
 
-    /// The MCP server renders thrown errors with `String(describing:)`
-    /// (swift-cli-mcp `MCPServerHandlers`), which for a bare enum yields the case
-    /// name (e.g. "screenCaptureNotGranted"). Routing `description` through
-    /// `errorDescription` makes MCP clients see the same actionable guidance the CLI
-    /// prints, instead of the raw case label.
+    /// MCP renders errors with String(describing:); route it through errorDescription
+    /// so clients get the full message instead of the bare case name.
     var description: String {
         errorDescription ?? "An unknown error occurred."
     }
