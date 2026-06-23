@@ -21,8 +21,12 @@ enum KeyMapping {
             return code
         }
         guard name.count == 1, let char = name.first else { return nil }
-        let (code, _) = lookup(char)
-        return code == 0 ? nil : code
+        // kVK_ANSI_A is 0x00, which collides with lookup()'s "unmapped" 0 sentinel.
+        // Verify the character is actually in the table instead of testing code != 0,
+        // otherwise 'a' (and chords like Cmd+A) are wrongly rejected.
+        let base = char.lowercased().first ?? char
+        guard table[char] != nil || table[base] != nil else { return nil }
+        return lookup(char).keyCode
     }
 
     static var allKeyNames: [String] {
