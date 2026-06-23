@@ -44,9 +44,13 @@ swift run peek <command> [options]
 **Release Process:**
 
 1. Update `.peek-version` with new version (e.g., `1.0.0`)
-2. Commit and push to main — pushing a change to `.peek-version` automatically triggers the "Release" workflow (`.github/workflows/release.yml`). It can also be run manually via `workflow_dispatch`.
-3. Workflow creates git tag, builds universal binary, publishes GitHub release (skips if the tag already exists)
-4. Update Homebrew formula in `homebrew-tools` repository with new SHA256
+2. Commit and push to main
+
+That's it — pushing a change to `.peek-version` automatically runs the "Release" workflow (`.github/workflows/release.yml`; also runnable manually via `workflow_dispatch`), which:
+
+- Creates the git tag and builds the universal binary (skips if the tag already exists)
+- Publishes the GitHub release
+- Updates the Homebrew formula in the `homebrew-tools` repository with the new version and SHA256
 
 **Homebrew Distribution:**
 
