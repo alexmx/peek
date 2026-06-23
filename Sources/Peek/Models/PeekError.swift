@@ -8,6 +8,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
     case noWindows
     case failedToWrite(String)
     case elementNotFound
+    case noTextContent
     case actionFailed(String, AXError)
     case noMenuBar(pid_t)
     case menuItemNotFound(String)
@@ -35,6 +36,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
             "Failed to write to \(path)"
         case .elementNotFound:
             "No matching element found."
+        case .noTextContent:
+            "Matched element exposes no readable text (AXNumberOfCharacters/AXStringForRange unsupported)."
         case .actionFailed(let action, let error):
             "Action '\(action)' failed: \(error.label). Try a different action for this element role."
         case .noMenuBar(let pid):

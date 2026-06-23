@@ -143,7 +143,7 @@ enum AXBridge {
             element, nodeAttributeKeys, AXCopyMultipleAttributeOptions(rawValue: 0), &valuesRef
         )
         if result == .success, let values = valuesRef as? [Any], values.count == 6 {
-            return AXNode(
+            let node = AXNode(
                 role: stripAXPrefix((values[0] as? String) ?? "unknown"),
                 title: values[1] as? String,
                 value: stringValue(values[2]),
@@ -152,9 +152,10 @@ enum AXBridge {
                 frame: frameInfoFromAXValue(values[5]),
                 children: []
             )
+            return textContentFallback(node, element: element)
         }
 
-        return AXNode(
+        let node = AXNode(
             role: stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown"),
             title: string(of: element, key: kAXTitleAttribute),
             value: string(of: element, key: kAXValueAttribute),
@@ -162,6 +163,32 @@ enum AXBridge {
             enabled: bool(of: element, key: kAXEnabledAttribute),
             frame: frameInfo(of: element),
             children: []
+        )
+        return textContentFallback(node, element: element)
+    }
+
+    /// Inline character cap for parameterized text pulled into a node's `value`.
+    /// Keeps tree/find output bounded; the full string is read via `peek text`.
+    static let inlineTextCap = 2000
+
+    /// When a text element exposes no AXValue but does carry parameterized text
+    /// (AXStringForRange), fill `value` with a capped preview and flag the overflow.
+    private static func textContentFallback(_ node: AXNode, element: AXUIElement) -> AXNode {
+        guard node.value?.isEmpty ?? true, textContentRoles.contains(node.role),
+              let total = numberOfCharacters(of: element), total > 0,
+              let text = string(of: element, offset: 0, length: min(total, inlineTextCap))
+        else { return node }
+        let truncated = total > inlineTextCap
+        return AXNode(
+            role: node.role,
+            title: node.title,
+            value: text,
+            description: node.description,
+            enabled: node.enabled,
+            frame: node.frame,
+            children: node.children,
+            valueTruncated: truncated ? true : nil,
+            valueLength: truncated ? total : nil
         )
     }
 
@@ -264,6 +291,32 @@ enum AXBridge {
     /// Raise a window (fire-and-forget).
     static func raise(_ element: AXUIElement) {
         AXUIElementPerformAction(element, kAXRaiseAction as CFString)
+    }
+
+    // MARK: - Parameterized Text Attributes
+
+    /// Roles whose text content may live behind parameterized attributes
+    /// (AXStringForRange) rather than a plain AXValue — e.g. SwiftUI static text.
+    static let textContentRoles: Set<String> = ["StaticText", "TextArea", "TextField"]
+
+    /// Total character count of a text element (plain AXNumberOfCharacters).
+    static func numberOfCharacters(of element: AXUIElement) -> Int? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &ref) == .success,
+              let count = ref as? Int else { return nil }
+        return count
+    }
+
+    /// Read `length` characters starting at `offset` via the parameterized
+    /// AXStringForRange attribute. Returns nil if the element doesn't support it.
+    static func string(of element: AXUIElement, offset: Int, length: Int) -> String? {
+        var range = CFRange(location: offset, length: length)
+        guard let param = AXValueCreate(.cfRange, &range) else { return nil }
+        var ref: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(
+            element, kAXStringForRangeParameterizedAttribute as CFString, param, &ref
+        ) == .success, let str = ref as? String else { return nil }
+        return str
     }
 
     // MARK: - Menu Attributes

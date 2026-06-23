@@ -193,6 +193,27 @@ enum PeekTools {
         var limit: Int?
     }
 
+    struct TextArgs: MCPToolInput {
+        @InputProperty("Window ID (from peek_apps)")
+        var window_id: Int?
+        @InputProperty("App name (case-insensitive substring)")
+        var app: String?
+        @InputProperty("Process ID")
+        var pid: Int?
+        @InputProperty("Filter by role (exact match, e.g. StaticText, TextArea)")
+        var role: String?
+        @InputProperty("Filter by label — matches AXTitle OR AXDescription (case-insensitive substring)")
+        var title: String?
+        @InputProperty("Filter by value (case-insensitive substring)")
+        var value: String?
+        @InputProperty("Description-only filter (case-insensitive substring)")
+        var desc: String?
+        @InputProperty("Start character offset (default 0)")
+        var offset: Int?
+        @InputProperty("Max characters to read (default 20000). Page large text by advancing offset.")
+        var length: Int?
+    }
+
     struct ClickArgs: MCPToolInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
@@ -440,6 +461,7 @@ enum PeekTools {
             apps,
             tree,
             find,
+            text,
             click,
             move,
             drag,
@@ -515,6 +537,22 @@ enum PeekTools {
                 )
                 return try json(results)
             }
+        }
+    }
+
+    static let text = MCPTool(
+        name: "peek_text",
+        description: "Read full text content from the first element matching role/title/value/description. Reads parameterized AXStringForRange, so it returns text that peek_find/peek_tree show as empty or truncated (SwiftUI/NavigableStaticText). Returns {length, offset, text, truncated}; page large text by advancing offset."
+    ) { (args: TextArgs) in
+        try await withTimeout("peek_text") {
+            let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let result = try AccessibilityManager.readText(
+                pid: pid, windowID: windowID,
+                role: args.role, title: args.title,
+                value: args.value, description: args.desc,
+                offset: args.offset ?? 0, length: args.length
+            )
+            return try json(result)
         }
     }
 

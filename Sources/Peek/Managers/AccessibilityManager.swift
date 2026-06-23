@@ -128,6 +128,50 @@ enum AccessibilityManager {
         ).map(\.node)
     }
 
+    /// A range of text read from an element via parameterized AX attributes.
+    struct TextContent: Encodable {
+        let length: Int
+        let offset: Int
+        let text: String
+        let truncated: Bool
+    }
+
+    /// Default character ceiling for a single `readText` call.
+    static let textReadCap = 20000
+
+    /// Read text from the first element matching the filters, paging via offset/length.
+    /// Reads `AXStringForRange` so it returns content that lives behind parameterized
+    /// attributes (e.g. SwiftUI static text) where `AXValue` is empty.
+    static func readText(
+        pid: pid_t,
+        windowID: CGWindowID,
+        role: String?,
+        title: String?,
+        value: String?,
+        description: String?,
+        offset: Int,
+        length: Int?
+    ) throws -> TextContent {
+        let window = try resolveWindow(pid: pid, windowID: windowID)
+        guard let match = findFirst(
+            in: window, role: role, title: title, value: value, description: description
+        ) else {
+            throw PeekError.elementNotFound
+        }
+        guard let total = AXBridge.numberOfCharacters(of: match.ref) else {
+            throw PeekError.noTextContent
+        }
+        let start = max(0, offset)
+        if start >= total {
+            return TextContent(length: total, offset: start, text: "", truncated: false)
+        }
+        let take = min(length ?? textReadCap, total - start)
+        guard let text = AXBridge.string(of: match.ref, offset: start, length: take) else {
+            throw PeekError.noTextContent
+        }
+        return TextContent(length: total, offset: start, text: text, truncated: start + take < total)
+    }
+
     /// Find the deepest element at the given screen coordinates.
     static func elementAt(
         pid: pid_t,
