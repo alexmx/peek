@@ -2,7 +2,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-enum PeekError: LocalizedError {
+enum PeekError: LocalizedError, CustomStringConvertible {
     case windowNotFound(CGWindowID)
     case accessibilityNotTrusted
     case noWindows
@@ -68,5 +68,14 @@ enum PeekError: LocalizedError {
         case .invalidArgument(let name, let value, let valid):
             "Invalid \(name) '\(value)'. Valid values: \(valid.joined(separator: ", "))."
         }
+    }
+
+    /// The MCP server renders thrown errors with `String(describing:)`
+    /// (swift-cli-mcp `MCPServerHandlers`), which for a bare enum yields the case
+    /// name (e.g. "screenCaptureNotGranted"). Routing `description` through
+    /// `errorDescription` makes MCP clients see the same actionable guidance the CLI
+    /// prints, instead of the raw case label.
+    var description: String {
+        errorDescription ?? "An unknown error occurred."
     }
 }
