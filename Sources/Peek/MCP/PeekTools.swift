@@ -220,6 +220,10 @@ enum PeekTools {
             "Also return the element's current caret/selection range {offset, length} (length 0 = caret). Independent of offset/length."
         )
         var selection: Bool?
+        @InputProperty(
+            "Locate the first occurrence of this exact (case-sensitive) text at or after offset; returns its range as offset + text. Advance offset past a match to page occurrences. Combine with bounds to get its screen rect. Ignores length."
+        )
+        var substring: String?
     }
 
     struct ClickArgs: MCPToolInput {
@@ -550,7 +554,7 @@ enum PeekTools {
 
     static let text = MCPTool(
         name: "peek_text",
-        description: "Read full text content from the first element matching role/title/value/description. Reads parameterized AXStringForRange, so it returns text that peek_find/peek_tree show as empty or truncated (SwiftUI/NavigableStaticText). Returns {length, offset, text, truncated, bounds?, selection?}; page large text by advancing offset. Set bounds=true with a small offset/length to also get the screen rect of that range for peek_click/peek_drag. Set selection=true to also get the live caret/selection range."
+        description: "Read full text content from the first element matching role/title/value/description. Reads parameterized AXStringForRange, so it returns text that peek_find/peek_tree show as empty or truncated (SwiftUI/NavigableStaticText). Returns {length, offset, text, truncated, bounds?, selection?}; page large text by advancing offset. Set bounds=true with a small offset/length to also get the screen rect of that range for peek_click/peek_drag. Set selection=true to also get the live caret/selection range. Pass substring=\"word\" to locate text by content (with bounds for a clickable rect) instead of by offset."
     ) { (args: TextArgs) in
         try await withTimeout("peek_text") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -560,7 +564,8 @@ enum PeekTools {
                 value: args.value, description: args.desc,
                 offset: args.offset ?? 0, length: args.length,
                 bounds: args.bounds ?? false,
-                selection: args.selection ?? false
+                selection: args.selection ?? false,
+                substring: args.substring
             )
             return try json(result)
         }

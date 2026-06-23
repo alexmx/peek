@@ -407,4 +407,35 @@ struct AccessibilityManagerTests {
         #expect(results[0].role == "Window")
         #expect(results[0].title == "Main")
     }
+
+    // MARK: - firstOccurrence (peek text --substring)
+
+    @Test
+    func firstOccurrenceFromZero() {
+        #expect(AccessibilityManager.firstOccurrence(of: "import", in: "import AppKit\nimport X", from: 0) == 0)
+        #expect(AccessibilityManager.firstOccurrence(of: "AppKit", in: "import AppKit\nimport X", from: 0) == 7)
+    }
+
+    @Test
+    func firstOccurrenceAddsBaseAndPagesCursor() {
+        // `from` is the read base AND the cursor: searching the slice past the first
+        // match should land on the next occurrence at its absolute offset.
+        let full = "import AppKit\nimport X"
+        let slice = (full as NSString).substring(from: 1) // simulate AX read from offset 1
+        #expect(AccessibilityManager.firstOccurrence(of: "import", in: slice, from: 1) == 14)
+    }
+
+    @Test
+    func firstOccurrenceNotFound() {
+        #expect(AccessibilityManager.firstOccurrence(of: "zzz", in: "hello world", from: 0) == nil)
+    }
+
+    @Test
+    func firstOccurrenceUsesUTF16Offsets() {
+        // 😀 is one Character but two UTF-16 units. AX character ranges are UTF-16, so
+        // "ab" must be located at offset 2, not 1. This locks in NSString indexing —
+        // switching to Swift String indexing would return 1 and break AXBoundsForRange.
+        #expect(AccessibilityManager.firstOccurrence(of: "ab", in: "😀ab", from: 0) == 2)
+        #expect(AccessibilityManager.firstOccurrence(of: "😀", in: "x😀y", from: 0) == 1)
+    }
 }

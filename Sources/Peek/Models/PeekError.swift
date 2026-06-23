@@ -9,6 +9,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
     case failedToWrite(String)
     case elementNotFound
     case noTextContent
+    case substringNotFound(String)
     case actionFailed(String, AXError)
     case noMenuBar(pid_t)
     case menuItemNotFound(String)
@@ -38,6 +39,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
             "No matching element found."
         case .noTextContent:
             "Matched element exposes no readable text (AXNumberOfCharacters/AXStringForRange unsupported)."
+        case .substringNotFound(let needle):
+            "Substring '\(needle)' not found in the matched element's text (case-sensitive; whitespace comes from AX, not the rendered layout)."
         case .actionFailed(let action, let error):
             "Action '\(action)' failed: \(error.label). Try a different action for this element role."
         case .noMenuBar(let pid):

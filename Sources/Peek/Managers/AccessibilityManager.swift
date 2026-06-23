@@ -155,6 +155,10 @@ enum AccessibilityManager {
     /// attributes (e.g. SwiftUI static text) where `AXValue` is empty. When `bounds`
     /// is true, also returns the screen rect of the returned range (AXBoundsForRange)
     /// for feeding peek_click/peek_drag — pair it with a small explicit offset/length.
+    ///
+    /// When `substring` is given, locate its first occurrence at or after `offset`
+    /// (case-sensitive) and return that match's range instead of a positional read —
+    /// `length` is ignored. Advance `offset` past a match to page through occurrences.
     static func readText(
         pid: pid_t,
         windowID: CGWindowID,
@@ -165,7 +169,8 @@ enum AccessibilityManager {
         offset: Int,
         length: Int?,
         bounds: Bool = false,
-        selection: Bool = false
+        selection: Bool = false,
+        substring: String? = nil
     ) throws -> TextContent {
         let window = try resolveWindow(pid: pid, windowID: windowID)
         guard let match = findFirst(
@@ -181,6 +186,13 @@ enum AccessibilityManager {
             Selection(offset: $0.offset, length: $0.length)
         } : nil
         let start = max(0, offset)
+
+        if let substring {
+            return try locate(
+                substring, in: match.ref, total: total, from: start, bounds: bounds, selection: sel
+            )
+        }
+
         if start >= total {
             return TextContent(length: total, offset: start, text: "", truncated: false, bounds: nil, selection: sel)
         }
@@ -188,18 +200,55 @@ enum AccessibilityManager {
         guard let text = AXBridge.string(of: match.ref, offset: start, length: take) else {
             throw PeekError.noTextContent
         }
-        let rect = bounds ? AXBridge.bounds(of: match.ref, offset: start, length: take).map {
+        let rect = bounds ? boundsInfo(of: match.ref, offset: start, length: take) : nil
+        return TextContent(
+            length: total, offset: start, text: text,
+            truncated: start + take < total, bounds: rect, selection: sel
+        )
+    }
+
+    /// Find `needle`'s first occurrence at or after `from` and return its range.
+    /// Uses NSString (UTF-16) indexing so offsets line up with AX character ranges.
+    private static func locate(
+        _ needle: String,
+        in ref: AXUIElement,
+        total: Int,
+        from: Int,
+        bounds: Bool,
+        selection: Selection?
+    ) throws -> TextContent {
+        guard from < total,
+              let hay = AXBridge.string(of: ref, offset: from, length: total - from),
+              let matchOffset = firstOccurrence(of: needle, in: hay, from: from)
+        else {
+            throw PeekError.substringNotFound(needle)
+        }
+        let rect = bounds ? boundsInfo(of: ref, offset: matchOffset, length: (needle as NSString).length) : nil
+        return TextContent(
+            length: total, offset: matchOffset, text: needle,
+            truncated: false, bounds: rect, selection: selection
+        )
+    }
+
+    /// Absolute offset of `needle`'s first occurrence in `haystack`, where `haystack`
+    /// was read starting at `base`. Uses NSString (UTF-16) indexing so the result lines
+    /// up with AX character ranges — Swift's native `String` indexing would miscount any
+    /// non-BMP characters (emoji, surrogate-pair CJK) and break AXBoundsForRange.
+    static func firstOccurrence(of needle: String, in haystack: String, from base: Int) -> Int? {
+        let range = (haystack as NSString).range(of: needle)
+        guard range.location != NSNotFound else { return nil }
+        return base + range.location
+    }
+
+    private static func boundsInfo(of ref: AXUIElement, offset: Int, length: Int) -> AXNode.FrameInfo? {
+        AXBridge.bounds(of: ref, offset: offset, length: length).map {
             AXNode.FrameInfo(
                 x: Int($0.origin.x),
                 y: Int($0.origin.y),
                 width: Int($0.size.width),
                 height: Int($0.size.height)
             )
-        } : nil
-        return TextContent(
-            length: total, offset: start, text: text,
-            truncated: start + take < total, bounds: rect, selection: sel
-        )
+        }
     }
 
     /// Find the deepest element at the given screen coordinates.

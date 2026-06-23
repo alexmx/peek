@@ -281,11 +281,19 @@ struct PeekErrorTests {
     }
 
     @Test
+    func substringNotFoundDescription() throws {
+        let description = try #require(PeekError.substringNotFound("Submit").errorDescription)
+        #expect(description.contains("Submit"))
+        #expect(description.contains("not found"))
+        #expect(description.contains("case-sensitive"))
+    }
+
+    @Test
     func descriptionMatchesErrorDescription() throws {
         // The MCP server renders errors via String(describing:); CustomStringConvertible
         // must route that to errorDescription instead of the bare case name.
         let cases: [PeekError] = [
-            .noTextContent, .screenCaptureNotGranted, .elementNotFound, .windowNotFound(7)
+            .noTextContent, .substringNotFound("x"), .screenCaptureNotGranted, .elementNotFound, .windowNotFound(7)
         ]
         for error in cases {
             let expected = try #require(error.errorDescription)

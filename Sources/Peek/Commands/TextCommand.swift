@@ -42,12 +42,23 @@ struct TextCommand: AsyncParsableCommand {
     )
     var selection: Bool = false
 
+    @Option(
+        name: .long,
+        help: "Locate the first occurrence of this exact (case-sensitive) text at or after --offset; returns its range. Advance --offset past a match to page occurrences. Cannot combine with --length."
+    )
+    var substring: String?
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
     func validate() throws {
         if role == nil, title == nil, value == nil, desc == nil {
             throw ValidationError("Provide at least one filter: --role, --title, --value, or --desc")
+        }
+        if substring != nil, length != nil {
+            throw ValidationError(
+                "--substring cannot be combined with --length (the match length is the substring length)."
+            )
         }
     }
 
@@ -63,7 +74,8 @@ struct TextCommand: AsyncParsableCommand {
             offset: offset,
             length: length,
             bounds: bounds,
-            selection: selection
+            selection: selection,
+            substring: substring
         )
 
         switch format {
@@ -73,6 +85,9 @@ struct TextCommand: AsyncParsableCommand {
             try printTOON(result)
         case .default:
             print(result.text)
+            if substring != nil {
+                print("\nmatch at offset \(result.offset), length \(result.text.count)")
+            }
             if let b = result.bounds {
                 print("\nbounds: (\(b.x), \(b.y)) \(b.width)x\(b.height)")
             }
