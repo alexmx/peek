@@ -428,6 +428,30 @@ struct AXNodeTests {
         #expect(json.contains("\"frame\""))
     }
 
+    @Test
+    func encodeTruncatedTextMarkers() throws {
+        let node = AXNode(
+            role: "StaticText", title: nil, value: "preview",
+            description: nil, enabled: nil, frame: nil, children: [],
+            valueTruncated: true, valueLength: 5000
+        )
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(node)
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(json.contains("\"valueTruncated\":true"))
+        #expect(json.contains("\"valueLength\":5000"))
+    }
+
+    @Test
+    func encodeOmitsTruncationMarkersWhenNotSet() throws {
+        // Default nil markers (the common case) must not appear in output.
+        let encoder = JSONEncoder()
+        let data = try encoder.encode(sampleNode)
+        let json = try #require(String(data: data, encoding: .utf8))
+        #expect(!json.contains("valueTruncated"))
+        #expect(!json.contains("valueLength"))
+    }
+
     // MARK: - Equatable Tests
 
     @Test

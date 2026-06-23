@@ -245,4 +245,41 @@ struct KeyMappingTests {
             }
         }
     }
+
+    // MARK: - keyCode(named:)
+
+    @Test
+    func keyCodeNamedAcceptsLetterA() throws {
+        // Regression: kVK_ANSI_A is 0x00, which collided with lookup()'s unmapped-0
+        // sentinel and made keyCode(named:) reject 'a' — breaking peek key --key a
+        // and every chord built on it (Cmd+A).
+        #expect(try #require(KeyMapping.keyCode(named: "a")) == 0x00)
+        #expect(try #require(KeyMapping.keyCode(named: "A")) == 0x00)
+    }
+
+    @Test
+    func keyCodeNamedSingleCharacters() throws {
+        let cases: [(String, CGKeyCode)] = [
+            ("n", 0x2D), ("z", 0x06), ("s", 0x01), ("1", 0x12), ("/", 0x2C)
+        ]
+        for (name, expected) in cases {
+            #expect(try #require(KeyMapping.keyCode(named: name)) == expected, "keyCode(named: \(name))")
+        }
+    }
+
+    @Test
+    func keyCodeNamedNamedKeysCaseInsensitive() throws {
+        #expect(try #require(KeyMapping.keyCode(named: "escape")) == 0x35)
+        #expect(try #require(KeyMapping.keyCode(named: "ESC")) == 0x35)
+        #expect(try #require(KeyMapping.keyCode(named: "Return")) == 0x24)
+        #expect(try #require(KeyMapping.keyCode(named: "space")) == 0x31)
+        #expect(try #require(KeyMapping.keyCode(named: "f1")) == 0x7A)
+    }
+
+    @Test
+    func keyCodeNamedRejectsUnmapped() {
+        #expect(KeyMapping.keyCode(named: "é") == nil)
+        #expect(KeyMapping.keyCode(named: "abc") == nil)
+        #expect(KeyMapping.keyCode(named: "") == nil)
+    }
 }

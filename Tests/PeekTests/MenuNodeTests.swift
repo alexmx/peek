@@ -191,7 +191,8 @@ struct MenuNodeTests {
 
         #expect(json.contains("\"title\":\"Open\""))
         #expect(json.contains("\"role\":\"MenuItem\""))
-        #expect(json.contains("\"enabled\":true"))
+        // enabled is omitted when true (MenuNode.encode only emits it when false)
+        #expect(!json.contains("\"enabled\""))
         #expect(json.contains("\"shortcut\":\"⌘O\""))
     }
 

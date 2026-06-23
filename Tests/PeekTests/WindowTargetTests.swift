@@ -235,8 +235,10 @@ struct WindowTargetTests {
 
     @Test
     func findWindowEmptyListApp() {
+        // findWindow falls back to scanning real running apps (findRunningPID), so the
+        // name must not match any live process for the not-found error path to fire.
         #expect(throws: ValidationError.self) {
-            try WindowTarget.findWindow(in: [], app: "Safari")
+            try WindowTarget.findWindow(in: [], app: "NoSuchApp_ZZZ_unlikely_42")
         }
     }
 
