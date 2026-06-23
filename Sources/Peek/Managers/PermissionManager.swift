@@ -22,7 +22,7 @@ enum PermissionManager {
     }
 
     /// Check all permissions, optionally prompting for any that are missing.
-    static func checkAll(prompt: Bool) -> Status {
+    static func checkAll(prompt: Bool) async -> Status {
         let accessibility: Bool
         if prompt {
             let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
@@ -31,11 +31,24 @@ enum PermissionManager {
             accessibility = AXIsProcessTrusted()
         }
 
-        let screenRecording = CGPreflightScreenCaptureAccess()
+        let screenRecording = await probeScreenRecording()
         if !screenRecording, prompt {
             CGRequestScreenCaptureAccess()
         }
 
         return Status(accessibility: accessibility, screenRecording: screenRecording)
+    }
+
+    /// Whether Screen Recording actually works, via a real ScreenCaptureKit query.
+    /// Preflight can report granted while SCShareableContent denies, so probe instead.
+    /// Cache is cleared first so the result reflects current state.
+    private static func probeScreenRecording() async -> Bool {
+        WindowManager.invalidateCache()
+        do {
+            _ = try await WindowManager.listWindows()
+            return true
+        } catch {
+            return false
+        }
     }
 }

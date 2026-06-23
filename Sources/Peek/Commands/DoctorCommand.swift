@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct DoctorCommand: ParsableCommand {
+struct DoctorCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "doctor",
         abstract: "Check permissions and system readiness"
@@ -13,8 +13,8 @@ struct DoctorCommand: ParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    func run() throws {
-        let status = PermissionManager.checkAll(prompt: prompt)
+    func run() async throws {
+        let status = await PermissionManager.checkAll(prompt: prompt)
 
         switch format {
         case .json:

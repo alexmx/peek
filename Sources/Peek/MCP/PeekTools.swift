@@ -829,7 +829,7 @@ enum PeekTools {
         description: "Check if required permissions (Accessibility, Screen Recording) are granted."
     ) { (args: DoctorArgs) in
         let prompt = args.prompt ?? false
-        let status = PermissionManager.checkAll(prompt: prompt)
+        let status = await PermissionManager.checkAll(prompt: prompt)
         return try json(status)
     }
 }
