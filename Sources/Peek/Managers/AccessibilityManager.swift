@@ -130,12 +130,21 @@ enum AccessibilityManager {
 
     /// A range of text read from an element via parameterized AX attributes.
     /// `bounds` is the screen rect of the returned range when requested (and supported).
+    /// `selection` is the element's live caret/selection when requested (and supported),
+    /// independent of the read range.
     struct TextContent: Encodable {
         let length: Int
         let offset: Int
         let text: String
         let truncated: Bool
         let bounds: AXNode.FrameInfo?
+        let selection: Selection?
+    }
+
+    /// The current caret/selection of a text element (length 0 = caret position).
+    struct Selection: Encodable {
+        let offset: Int
+        let length: Int
     }
 
     /// Default character ceiling for a single `readText` call.
@@ -155,7 +164,8 @@ enum AccessibilityManager {
         description: String?,
         offset: Int,
         length: Int?,
-        bounds: Bool = false
+        bounds: Bool = false,
+        selection: Bool = false
     ) throws -> TextContent {
         let window = try resolveWindow(pid: pid, windowID: windowID)
         guard let match = findFirst(
@@ -166,9 +176,13 @@ enum AccessibilityManager {
         guard let total = AXBridge.numberOfCharacters(of: match.ref) else {
             throw PeekError.noTextContent
         }
+        // Selection is element state, independent of the read range.
+        let sel = selection ? AXBridge.selectedRange(of: match.ref).map {
+            Selection(offset: $0.offset, length: $0.length)
+        } : nil
         let start = max(0, offset)
         if start >= total {
-            return TextContent(length: total, offset: start, text: "", truncated: false, bounds: nil)
+            return TextContent(length: total, offset: start, text: "", truncated: false, bounds: nil, selection: sel)
         }
         let take = min(length ?? textReadCap, total - start)
         guard let text = AXBridge.string(of: match.ref, offset: start, length: take) else {
@@ -182,7 +196,10 @@ enum AccessibilityManager {
                 height: Int($0.size.height)
             )
         } : nil
-        return TextContent(length: total, offset: start, text: text, truncated: start + take < total, bounds: rect)
+        return TextContent(
+            length: total, offset: start, text: text,
+            truncated: start + take < total, bounds: rect, selection: sel
+        )
     }
 
     /// Find the deepest element at the given screen coordinates.

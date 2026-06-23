@@ -36,6 +36,12 @@ struct TextCommand: AsyncParsableCommand {
     )
     var bounds: Bool = false
 
+    @Flag(
+        name: .long,
+        help: "Also return the element's current caret/selection range (AXSelectedTextRange) — length 0 = caret position"
+    )
+    var selection: Bool = false
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -56,7 +62,8 @@ struct TextCommand: AsyncParsableCommand {
             description: desc,
             offset: offset,
             length: length,
-            bounds: bounds
+            bounds: bounds,
+            selection: selection
         )
 
         switch format {
@@ -68,6 +75,9 @@ struct TextCommand: AsyncParsableCommand {
             print(result.text)
             if let b = result.bounds {
                 print("\nbounds: (\(b.x), \(b.y)) \(b.width)x\(b.height)")
+            }
+            if let s = result.selection {
+                print("\nselection: offset \(s.offset), length \(s.length)")
             }
             if result.truncated {
                 let next = result.offset + result.text.count

@@ -334,6 +334,17 @@ enum AXBridge {
         return rect
     }
 
+    /// Current selection/caret of a text element (plain AXSelectedTextRange).
+    /// `length == 0` is a caret position; `> 0` is a selected span. Nil if unsupported.
+    static func selectedRange(of element: AXUIElement) -> (offset: Int, length: Int)? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &ref) == .success,
+              let value = ref, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
+        var range = CFRange()
+        guard AXValueGetValue(value as! AXValue, .cfRange, &range) else { return nil }
+        return (range.location, range.length)
+    }
+
     // MARK: - Menu Attributes
 
     /// Read the keyboard shortcut from a menu item element.
