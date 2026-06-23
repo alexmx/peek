@@ -74,6 +74,7 @@ Window-less UI (Dock, Control Center, status-menu helpers) is addressable by `--
 ### Inspection
 - **tree** — Accessibility tree of a window. `--depth` to limit traversal (CLI default: full tree; MCP default: 5).
 - **find** — Search elements by `--role`, `--title`, `--value`, `--desc`, `--enabled`, or hit-test with `--x`/`--y`. `--title` matches AXTitle OR AXDescription. `--limit N` stops after N matches (use `--limit 1` for existence checks).
+- **text** — Read an element's full text, including parameterized text (AXStringForRange) that `find`/`tree` show as empty or a capped preview (SwiftUI/NavigableStaticText). Selects the first match by `--role`/`--title`/`--value`/`--desc`. `--offset`/`--length` page large text. `--bounds` adds the screen rect of the read range (AXBoundsForRange) for click/drag targeting; `--selection` adds the live caret/selection range; `--substring <text>` locates the first occurrence at/after `--offset` (advance `--offset` to page occurrences) — pair with `--bounds` for a clickable rect.
 - **menu** — Menu bar structure. `--find` searches items, `--click` triggers an item, `--path` returns just a scoped submenu (e.g. `--path Debug`) to avoid dumping the full menu tree on large apps. The MCP variant soft-caps no-arg responses.
 
 ### Interaction

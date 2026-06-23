@@ -93,6 +93,9 @@ peek find --app Xcode --x 280 --y 50
 # Filter by AX attribute, not just title (System Settings stores labels in `value`)
 peek find --app "System Settings" --value "General"
 
+# Read text find/tree show as empty (SwiftUI static text), and get a word's clickable rect
+peek text --app Notes --role TextArea --substring "Reminder" --bounds
+
 # Read the menu bar and discover shortcuts
 peek menu --app Safari --find "New Tab"
 
@@ -121,6 +124,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 |---|---|---|
 | `tree` | Accessibility tree of a window | `--depth N` |
 | `find` | Search elements by AX attributes or hit-test | `--role`, `--title` (matches AXTitle OR AXDescription), `--value`, `--desc`, `--enabled true\|false`; `--x --y` for hit-test; `--limit N` (use `--limit 1` for existence checks) |
+| `text` | Read an element's full text, incl. parameterized (NavigableStaticText) text `find`/`tree` show as empty | `--role`/`--title`/`--value`/`--desc` to select; `--offset --length` to page; `--bounds` (screen rect of the range), `--selection` (caret/selection range), `--substring TEXT` (locate by content, pairs with `--bounds`) |
 | `menu` | Inspect or click menu bar items | `--find QUERY`, `--path "Menu > Submenu"`, `--click TITLE` |
 
 ### Interaction

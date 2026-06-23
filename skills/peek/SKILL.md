@@ -52,6 +52,19 @@ Pass `--limit N` to stop after N matches (`--limit 1` for existence checks — b
 
 To interact with a match, call `peek action` with the same filters — don't `peek find` then `peek click`.
 
+### `peek text` — read an element's full text content
+
+Reads text behind parameterized AX attributes (AXStringForRange), so it returns content `peek find`/`peek tree` show as empty or a 2000-char capped preview (SwiftUI / NavigableStaticText — watch for `valueTruncated`/`valueLength` in their output). Selects the first match by `--role`/`--title`/`--value`/`--desc`.
+
+- `--offset N` / `--length N` — page large text. Result is `{length, offset, text, truncated}`; when `truncated`, advance `--offset` by what you read.
+- `--bounds` — add the screen rect of the read range. Pair with a small `--offset`/`--length` to get a clickable rect for `peek click` / `peek drag`.
+- `--selection` — add the live caret/selection range (`length 0` = caret position).
+- `--substring "text"` — locate the first occurrence at/after `--offset` (case-sensitive); advance `--offset` past a match to page occurrences. Combine with `--bounds` to click a specific word. Excludes `--length`.
+
+```bash
+peek text --app Notes --role TextArea --substring "Reminder" --bounds   # → offset + clickable rect
+```
+
 ### `peek action` — perform AX actions
 
 Finds + acts in one call. Filters: `--role`, `--title`, `--value`, `--desc`. `--all` to act on every match.
