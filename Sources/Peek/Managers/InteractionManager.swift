@@ -26,6 +26,10 @@ enum InteractionManager {
             return try await activateApp(pid: pid)
         }
 
+        // Activation can change which windows are on-screen / on the current Space, so the
+        // cached window list (apps/find/resolve) is stale afterward — refresh on exit.
+        defer { WindowManager.invalidateCache() }
+
         try PermissionManager.requireAccessibility()
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
@@ -54,6 +58,10 @@ enum InteractionManager {
     /// windows (e.g. Finder when no Finder windows are open) — the menu bar still
     /// belongs to a running app and we need to bring it to the front to interact.
     static func activateApp(pid: pid_t) async throws -> ActivateResult {
+        // See activate(_:): a fronted app may surface windows that were off-screen /
+        // on another Space, so the window-list cache is stale after activation.
+        defer { WindowManager.invalidateCache() }
+
         try PermissionManager.requireAccessibility()
 
         guard let app = NSRunningApplication(processIdentifier: pid) else {
