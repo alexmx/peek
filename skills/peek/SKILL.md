@@ -32,6 +32,8 @@ peek action --app Calculator --do Press --role Button --title 5 --verify diff
 
 All UI commands accept one of: `--app NAME` (case-insensitive substring), `--pid PID`, or a positional `<window-id>`. `--app` is simplest. Doesn't apply to `launch` / `quit` (use `--bundle-id` / `--name`).
 
+For coordinate ops (`click`/`drag`/`scroll`) with a target set, peek verifies the point lands on that app/window — it raises an occluded target window, or errors `(x, y) is over '<OtherApp>'` if the coordinates are stale or over another window. On that error, re-read frames with `peek find` (windows move/resize) or pass a specific `<window-id>` for multi-window apps.
+
 **Window-less apps** (Dock, Control Center, status-menu helpers): `--app NAME` or `--pid` scopes `find`/`tree`/`action` to the AXApplication root. Not in `peek apps` — go straight to `peek find --app Dock --role AXDockItem`.
 
 ## Commands

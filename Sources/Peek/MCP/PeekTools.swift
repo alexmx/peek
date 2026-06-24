@@ -97,6 +97,18 @@ enum PeekTools {
         }
     }
 
+    /// Guard a coordinate op against the wrong window, when a target was provided.
+    /// Delegates to InteractionManager.ensureOnTarget (shared with the CLI commands).
+    private static func guardCoordinates(
+        _ points: [(x: Int, y: Int)], windowID: Int?, app: String?, pid: Int?
+    ) async throws {
+        guard windowID != nil || app != nil || pid != nil else { return }
+        let resolved = try await resolvePID(windowID: windowID, app: app, pid: pid)
+        try await InteractionManager.ensureOnTarget(
+            points: points, pid: resolved, windowID: windowID.map { CGWindowID($0) }
+        )
+    }
+
     /// Default tree depth when `args.depth` is not provided. Caps the response size
     /// so a tree from a deeply-nested app (Xcode, System Settings) doesn't blow out
     /// the MCP context window. Callers who need to drill deeper pass an explicit value.
@@ -575,10 +587,11 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass app/pid/window_id to auto-activate. Re-read frames after activate/ShowMenu/menu click — windows can move."
+        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window). Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            try await guardCoordinates([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
             let count = max(1, min(args.count ?? 1, 3))
             let buttonRaw = (args.button ?? "left").lowercased()
             guard let button = InteractionManager.MouseButton(rawValue: buttonRaw) else {
@@ -644,10 +657,14 @@ enum PeekTools {
 
     static let drag = MCPTool(
         name: "peek_drag",
-        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate. For touch-style scroll swipes (iOS Simulator), use peek_scroll drag=true instead."
+        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (iOS Simulator), use peek_scroll drag=true instead."
     ) { (args: DragArgs) in
         try await withTimeout("peek_drag") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            try await guardCoordinates(
+                [(args.from_x, args.from_y), (args.to_x, args.to_y)],
+                windowID: args.window_id, app: args.app, pid: args.pid
+            )
             InteractionManager.drag(
                 fromX: Double(args.from_x), fromY: Double(args.from_y),
                 toX: Double(args.to_x), toY: Double(args.to_y)
@@ -661,10 +678,11 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate."
+        description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            try await guardCoordinates([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
             let dx = Int32(clamping: args.deltaX ?? 0)
             let dy = Int32(clamping: args.deltaY)
             if args.drag ?? false {

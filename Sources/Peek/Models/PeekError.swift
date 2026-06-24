@@ -10,6 +10,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
     case elementNotFound
     case noTextContent
     case substringNotFound(String)
+    case coordinateOffTarget(x: Int, y: Int, target: String, actual: String)
     case actionFailed(String, AXError)
     case noMenuBar(pid_t)
     case menuItemNotFound(String)
@@ -41,6 +42,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
             "Matched element exposes no readable text (AXNumberOfCharacters/AXStringForRange unsupported)."
         case .substringNotFound(let needle):
             "Substring '\(needle)' not found in the matched element's text (case-sensitive; whitespace comes from AX, not the rendered layout)."
+        case .coordinateOffTarget(let x, let y, let target, let actual):
+            "Coordinate (\(x), \(y)) is over '\(actual)', not the target '\(target)'. The target window is occluded or the coordinates are stale — re-read frames with peek_find, or pass window_id to disambiguate."
         case .actionFailed(let action, let error):
             "Action '\(action)' failed: \(error.label). Try a different action for this element role."
         case .noMenuBar(let pid):

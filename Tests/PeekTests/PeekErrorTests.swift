@@ -289,11 +289,22 @@ struct PeekErrorTests {
     }
 
     @Test
+    func coordinateOffTargetDescription() throws {
+        let error = PeekError.coordinateOffTarget(x: 100, y: 490, target: "CodeChat", actual: "Ghostty")
+        let description = try #require(error.errorDescription)
+        #expect(description.contains("(100, 490)"))
+        #expect(description.contains("CodeChat"))
+        #expect(description.contains("Ghostty"))
+        #expect(description.contains("window_id"))
+    }
+
+    @Test
     func descriptionMatchesErrorDescription() throws {
         // The MCP server renders errors via String(describing:); CustomStringConvertible
         // must route that to errorDescription instead of the bare case name.
         let cases: [PeekError] = [
-            .noTextContent, .substringNotFound("x"), .screenCaptureNotGranted, .elementNotFound, .windowNotFound(7)
+            .noTextContent, .substringNotFound("x"), .screenCaptureNotGranted, .elementNotFound, .windowNotFound(7),
+            .coordinateOffTarget(x: 1, y: 2, target: "A", actual: "B")
         ]
         for error in cases {
             let expected = try #require(error.errorDescription)

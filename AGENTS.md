@@ -68,6 +68,8 @@ All commands support `--format json` for JSON output (default: text). Most comma
 
 Window-less UI (Dock, Control Center, status-menu helpers) is addressable by `--app`/`--pid` — `find`/`tree`/`action` scope to the AXApplication root. Not listed by `peek apps`.
 
+Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lands on that app/window — raising an occluded target window, or erroring (`coordinateOffTarget`) when the coordinates are stale or over another window. This guards both the CLI and MCP paths.
+
 ### Discovery
 - **apps** — List running apps and windows. `--app` to filter by name.
 

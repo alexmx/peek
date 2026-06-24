@@ -150,6 +150,66 @@ enum InteractionManager {
         let app: String
     }
 
+    // MARK: - Coordinate targeting
+
+    private struct HitWindow {
+        let pid: pid_t
+        let windowID: CGWindowID
+        let bounds: CGRect
+    }
+
+    /// On-screen, normal-layer (user) windows ordered front-to-back, with screen bounds.
+    private static func onScreenWindowsFrontToBack() -> [HitWindow] {
+        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
+        guard let infos = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else { return [] }
+        return infos.compactMap { info in
+            guard (info[kCGWindowLayer as String] as? Int ?? -1) == 0,
+                  let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  let num = info[kCGWindowNumber as String] as? CGWindowID,
+                  let boundsDict = info[kCGWindowBounds as String],
+                  let rect = CGRect(dictionaryRepresentation: boundsDict as! CFDictionary)
+            else { return nil }
+            return HitWindow(pid: pid, windowID: num, bounds: rect)
+        }
+    }
+
+    private static func appName(of pid: pid_t) -> String {
+        NSRunningApplication(processIdentifier: pid)?.localizedName ?? "pid \(pid)"
+    }
+
+    /// Verify each screen point lands on the intended app/window before a coordinate
+    /// event fires. After activation the app is frontmost, but a point may still be over
+    /// another window — stale coordinates, an always-on-top panel, or an occluded sibling.
+    /// Self-heals by raising the target window under the point; throws when a point isn't
+    /// over the target at all. `windowID == nil` checks app ownership only; non-nil
+    /// requires that exact window on top. Callers pass it only when a target was given.
+    static func ensureOnTarget(points: [(x: Int, y: Int)], pid: pid_t, windowID: CGWindowID?) async throws {
+        for p in points {
+            try await ensurePointOnTarget(x: p.x, y: p.y, pid: pid, windowID: windowID)
+        }
+    }
+
+    private static func ensurePointOnTarget(x: Int, y: Int, pid: pid_t, windowID: CGWindowID?) async throws {
+        let point = CGPoint(x: Double(x), y: Double(y))
+        func onTarget() -> Bool {
+            guard let top = onScreenWindowsFrontToBack().first(where: { $0.bounds.contains(point) })
+            else { return false }
+            return top.pid == pid && (windowID == nil || top.windowID == windowID)
+        }
+        if onTarget() { return }
+        // Self-heal: a target window is under the point but occluded — raise it.
+        if let tw = onScreenWindowsFrontToBack().first(where: {
+            $0.bounds.contains(point) && $0.pid == pid && (windowID == nil || $0.windowID == windowID)
+        }), let element = AXBridge.window(pid: pid, windowID: tw.windowID) {
+            AXBridge.raise(element)
+            try await Task.sleep(nanoseconds: 120_000_000) // let the window-server reorder
+            if onTarget() { return }
+        }
+        let actual = onScreenWindowsFrontToBack().first(where: { $0.bounds.contains(point) })
+            .map { appName(of: $0.pid) } ?? "no window"
+        throw PeekError.coordinateOffTarget(x: x, y: y, target: appName(of: pid), actual: actual)
+    }
+
     enum MouseButton: String {
         case left, right
     }

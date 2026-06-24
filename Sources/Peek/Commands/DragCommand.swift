@@ -35,6 +35,9 @@ struct DragCommand: AsyncParsableCommand {
         if target.windowID != nil || target.app != nil || target.pid != nil {
             let resolved = try await target.resolve()
             _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+            try await InteractionManager.ensureOnTarget(
+                points: [(fromX, fromY), (toX, toY)], pid: resolved.pid, windowID: target.windowID
+            )
         }
 
         InteractionManager.drag(

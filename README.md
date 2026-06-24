@@ -142,6 +142,8 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 
 Window-less system UI (Dock, Control Center, status-menu helpers) is addressable too — pass `--app` or `--pid` and `find`/`tree`/`action`/`move` scope to the app's AX root. These processes don't appear in `peek apps`.
 
+`click`, `drag`, and `scroll` with a target (`--app`/`--pid`/`<window-id>`) verify the point actually lands on that app/window — raising an occluded target window, or erroring if the coordinates are stale or over another window (so a background app doesn't silently receive the event). Re-read frames with `peek find` on that error, or pass a `<window-id>` for multi-window apps.
+
 ### Monitoring & System
 
 | Command | Description | Key options |
