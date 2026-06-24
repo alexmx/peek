@@ -14,7 +14,10 @@ struct ActionCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .long, help: "The action to perform (e.g. Press, Confirm, Cancel, ShowMenu)")
+    @Option(
+        name: .long,
+        help: "The action to perform (e.g. Press, Confirm, Cancel, ShowMenu, Select). Select sets AXSelected for rows/items (NSOutlineView/NSTableView) that have no AXPress."
+    )
     var `do`: String
 
     @Option(name: .long, help: "Filter by role (e.g. Button)")

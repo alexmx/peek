@@ -75,6 +75,7 @@ Actions:
 - **ShowMenu** — rare; try Press first and read `unsupportedAction` errors
 - **Increment / Decrement** — sliders, steppers
 - **Raise** — windows
+- **Select** — rows/items in NSOutlineView/NSTableView/source lists (sidebars) that expose no Press. Sets AXSelected; match the row's **label** (e.g. `--value "History"`) and it climbs to the selectable row. Prefer this over coordinate clicks for sidebar/list selection, and `--verify diff` to confirm.
 
 Verification: `--verify diff` (default delay 0.15s) returns just what changed — the recommended check for "did this update?". `--verify tree` returns the full post-action tree. `--depth N` and `--delay N` tune the snapshot; bump delay for apps that lazy-paint values.
 

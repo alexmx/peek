@@ -343,7 +343,9 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty("AX action: Press, Confirm, Cancel, ShowMenu, Increment, Decrement, Raise.")
+        @InputProperty(
+            "AX action: Press, Confirm, Cancel, ShowMenu, Increment, Decrement, Raise, Select. Select sets AXSelected — use it for NSOutlineView/NSTableView/source-list rows (which have no Press); match the row's label (it climbs to the selectable row)."
+        )
         var action: String
 
         @InputProperty("Filter by role")
@@ -708,7 +710,7 @@ enum PeekTools {
 
     static let action = MCPTool(
         name: "peek_action",
-        description: "Find an element by role/title/desc and act on it in one call. Actions: Press (buttons, checkboxes, items in an ALREADY-OPEN menu — for menu BAR use peek_menu --click), Confirm (text fields), ShowMenu (rare; try Press first and read unsupportedAction errors), Increment/Decrement (sliders). For shortcuts (⌘S, ⌘W, Esc, F-keys), prefer peek_key. Verification: default to verify='diff' for 'did this update?' checks — much smaller than verify='tree'. Bump delay for apps that lazy-paint values."
+        description: "Find an element by role/title/desc and act on it in one call. Actions: Press (buttons, checkboxes, items in an ALREADY-OPEN menu — for menu BAR use peek_menu --click), Confirm (text fields), ShowMenu (rare; try Press first and read unsupportedAction errors), Increment/Decrement (sliders), Select (rows/items in NSOutlineView/NSTableView/source lists that expose no Press — sets AXSelected; use this instead of coordinate clicks for sidebar/list selection, and verify='diff' to confirm). For shortcuts (⌘S, ⌘W, Esc, F-keys), prefer peek_key. Verification: default to verify='diff' for 'did this update?' checks — much smaller than verify='tree'. Bump delay for apps that lazy-paint values."
     ) { (args: ActionArgs) in
         let settleDelay = args.delay ?? 0.15
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {

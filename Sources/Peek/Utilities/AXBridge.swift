@@ -274,7 +274,15 @@ enum AXBridge {
     /// Verifies the action is in the element's supported list first to avoid silent no-ops
     /// (e.g. ShowMenu on a regular button, or typoed action names). After dispatch, tolerates
     /// transient AX errors that SwiftUI emits when an element is recreated mid-action.
+    ///
+    /// `Select` is a pseudo-action: rows/items (NSOutlineView, NSTableView, source lists)
+    /// expose no AXPress — selection is done by setting AXSelected, not performing an action.
     static func performAction(_ action: String, on element: AXUIElement) throws {
+        if action.caseInsensitiveCompare("Select") == .orderedSame {
+            try setSelected(element)
+            return
+        }
+
         let axAction = ensureAXPrefix(action)
         let supported = supportedActions(of: element)
         let stripped = stripAXPrefix(axAction)
@@ -286,6 +294,41 @@ enum AXBridge {
         if result != .success, !toleratedActionErrors.contains(result) {
             throw PeekError.actionFailed(axAction, result)
         }
+    }
+
+    /// Select an element by setting AXSelected = true — the AX path for rows/items that
+    /// don't support AXPress.
+    ///
+    /// The labeled element an agent matches (a StaticText/Cell inside a row) usually
+    /// isn't itself selectable, while its enclosing AXRow is. So try the element, then
+    /// climb to the nearest ancestor whose AXSelected is settable. Throws if nothing in
+    /// the chain is selectable.
+    private static func setSelected(_ element: AXUIElement) throws {
+        var current: AXUIElement? = element
+        var hops = 0
+        while let el = current, hops < 6 {
+            if isSelectable(el),
+               AXUIElementSetAttributeValue(el, kAXSelectedAttribute as CFString, kCFBooleanTrue) == .success {
+                return
+            }
+            current = parent(of: el)
+            hops += 1
+        }
+        throw PeekError.actionFailed("Select", .attributeUnsupported)
+    }
+
+    private static func isSelectable(_ element: AXUIElement) -> Bool {
+        var settable: DarwinBoolean = false
+        return AXUIElementIsAttributeSettable(element, kAXSelectedAttribute as CFString, &settable) == .success
+            && settable.boolValue
+    }
+
+    private static func parent(of element: AXUIElement) -> AXUIElement? {
+        var ref: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &ref) == .success,
+              let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
+        // swiftlint:disable:next force_cast
+        return (ref as! AXUIElement)
     }
 
     /// Raise a window (fire-and-forget).
