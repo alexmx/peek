@@ -4,6 +4,18 @@ import CoreGraphics
 import Foundation
 
 enum InteractionManager {
+    /// Shared source for synthesized mouse/scroll events. The local-events suppression
+    /// interval makes the window server suppress the user's *physical* mouse for a short
+    /// window after each posted event — so a hand moving the mouse mid-click can't
+    /// interleave a real `.mouseMoved` between our down and up (which would corrupt the
+    /// click into a drag) or yank the cursor off-target. 0.15s comfortably covers the
+    /// ~30ms down→up gap and lingers only briefly after the gesture.
+    nonisolated(unsafe) static let eventSource: CGEventSource? = {
+        let source = CGEventSource(stateID: .combinedSessionState)
+        source?.localEventsSuppressionInterval = 0.15
+        return source
+    }()
+
     /// Activate an app and raise its window.
     /// Polls frontmost + z-order after activation; retries once if macOS dropped the request.
     /// Throws `PeekError.activationFailed` if the app is still not frontmost after the budget.
@@ -150,19 +162,19 @@ enum InteractionManager {
         // with no preceding .mouseMoved can silently no-op on controls that gate on
         // mouseEntered/cursorUpdate (NSOutlineView/NSTableView rows especially) — the
         // reason a manual peek_move then peek_click works where a bare click doesn't.
-        CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?
+        CGEvent(mouseEventSource: eventSource, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?
             .post(tap: .cghidEventTap)
         usleep(15000)
 
         for i in 1...clamped {
             let down = CGEvent(
-                mouseEventSource: nil,
+                mouseEventSource: eventSource,
                 mouseType: downType,
                 mouseCursorPosition: point,
                 mouseButton: btn
             )
             let up = CGEvent(
-                mouseEventSource: nil,
+                mouseEventSource: eventSource,
                 mouseType: upType,
                 mouseCursorPosition: point,
                 mouseButton: btn
@@ -185,7 +197,7 @@ enum InteractionManager {
         let distance = (dx * dx + dy * dy).squareRoot()
 
         let mouseDown = CGEvent(
-            mouseEventSource: nil,
+            mouseEventSource: eventSource,
             mouseType: .leftMouseDown,
             mouseCursorPosition: CGPoint(x: fromX, y: fromY),
             mouseButton: .left
@@ -202,7 +214,7 @@ enum InteractionManager {
             }
             let point = CGPoint(x: fromX + dx * t, y: fromY + dy * t)
             let drag = CGEvent(
-                mouseEventSource: nil,
+                mouseEventSource: eventSource,
                 mouseType: .leftMouseDragged,
                 mouseCursorPosition: point,
                 mouseButton: .left
@@ -212,7 +224,7 @@ enum InteractionManager {
         }
 
         let mouseUp = CGEvent(
-            mouseEventSource: nil,
+            mouseEventSource: eventSource,
             mouseType: .leftMouseUp,
             mouseCursorPosition: CGPoint(x: toX, y: toY),
             mouseButton: .left
@@ -232,7 +244,7 @@ enum InteractionManager {
     ///   - dwellMs: milliseconds to sleep after the final move so the caller can capture the
     ///     hover state before something else perturbs the cursor.
     ///
-    /// Posts via `.cghidEventTap` with `mouseEventSource: nil` — the same path `scroll` already
+    /// Posts via `.cghidEventTap` with `mouseEventSource: eventSource` — the same path `scroll` already
     /// uses to seed cursor position, which routes through NSTrackingArea correctly.
     static func move(
         fromX: Double? = nil,
@@ -248,7 +260,7 @@ enum InteractionManager {
 
         if clampedSteps == 1 || (fromX == nil && fromY == nil) {
             let move = CGEvent(
-                mouseEventSource: nil,
+                mouseEventSource: eventSource,
                 mouseType: .mouseMoved,
                 mouseCursorPosition: CGPoint(x: toX, y: toY),
                 mouseButton: .left
@@ -261,7 +273,7 @@ enum InteractionManager {
                 let t = Double(i) / Double(clampedSteps)
                 let point = CGPoint(x: startX + dx * t, y: startY + dy * t)
                 let move = CGEvent(
-                    mouseEventSource: nil,
+                    mouseEventSource: eventSource,
                     mouseType: .mouseMoved,
                     mouseCursorPosition: point,
                     mouseButton: .left
@@ -290,7 +302,7 @@ enum InteractionManager {
 
         // Move cursor to target so scroll event reaches the correct view
         let move = CGEvent(
-            mouseEventSource: nil,
+            mouseEventSource: eventSource,
             mouseType: .mouseMoved,
             mouseCursorPosition: point,
             mouseButton: .left
@@ -301,7 +313,7 @@ enum InteractionManager {
         // CGEvent: positive wheel1 = scroll up, so negate for our convention (positive = down)
         // Mark as continuous (trackpad-style) for broader app compatibility
         let event = CGEvent(
-            scrollWheelEvent2Source: nil,
+            scrollWheelEvent2Source: eventSource,
             units: .pixel,
             wheelCount: 2,
             wheel1: -deltaY,
