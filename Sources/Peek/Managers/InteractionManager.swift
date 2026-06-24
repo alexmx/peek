@@ -146,6 +146,14 @@ enum InteractionManager {
         case .right: (.rightMouseDown, .rightMouseUp, .right)
         }
 
+        // Prime the target's hover/tracking state before pressing. A synthetic mouseDown
+        // with no preceding .mouseMoved can silently no-op on controls that gate on
+        // mouseEntered/cursorUpdate (NSOutlineView/NSTableView rows especially) — the
+        // reason a manual peek_move then peek_click works where a bare click doesn't.
+        CGEvent(mouseEventSource: nil, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?
+            .post(tap: .cghidEventTap)
+        usleep(15000)
+
         for i in 1...clamped {
             let down = CGEvent(
                 mouseEventSource: nil,
