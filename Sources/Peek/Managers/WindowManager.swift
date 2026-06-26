@@ -49,54 +49,114 @@ enum WindowManager {
     /// Per-attempt ceiling for the ScreenCaptureKit query.
     private static let shareableContentTimeout: TimeInterval = 5
 
-    /// Window list via ScreenCaptureKit, bounded by a timeout (the query can leak its
-    /// continuation and hang) and mapping -3801 to a clear permission error. Mapping
-    /// runs inside the raced task since SCShareableContent/SCWindow aren't Sendable.
+    /// Window list via ScreenCaptureKit, bounded by a timeout.
+    ///
+    /// `SCShareableContent.excludingDesktopWindows` intermittently leaks its internal
+    /// `CheckedContinuation` and never resumes — its completion handler stops firing,
+    /// and the framework only gives up tens of seconds later (observed ~49s). A
+    /// `withThrowingTaskGroup` timeout does NOT help here: a task group awaits all of
+    /// its children before returning, and `cancelAll()` only *requests* cancellation,
+    /// which this query ignores — so the group blocks on the hung child anyway.
+    ///
+    /// Instead we run the query in a *detached* (unstructured) task and race it against
+    /// a timeout through a resume-once continuation. If the query hangs, the timeout
+    /// resumes the awaiting caller after `shareableContentTimeout` and the detached task
+    /// is abandoned (it may still log a continuation-leak warning from inside SC, but it
+    /// no longer blocks us). Mapping runs inside the detached task since
+    /// SCShareableContent/SCWindow aren't Sendable.
     private static func fetchWindows() async throws -> [WindowInfo] {
-        do {
-            return try await withThrowingTaskGroup(of: [WindowInfo].self) { group in
-                group.addTask {
-                    let content = try await SCShareableContent.excludingDesktopWindows(
-                        true,
-                        onScreenWindowsOnly: false
+        let box = FetchContinuation()
+
+        let work = Task.detached(priority: .userInitiated) {
+            do {
+                let content = try await SCShareableContent.excludingDesktopWindows(
+                    true,
+                    onScreenWindowsOnly: false
+                )
+                let onScreenIDs = onScreenWindowIDs()
+                let windows = content.windows.compactMap { scWindow -> WindowInfo? in
+                    guard let app = scWindow.owningApplication,
+                          scWindow.windowLayer == 0 else { return nil }
+
+                    let frame = scWindow.frame
+                    guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
+
+                    let title = scWindow.title ?? ""
+                    let isOnScreen = onScreenIDs.contains(scWindow.windowID)
+
+                    // Offscreen + no title = placeholder/staging window
+                    if !isOnScreen, title.isEmpty { return nil }
+
+                    // Skip AutoFill helper windows
+                    if app.applicationName.hasPrefix("AutoFill") { return nil }
+
+                    return WindowInfo(
+                        windowID: scWindow.windowID,
+                        ownerName: app.applicationName,
+                        windowTitle: title,
+                        pid: app.processID,
+                        frame: frame,
+                        isOnScreen: isOnScreen
                     )
-                    let onScreenIDs = onScreenWindowIDs()
-                    return content.windows.compactMap { scWindow -> WindowInfo? in
-                        guard let app = scWindow.owningApplication,
-                              scWindow.windowLayer == 0 else { return nil }
-
-                        let frame = scWindow.frame
-                        guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
-
-                        let title = scWindow.title ?? ""
-                        let isOnScreen = onScreenIDs.contains(scWindow.windowID)
-
-                        // Offscreen + no title = placeholder/staging window
-                        if !isOnScreen, title.isEmpty { return nil }
-
-                        // Skip AutoFill helper windows
-                        if app.applicationName.hasPrefix("AutoFill") { return nil }
-
-                        return WindowInfo(
-                            windowID: scWindow.windowID,
-                            ownerName: app.applicationName,
-                            windowTitle: title,
-                            pid: app.processID,
-                            frame: frame,
-                            isOnScreen: isOnScreen
-                        )
-                    }
                 }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: UInt64(shareableContentTimeout * 1_000_000_000))
-                    throw PeekError.captureFailed
-                }
-                defer { group.cancelAll() }
-                return try await group.next()!
+                box.complete(.success(windows))
+            } catch let error as NSError where error.domain.contains("SCStream") {
+                // ScreenCaptureKit denial (-3801).
+                box.complete(.failure(PeekError.screenCaptureNotGranted))
+            } catch {
+                box.complete(.failure(error))
             }
-        } catch let error as NSError where error.domain.contains("SCStream") {
-            // ScreenCaptureKit denial (-3801).
-            throw PeekError.screenCaptureNotGranted
+        }
+
+        let timeout = Task {
+            do {
+                try await Task.sleep(nanoseconds: UInt64(shareableContentTimeout * 1_000_000_000))
+                box.complete(.failure(PeekError.captureFailed))
+            } catch {
+                // Cancelled because the query already finished — nothing to do.
+            }
+        }
+        defer { timeout.cancel() }
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { cont in
+                box.attach(cont)
+            }
+        } onCancel: {
+            box.complete(.failure(CancellationError()))
+            work.cancel()
+        }
+    }
+
+    /// Resume-once mediator between the detached SCShareableContent task, the timeout
+    /// task, and the awaiting continuation. Whichever completes first wins; results that
+    /// arrive before the continuation is attached are buffered so none are dropped.
+    private final class FetchContinuation: @unchecked Sendable {
+        private let lock = NSLock()
+        private var cont: CheckedContinuation<[WindowInfo], Error>?
+        private var pending: Result<[WindowInfo], Error>?
+        private var done = false
+
+        func attach(_ c: CheckedContinuation<[WindowInfo], Error>) {
+            lock.lock(); defer { lock.unlock() }
+            if let pending {
+                done = true
+                c.resume(with: pending)
+            } else {
+                cont = c
+            }
+        }
+
+        func complete(_ result: Result<[WindowInfo], Error>) {
+            lock.lock(); defer { lock.unlock() }
+            guard !done else { return }
+            if let c = cont {
+                cont = nil
+                done = true
+                c.resume(with: result)
+            } else if pending == nil {
+                pending = result // arrived before attach; first one wins
+            }
         }
     }
 
