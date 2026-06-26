@@ -54,15 +54,12 @@ struct MoveCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-        if target.windowID != nil || target.app != nil || target.pid != nil {
-            let resolved = try await target.resolve()
-            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
-        }
+        _ = try await target.activateIfSpecified()
 
         let clampedSteps = max(1, steps)
         let clampedDwell = max(0, dwellMs)
 
-        InteractionManager.move(
+        await InteractionManager.move(
             fromX: fromX.map(Double.init),
             fromY: fromY.map(Double.init),
             toX: Double(x),
@@ -92,12 +89,7 @@ struct MoveCommand: AsyncParsableCommand {
             cursor: cursor,
             element: element
         )
-        switch format {
-        case .json:
-            try printJSON(result)
-        case .toon:
-            try printTOON(result)
-        case .default:
+        try emit(result, as: format) {
             let cursorStr = cursor.map { " (cursor at \($0.x), \($0.y))" } ?? ""
             let elementStr = element.map { " over \($0.role)\($0.title.map { " \"\($0)\"" } ?? "")" } ?? ""
             if let fx = fromX, let fy = fromY, clampedSteps > 1 {

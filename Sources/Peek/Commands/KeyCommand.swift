@@ -43,21 +43,13 @@ struct KeyCommand: AsyncParsableCommand {
             throw PeekError.invalidArgument(name: "key", value: key, valid: KeyMapping.allKeyNames)
         }
 
-        if target.windowID != nil || target.app != nil || target.pid != nil {
-            let resolved = try await target.resolve()
-            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
-        }
+        _ = try await target.activateIfSpecified()
 
         InteractionManager.sendKey(keyCode: code, flags: flags)
 
         let result = KeyResult(key: key, modifiers: tokens, keyCode: Int(code))
 
-        switch format {
-        case .json:
-            try printJSON(result)
-        case .toon:
-            try printTOON(result)
-        case .default:
+        try emit(result, as: format) {
             let modText = tokens.isEmpty ? "" : tokens.joined(separator: "+") + "+"
             print("Sent \(modText)\(key) (keyCode \(code))")
         }

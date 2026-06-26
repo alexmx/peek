@@ -16,12 +16,7 @@ struct DoctorCommand: AsyncParsableCommand {
     func run() async throws {
         let status = await PermissionManager.checkAll(prompt: prompt)
 
-        switch format {
-        case .json:
-            try printJSON(status)
-        case .toon:
-            try printTOON(status)
-        case .default:
+        try emit(status, as: format) {
             print("Accessibility:    \(status.accessibility ? "granted" : "not granted")")
             print("Screen Recording: \(status.screenRecording ? "granted" : "not granted")")
 

@@ -27,9 +27,7 @@ enum AXBridge {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
               let value = ref else { return nil }
-        if let str = value as? String { return str }
-        if let num = value as? NSNumber { return num.stringValue }
-        return nil
+        return stringValue(value)
     }
 
     private static func bool(of element: AXUIElement, key: String) -> Bool? {
@@ -47,14 +45,19 @@ enum AXBridge {
         return children
     }
 
+    /// Extract a CGRect from an AXValue ref, if it is one.
+    private static func cgRect(from raw: CFTypeRef) -> CGRect? {
+        guard CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
+        var rect = CGRect.zero
+        guard AXValueGetValue(raw as! AXValue, .cgRect, &rect) else { return nil }
+        return rect
+    }
+
     private static func frame(of element: AXUIElement) -> CGRect? {
         var frameRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef) == .success,
-           let frameRef, CFGetTypeID(frameRef) == AXValueGetTypeID() {
-            var rect = CGRect.zero
-            if AXValueGetValue(frameRef as! AXValue, .cgRect, &rect) {
-                return rect
-            }
+           let frameRef, let rect = cgRect(from: frameRef) {
+            return rect
         }
 
         var posRef: CFTypeRef?
@@ -74,15 +77,17 @@ enum AXBridge {
         return CGRect(origin: point, size: size)
     }
 
+    private static func frameInfo(from rect: CGRect) -> AXNode.FrameInfo {
+        AXNode.FrameInfo(
+            x: Int(rect.origin.x),
+            y: Int(rect.origin.y),
+            width: Int(rect.size.width),
+            height: Int(rect.size.height)
+        )
+    }
+
     private static func frameInfo(of element: AXUIElement) -> AXNode.FrameInfo? {
-        frame(of: element).map {
-            AXNode.FrameInfo(
-                x: Int($0.origin.x),
-                y: Int($0.origin.y),
-                width: Int($0.size.width),
-                height: Int($0.size.height)
-            )
-        }
+        frame(of: element).map(frameInfo(from:))
     }
 
     // MARK: - Application
@@ -125,6 +130,7 @@ enum AXBridge {
 
     // MARK: - Node Extraction
 
+    // `nonisolated(unsafe)`: CFArray isn't Sendable but this is an immutable, read-only constant.
     nonisolated(unsafe) private static let nodeAttributeKeys: CFArray = [
         kAXRoleAttribute,
         kAXTitleAttribute,
@@ -142,8 +148,8 @@ enum AXBridge {
         let result = AXUIElementCopyMultipleAttributeValues(
             element, nodeAttributeKeys, AXCopyMultipleAttributeOptions(rawValue: 0), &valuesRef
         )
-        if result == .success, let values = valuesRef as? [Any], values.count == 6 {
-            let node = AXNode(
+        let node = if result == .success, let values = valuesRef as? [Any], values.count == 6 {
+            AXNode(
                 role: stripAXPrefix((values[0] as? String) ?? "unknown"),
                 title: values[1] as? String,
                 value: stringValue(values[2]),
@@ -152,18 +158,17 @@ enum AXBridge {
                 frame: frameInfoFromAXValue(values[5]),
                 children: []
             )
-            return textContentFallback(node, element: element)
+        } else {
+            AXNode(
+                role: stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown"),
+                title: string(of: element, key: kAXTitleAttribute),
+                value: string(of: element, key: kAXValueAttribute),
+                description: string(of: element, key: kAXDescriptionAttribute),
+                enabled: bool(of: element, key: kAXEnabledAttribute),
+                frame: frameInfo(of: element),
+                children: []
+            )
         }
-
-        let node = AXNode(
-            role: stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown"),
-            title: string(of: element, key: kAXTitleAttribute),
-            value: string(of: element, key: kAXValueAttribute),
-            description: string(of: element, key: kAXDescriptionAttribute),
-            enabled: bool(of: element, key: kAXEnabledAttribute),
-            frame: frameInfo(of: element),
-            children: []
-        )
         return textContentFallback(node, element: element)
     }
 
@@ -199,15 +204,7 @@ enum AXBridge {
     }
 
     private static func frameInfoFromAXValue(_ raw: Any) -> AXNode.FrameInfo? {
-        guard CFGetTypeID(raw as CFTypeRef) == AXValueGetTypeID() else { return nil }
-        var rect = CGRect.zero
-        guard AXValueGetValue(raw as! AXValue, .cgRect, &rect) else { return nil }
-        return AXNode.FrameInfo(
-            x: Int(rect.origin.x),
-            y: Int(rect.origin.y),
-            width: Int(rect.size.width),
-            height: Int(rect.size.height)
-        )
+        cgRect(from: raw as CFTypeRef).map(frameInfo(from:))
     }
 
     /// Check whether an element matches the given filter set without building a
@@ -371,10 +368,8 @@ enum AXBridge {
         var ref: CFTypeRef?
         guard AXUIElementCopyParameterizedAttributeValue(
             element, kAXBoundsForRangeParameterizedAttribute as CFString, param, &ref
-        ) == .success, let value = ref, CFGetTypeID(value) == AXValueGetTypeID() else { return nil }
-        var rect = CGRect.zero
-        guard AXValueGetValue(value as! AXValue, .cgRect, &rect) else { return nil }
-        return rect
+        ) == .success, let value = ref else { return nil }
+        return cgRect(from: value)
     }
 
     /// Current selection/caret of a text element (plain AXSelectedTextRange).

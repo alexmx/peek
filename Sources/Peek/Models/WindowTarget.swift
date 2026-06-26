@@ -22,6 +22,19 @@ struct WindowTarget: ParsableArguments {
         try await Self.resolve(windowID: windowID, app: app, pid: pid)
     }
 
+    /// True if any targeting flag (window ID, --app, --pid) was provided.
+    var isSpecified: Bool {
+        windowID != nil || app != nil || pid != nil
+    }
+
+    /// Resolve and foreground the target when a targeting flag was provided; returns nil otherwise.
+    func activateIfSpecified() async throws -> Resolved? {
+        guard isSpecified else { return nil }
+        let resolved = try await resolve()
+        _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        return resolved
+    }
+
     /// Core resolution logic shared by CLI commands and MCP tools.
     static func resolve(windowID: UInt32? = nil, app: String? = nil, pid: pid_t? = nil) async throws -> Resolved {
         let windows = try await WindowManager.listWindows()

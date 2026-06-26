@@ -1,33 +1,29 @@
 import CoreGraphics
 import Foundation
 import ScreenCaptureKit
+import Synchronization
 
 enum WindowManager {
     private static let minWindowSize: CGFloat = 200
 
     private static let cacheTTL: TimeInterval = 0.3
-    nonisolated(unsafe) private static var cache: (windows: [WindowInfo], timestamp: Date)?
-    private static let cacheLock = NSLock()
+    private static let cache = Mutex<(windows: [WindowInfo], timestamp: Date)?>(nil)
 
     private static func cachedSnapshot() -> [WindowInfo]? {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        if let cached = cache, Date().timeIntervalSince(cached.timestamp) < cacheTTL {
-            return cached.windows
+        cache.withLock { cached in
+            if let cached, Date().timeIntervalSince(cached.timestamp) < cacheTTL {
+                return cached.windows
+            }
+            return nil
         }
-        return nil
     }
 
     private static func storeSnapshot(_ windows: [WindowInfo]) {
-        cacheLock.lock()
-        cache = (windows, Date())
-        cacheLock.unlock()
+        cache.withLock { $0 = (windows, Date()) }
     }
 
     static func invalidateCache() {
-        cacheLock.lock()
-        cache = nil
-        cacheLock.unlock()
+        cache.withLock { $0 = nil }
     }
 
     static func listWindows() async throws -> [WindowInfo] {
@@ -51,19 +47,11 @@ enum WindowManager {
 
     /// Window list via ScreenCaptureKit, bounded by a timeout.
     ///
-    /// `SCShareableContent.excludingDesktopWindows` intermittently leaks its internal
-    /// `CheckedContinuation` and never resumes — its completion handler stops firing,
-    /// and the framework only gives up tens of seconds later (observed ~49s). A
-    /// `withThrowingTaskGroup` timeout does NOT help here: a task group awaits all of
-    /// its children before returning, and `cancelAll()` only *requests* cancellation,
-    /// which this query ignores — so the group blocks on the hung child anyway.
-    ///
-    /// Instead we run the query in a *detached* (unstructured) task and race it against
-    /// a timeout through a resume-once continuation. If the query hangs, the timeout
-    /// resumes the awaiting caller after `shareableContentTimeout` and the detached task
-    /// is abandoned (it may still log a continuation-leak warning from inside SC, but it
-    /// no longer blocks us). Mapping runs inside the detached task since
-    /// SCShareableContent/SCWindow aren't Sendable.
+    /// `SCShareableContent.excludingDesktopWindows` intermittently hangs (~49s) leaking its
+    /// continuation. A TaskGroup timeout can't bound it — the group awaits all children and
+    /// the query ignores cancellation. So we run it detached and race a resume-once
+    /// continuation: on hang the timeout resumes the caller and the detached task is
+    /// abandoned. Mapping runs inside the task (SCShareableContent/SCWindow aren't Sendable).
     private static func fetchWindows() async throws -> [WindowInfo] {
         let box = FetchContinuation()
 
@@ -110,7 +98,7 @@ enum WindowManager {
 
         let timeout = Task {
             do {
-                try await Task.sleep(nanoseconds: UInt64(shareableContentTimeout * 1_000_000_000))
+                try await Delay.seconds(shareableContentTimeout)
                 box.complete(.failure(PeekError.captureFailed))
             } catch {
                 // Cancelled because the query already finished — nothing to do.
@@ -128,34 +116,38 @@ enum WindowManager {
         }
     }
 
-    /// Resume-once mediator between the detached SCShareableContent task, the timeout
-    /// task, and the awaiting continuation. Whichever completes first wins; results that
-    /// arrive before the continuation is attached are buffered so none are dropped.
-    private final class FetchContinuation: @unchecked Sendable {
-        private let lock = NSLock()
-        private var cont: CheckedContinuation<[WindowInfo], Error>?
-        private var pending: Result<[WindowInfo], Error>?
-        private var done = false
+    /// Resume-once race between the query, the timeout, and the awaiting continuation.
+    /// First completion wins; a result arriving before `attach` is buffered, not dropped.
+    private final class FetchContinuation: Sendable {
+        private struct State {
+            var cont: CheckedContinuation<[WindowInfo], Error>?
+            var pending: Result<[WindowInfo], Error>?
+            var done = false
+        }
+
+        private let state = Mutex(State())
 
         func attach(_ c: CheckedContinuation<[WindowInfo], Error>) {
-            lock.lock(); defer { lock.unlock() }
-            if let pending {
-                done = true
-                c.resume(with: pending)
-            } else {
-                cont = c
+            state.withLock { s in
+                if let pending = s.pending {
+                    s.done = true
+                    c.resume(with: pending)
+                } else {
+                    s.cont = c
+                }
             }
         }
 
         func complete(_ result: Result<[WindowInfo], Error>) {
-            lock.lock(); defer { lock.unlock() }
-            guard !done else { return }
-            if let c = cont {
-                cont = nil
-                done = true
-                c.resume(with: result)
-            } else if pending == nil {
-                pending = result // arrived before attach; first one wins
+            state.withLock { s in
+                guard !s.done else { return }
+                if let c = s.cont {
+                    s.cont = nil
+                    s.done = true
+                    c.resume(with: result)
+                } else if s.pending == nil {
+                    s.pending = result // arrived before attach; first one wins
+                }
             }
         }
     }
@@ -168,13 +160,6 @@ enum WindowManager {
         ) as? [[String: Any]] else {
             return []
         }
-
-        var ids = Set<CGWindowID>()
-        for entry in list {
-            if let id = entry[kCGWindowNumber as String] as? CGWindowID {
-                ids.insert(id)
-            }
-        }
-        return ids
+        return Set(list.compactMap { $0[kCGWindowNumber as String] as? CGWindowID })
     }
 }

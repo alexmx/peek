@@ -83,13 +83,13 @@ struct ActionCommand: AsyncParsableCommand {
 
         switch verify {
         case .tree:
-            usleep(UInt32(settleDelay * 1_000_000))
+            try await Delay.seconds(settleDelay)
             let treeNode = try AccessibilityManager.inspect(
                 pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
             )
             try printActionResult(ActionTreeResult(action: nodes, resultTree: treeNode), nodes: nodes, action: action)
         case .diff:
-            usleep(UInt32(settleDelay * 1_000_000))
+            try await Delay.seconds(settleDelay)
             let afterTree = try AccessibilityManager.inspect(
                 pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
             )
@@ -105,22 +105,21 @@ struct ActionCommand: AsyncParsableCommand {
             case .toon:
                 if all { try printTOON(nodes) } else { try printTOON(nodes[0]) }
             case .default:
-                for node in nodes {
-                    print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
-                }
+                describe(nodes, action: action)
                 if all { print("\(nodes.count) element(s) affected.") }
             }
         }
     }
 
     private func printActionResult(_ result: some Encodable, nodes: [AXNode], action: String) throws {
-        switch format {
-        case .json: try printJSON(result)
-        case .toon: try printTOON(result)
-        case .default:
-            for node in nodes {
-                print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
-            }
+        try emit(result, as: format) {
+            describe(nodes, action: action)
+        }
+    }
+
+    private func describe(_ nodes: [AXNode], action: String) {
+        for node in nodes {
+            print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
         }
     }
 }

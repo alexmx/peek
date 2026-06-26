@@ -35,10 +35,7 @@ struct LaunchCommand: AsyncParsableCommand {
     func run() async throws {
         let url = try AppLifecycleManager.resolveAppURL(bundleID: bundleID, name: name, path: path)
         let result = try await AppLifecycleManager.launch(url: url, documents: documents, waitForWindow: waitForWindow)
-        switch format {
-        case .json: try printJSON(result)
-        case .toon: try printTOON(result)
-        case .default:
+        try emit(result, as: format) {
             var line = "Launched \(result.name) (pid \(result.pid), bundle \(result.bundleID ?? "?"))"
             if let wid = result.windowID { line += ", window \(wid)" }
             print(line)

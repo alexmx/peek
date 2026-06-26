@@ -17,12 +17,7 @@ struct ActivateCommand: AsyncParsableCommand {
 
         let result = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
 
-        switch format {
-        case .json:
-            try printJSON(result)
-        case .toon:
-            try printTOON(result)
-        case .default:
+        try emit(result, as: format) {
             print("Activated \(result.app) (pid \(result.pid), window \(result.windowID))")
         }
     }

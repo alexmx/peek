@@ -6,10 +6,14 @@ import SwiftMCP
 enum PeekTools {
     // MARK: - Helpers
 
-    private static func json(_ value: some Encodable) throws -> MCPToolResult {
+    private static let jsonEncoder: JSONEncoder = {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
-        let data = try encoder.encode(value)
+        return encoder
+    }()
+
+    private static func json(_ value: some Encodable) throws -> MCPToolResult {
+        let data = try jsonEncoder.encode(value)
         guard let string = String(data: data, encoding: .utf8) else {
             throw PeekError.encodingFailed
         }
@@ -21,9 +25,7 @@ enum PeekTools {
     private static let menuSoftCapBytes = 4000
 
     private static func cappedMenuTree(_ tree: MenuNode) throws -> MCPToolResult {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        let full = try encoder.encode(tree)
+        let full = try jsonEncoder.encode(tree)
         if full.count <= menuSoftCapBytes {
             return .text(String(decoding: full, as: UTF8.self))
         }
@@ -62,12 +64,12 @@ enum PeekTools {
             return pid_t(pid)
         }
         if let app {
-            for running in NSWorkspace.shared.runningApplications
-                where running.activationPolicy == .regular
-                && running.localizedName?.localizedCaseInsensitiveContains(app) == true {
-                return running.processIdentifier
+            let match = NSWorkspace.shared.runningApplications.first {
+                $0.activationPolicy == .regular
+                    && $0.localizedName?.localizedCaseInsensitiveContains(app) == true
             }
-            throw PeekError.appNotFound(app)
+            guard let match else { throw PeekError.appNotFound(app) }
+            return match.processIdentifier
         }
         if windowID != nil {
             let (_, p) = try await resolveWindow(windowID: windowID, app: nil, pid: nil)
@@ -109,6 +111,15 @@ enum PeekTools {
         )
     }
 
+    /// Activate then guard for coordinate gestures (click/drag/scroll): bring the
+    /// target frontmost, then verify the points land on it.
+    private static func activateAndGuard(
+        _ points: [(x: Int, y: Int)], windowID: Int?, app: String?, pid: Int?
+    ) async throws {
+        try await activateTarget(windowID: windowID, app: app, pid: pid)
+        try await guardCoordinates(points, windowID: windowID, app: app, pid: pid)
+    }
+
     /// Default tree depth when `args.depth` is not provided. Caps the response size
     /// so a tree from a deeply-nested app (Xcode, System Settings) doesn't blow out
     /// the MCP context window. Callers who need to drill deeper pass an explicit value.
@@ -134,7 +145,7 @@ enum PeekTools {
         try await withThrowingTaskGroup(of: T.self) { group in
             group.addTask { try await body() }
             group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                try await Delay.seconds(seconds)
                 throw PeekError.timeout(operation, seconds)
             }
             let result = try await group.next()!
@@ -596,14 +607,13 @@ enum PeekTools {
         description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window). Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
-            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            try await guardCoordinates([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
+            try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
             let count = max(1, min(args.count ?? 1, 3))
             let buttonRaw = (args.button ?? "left").lowercased()
             guard let button = InteractionManager.MouseButton(rawValue: buttonRaw) else {
                 throw PeekError.invalidArgument(name: "button", value: buttonRaw, valid: ["left", "right"])
             }
-            InteractionManager.click(x: Double(args.x), y: Double(args.y), count: count, button: button)
+            await InteractionManager.click(x: Double(args.x), y: Double(args.y), count: count, button: button)
             struct Result: Encodable {
                 let x: Int
                 let y: Int
@@ -622,7 +632,7 @@ enum PeekTools {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
             let steps = max(1, args.steps ?? 1)
             let dwell = max(0, args.dwell_ms ?? 0)
-            InteractionManager.move(
+            await InteractionManager.move(
                 fromX: args.from_x.map(Double.init),
                 fromY: args.from_y.map(Double.init),
                 toX: Double(args.x),
@@ -666,12 +676,11 @@ enum PeekTools {
         description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (iOS Simulator), use peek_scroll drag=true instead."
     ) { (args: DragArgs) in
         try await withTimeout("peek_drag") {
-            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            try await guardCoordinates(
+            try await activateAndGuard(
                 [(args.from_x, args.from_y), (args.to_x, args.to_y)],
                 windowID: args.window_id, app: args.app, pid: args.pid
             )
-            InteractionManager.drag(
+            await InteractionManager.drag(
                 fromX: Double(args.from_x), fromY: Double(args.from_y),
                 toX: Double(args.to_x), toY: Double(args.to_y)
             )
@@ -687,17 +696,16 @@ enum PeekTools {
         description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
-            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            try await guardCoordinates([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
+            try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
             let dx = Int32(clamping: args.deltaX ?? 0)
             let dy = Int32(clamping: args.deltaY)
             if args.drag ?? false {
-                InteractionManager.drag(
+                await InteractionManager.drag(
                     fromX: Double(args.x), fromY: Double(args.y),
                     toX: Double(args.x - Int(dx)), toY: Double(args.y - Int(dy))
                 )
             } else {
-                InteractionManager.scroll(
+                await InteractionManager.scroll(
                     x: Double(args.x), y: Double(args.y),
                     deltaX: dx, deltaY: dy,
                     steps: max(1, args.steps ?? 1),
@@ -716,7 +724,7 @@ enum PeekTools {
         let budget = max(defaultTimeout, Double(args.text.count) * Double(delayMs + 5) / 1000.0 + 5)
         return try await withTimeout("peek_type", seconds: budget) {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
-            InteractionManager.type(text: args.text, delayMs: delayMs)
+            await InteractionManager.type(text: args.text, delayMs: delayMs)
             return try json(["characters": args.text.count])
         }
     }
@@ -773,11 +781,11 @@ enum PeekTools {
 
             switch verify {
             case "tree":
-                try await Task.sleep(nanoseconds: UInt64(settleDelay * 1_000_000_000))
+                try await Delay.seconds(settleDelay)
                 let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
                 return try json(ActionTreeResult(action: nodes, resultTree: tree))
             case "diff":
-                try await Task.sleep(nanoseconds: UInt64(settleDelay * 1_000_000_000))
+                try await Delay.seconds(settleDelay)
                 let afterTree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
                 let diff = MonitorManager.computeDiff(
                     before: beforeFlat ?? [],
@@ -902,7 +910,7 @@ enum PeekTools {
                 if let first = results.first {
                     return try json(first)
                 }
-                try await Task.sleep(nanoseconds: UInt64(poll * 1_000_000_000))
+                try await Delay.seconds(poll)
             }
             throw PeekError.timeout("peek_wait", timeout)
         }

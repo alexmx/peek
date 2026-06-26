@@ -23,13 +23,9 @@ enum PermissionManager {
 
     /// Check all permissions, optionally prompting for any that are missing.
     static func checkAll(prompt: Bool) async -> Status {
-        let accessibility: Bool
-        if prompt {
-            let options = ["AXTrustedCheckOptionPrompt": true] as CFDictionary
-            accessibility = AXIsProcessTrustedWithOptions(options)
-        } else {
-            accessibility = AXIsProcessTrusted()
-        }
+        let accessibility = prompt
+            ? AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
+            : AXIsProcessTrusted()
 
         let screenRecording = await probeScreenRecording()
         if !screenRecording, prompt {

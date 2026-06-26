@@ -21,12 +21,7 @@ struct WindowCommand: AsyncParsableCommand {
 
         let tree = try AccessibilityManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
 
-        switch format {
-        case .json:
-            try printJSON(tree)
-        case .toon:
-            try printTOON(tree)
-        case .default:
+        try emit(tree, as: format) {
             printNode(tree)
         }
     }

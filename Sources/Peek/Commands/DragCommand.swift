@@ -32,24 +32,20 @@ struct DragCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-        if target.windowID != nil || target.app != nil || target.pid != nil {
-            let resolved = try await target.resolve()
-            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        if let resolved = try await target.activateIfSpecified() {
             try await InteractionManager.ensureOnTarget(
                 points: [(fromX, fromY), (toX, toY)], pid: resolved.pid, windowID: target.windowID
             )
         }
 
-        InteractionManager.drag(
+        await InteractionManager.drag(
             fromX: Double(fromX), fromY: Double(fromY),
             toX: Double(toX), toY: Double(toY)
         )
 
         let result = DragResult(fromX: fromX, fromY: fromY, toX: toX, toY: toY)
-        switch format {
-        case .json: try printJSON(result)
-        case .toon: try printTOON(result)
-        case .default: print("Dragged (\(fromX), \(fromY)) → (\(toX), \(toY))")
+        try emit(result, as: format) {
+            print("Dragged (\(fromX), \(fromY)) → (\(toX), \(toY))")
         }
     }
 }

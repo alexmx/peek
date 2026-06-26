@@ -42,21 +42,14 @@ struct ClickCommand: AsyncParsableCommand {
             throw PeekError.invalidArgument(name: "button", value: button, valid: ["left", "right"])
         }
 
-        if target.windowID != nil || target.app != nil || target.pid != nil {
-            let resolved = try await target.resolve()
-            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        if let resolved = try await target.activateIfSpecified() {
             try await InteractionManager.ensureOnTarget(points: [(x, y)], pid: resolved.pid, windowID: target.windowID)
         }
 
-        InteractionManager.click(x: Double(x), y: Double(y), count: count, button: btn)
+        await InteractionManager.click(x: Double(x), y: Double(y), count: count, button: btn)
 
         let result = ClickResult(x: x, y: y, count: max(1, min(count, 3)), button: btn.rawValue)
-        switch format {
-        case .json:
-            try printJSON(result)
-        case .toon:
-            try printTOON(result)
-        case .default:
+        try emit(result, as: format) {
             let multiplier = ["single", "double", "triple"][result.count - 1]
             let buttonLabel = btn == .right ? "right-clicked" : "clicked"
             print("\(multiplier.capitalized) \(buttonLabel) at (\(x), \(y))")

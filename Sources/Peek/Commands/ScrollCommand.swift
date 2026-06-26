@@ -47,21 +47,19 @@ struct ScrollCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-        if target.windowID != nil || target.app != nil || target.pid != nil {
-            let resolved = try await target.resolve()
-            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        if let resolved = try await target.activateIfSpecified() {
             try await InteractionManager.ensureOnTarget(points: [(x, y)], pid: resolved.pid, windowID: target.windowID)
         }
 
         if drag {
             // Drag gesture: swipe from (x, y) to (x - deltaX, y - deltaY)
             // Negative because dragging up scrolls content down
-            InteractionManager.drag(
+            await InteractionManager.drag(
                 fromX: Double(x), fromY: Double(y),
                 toX: Double(x - deltaX), toY: Double(y - deltaY)
             )
         } else {
-            InteractionManager.scroll(
+            await InteractionManager.scroll(
                 x: Double(x), y: Double(y),
                 deltaX: Int32(deltaX), deltaY: Int32(deltaY),
                 steps: max(1, steps), durationMs: UInt32(max(0, durationMs))
@@ -69,10 +67,8 @@ struct ScrollCommand: AsyncParsableCommand {
         }
 
         let result = ScrollResult(x: x, y: y, deltaX: deltaX, deltaY: deltaY)
-        switch format {
-        case .json: try printJSON(result)
-        case .toon: try printTOON(result)
-        case .default: print("Scrolled at (\(x), \(y)) by dx=\(deltaX), dy=\(deltaY)")
+        try emit(result, as: format) {
+            print("Scrolled at (\(x), \(y)) by dx=\(deltaX), dy=\(deltaY)")
         }
     }
 }

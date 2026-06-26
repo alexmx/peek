@@ -2,6 +2,12 @@
 
 import PackageDescription
 
+/// Swift 6.2 approachable concurrency (SE-461 + SE-470); nonisolated-by-default retained.
+let approachableConcurrency: [SwiftSetting] = [
+    .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+    .enableUpcomingFeature("InferIsolatedConformances")
+]
+
 let package = Package(
     name: "Peek",
     platforms: [.macOS(.v15)],
@@ -18,11 +24,13 @@ let package = Package(
                 .product(name: "SwiftMCP", package: "swift-cli-mcp"),
                 .product(name: "ToonFormat", package: "toon-swift")
             ],
-            path: "Sources/Peek"
+            path: "Sources/Peek",
+            swiftSettings: approachableConcurrency
         ),
         .testTarget(
             name: "PeekTests",
-            dependencies: ["peek"]
+            dependencies: ["peek"],
+            swiftSettings: approachableConcurrency
         )
     ]
 )

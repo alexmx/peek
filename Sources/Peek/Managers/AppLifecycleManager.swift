@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Synchronization
 
 /// Launch and terminate macOS applications.
 enum AppLifecycleManager {
@@ -121,7 +122,7 @@ enum AppLifecycleManager {
                     firstWindow = win
                     break
                 }
-                try await Task.sleep(nanoseconds: 250_000_000)
+                try await Delay.milliseconds(250)
             }
             if firstWindow == nil {
                 throw PeekError.timeout("peek_launch wait_for_window", budget)
@@ -176,41 +177,42 @@ enum AppLifecycleManager {
         return QuitResult(pid: appPid, name: appName, forced: force)
     }
 
-    /// Mediates between NSWorkspace.openApplication's completion callback and the
-    /// surrounding Task's cancellation. Resume-once across both paths; if cancel
-    /// fires before the continuation is attached, remember it and resume cancelled
-    /// as soon as we have one. The underlying launch can't be aborted (macOS API
-    /// limitation), but the awaiting Task is freed.
-    private final class LaunchContinuation: @unchecked Sendable {
-        private let lock = NSLock()
-        private var cont: CheckedContinuation<NSRunningApplication, Error>?
-        private var cancelled = false
+    /// Bridges NSWorkspace.openApplication's completion callback to the awaiting Task.
+    /// Resume-once; a cancel before `attach` is remembered and resumed once attached.
+    /// The launch itself can't be aborted (macOS), but the awaiting Task is freed.
+    private final class LaunchContinuation: Sendable {
+        private struct State {
+            var cont: CheckedContinuation<NSRunningApplication, Error>?
+            var cancelled = false
+        }
+
+        private let state = Mutex(State())
 
         func attach(_ c: CheckedContinuation<NSRunningApplication, Error>) {
-            lock.lock(); defer { lock.unlock() }
-            if cancelled {
-                c.resume(throwing: CancellationError())
-            } else {
-                cont = c
+            state.withLock { s in
+                if s.cancelled {
+                    c.resume(throwing: CancellationError())
+                } else {
+                    s.cont = c
+                }
             }
         }
 
         func complete(_ result: Result<NSRunningApplication, Error>) {
-            lock.lock(); defer { lock.unlock() }
-            guard let c = cont else { return }
-            cont = nil
-            switch result {
-            case .success(let v): c.resume(returning: v)
-            case .failure(let e): c.resume(throwing: e)
+            state.withLock { s in
+                guard let c = s.cont else { return }
+                s.cont = nil
+                c.resume(with: result)
             }
         }
 
         func cancel() {
-            lock.lock(); defer { lock.unlock() }
-            cancelled = true
-            guard let c = cont else { return }
-            cont = nil
-            c.resume(throwing: CancellationError())
+            state.withLock { s in
+                s.cancelled = true
+                guard let c = s.cont else { return }
+                s.cont = nil
+                c.resume(throwing: CancellationError())
+            }
         }
     }
 

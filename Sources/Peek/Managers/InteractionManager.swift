@@ -4,17 +4,32 @@ import CoreGraphics
 import Foundation
 
 enum InteractionManager {
-    /// Shared source for synthesized mouse/scroll events. The local-events suppression
-    /// interval makes the window server suppress the user's *physical* mouse for a short
-    /// window after each posted event — so a hand moving the mouse mid-click can't
-    /// interleave a real `.mouseMoved` between our down and up (which would corrupt the
-    /// click into a drag) or yank the cursor off-target. 0.15s comfortably covers the
-    /// ~30ms down→up gap and lingers only briefly after the gesture.
+    /// Shared event source for synthesized mouse/scroll events. The 0.15s suppression
+    /// interval stops the user's physical mouse from interleaving between our down/up
+    /// (which would corrupt a click into a drag) or yanking the cursor off-target.
+    /// `nonisolated(unsafe)`: CGEventSource isn't Sendable but this is immutable after init.
     nonisolated(unsafe) static let eventSource: CGEventSource? = {
         let source = CGEventSource(stateID: .combinedSessionState)
         source?.localEventsSuppressionInterval = 0.15
         return source
     }()
+
+    /// Inter-event gesture pause, in milliseconds. Yields the cooperative thread (unlike
+    /// usleep) so long gestures don't starve concurrent work; swallows cancellation so an
+    /// in-flight gesture still completes and never leaves a button down / scroll phase open.
+    private static func pause(_ milliseconds: Double) async {
+        try? await Delay.milliseconds(milliseconds)
+    }
+
+    /// Create and post a synthesized mouse event through the shared event source.
+    private static func postMouseEvent(_ type: CGEventType, at point: CGPoint, button: CGMouseButton = .left) {
+        CGEvent(
+            mouseEventSource: eventSource,
+            mouseType: type,
+            mouseCursorPosition: point,
+            mouseButton: button
+        )?.post(tap: .cghidEventTap)
+    }
 
     /// Activate an app and raise its window.
     /// Polls frontmost + z-order after activation; retries once if macOS dropped the request.
@@ -82,18 +97,18 @@ enum InteractionManager {
         return ActivateResult(pid: pid, windowID: 0, app: name)
     }
 
-    private static let tickNanoseconds: UInt64 = 25_000_000 // 25ms
-    private static let settleNanoseconds: UInt64 = 20_000_000 // 20ms
+    private static let tickMs: Double = 25
+    private static let settleMs: Double = 20
 
     private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) async throws -> Bool {
         app.activate()
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if isFrontmost(app) {
-                try await Task.sleep(nanoseconds: settleNanoseconds)
+                try await Delay.milliseconds(settleMs)
                 return true
             }
-            try await Task.sleep(nanoseconds: tickNanoseconds)
+            try await Delay.milliseconds(tickMs)
         }
         return isFrontmost(app)
     }
@@ -112,10 +127,10 @@ enum InteractionManager {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             if isFrontmost(app), isWindowTopmost(windowID) {
-                try await Task.sleep(nanoseconds: settleNanoseconds)
+                try await Delay.milliseconds(settleMs)
                 return true
             }
-            try await Task.sleep(nanoseconds: tickNanoseconds)
+            try await Delay.milliseconds(tickMs)
         }
         return isFrontmost(app) && isWindowTopmost(windowID)
     }
@@ -202,7 +217,7 @@ enum InteractionManager {
             $0.bounds.contains(point) && $0.pid == pid && (windowID == nil || $0.windowID == windowID)
         }), let element = AXBridge.window(pid: pid, windowID: tw.windowID) {
             AXBridge.raise(element)
-            try await Task.sleep(nanoseconds: 120_000_000) // let the window-server reorder
+            try await Delay.milliseconds(120) // let the window-server reorder
             if onTarget() { return }
         }
         let actual = onScreenWindowsFrontToBack().first(where: { $0.bounds.contains(point) })
@@ -218,7 +233,7 @@ enum InteractionManager {
     /// with the `clickState` field set (1, 2, or 3) so AppKit treats them as a single
     /// click, double-click, or triple-click — used for word/line selection in text views.
     /// `button` picks the mouse button (left or right).
-    static func click(x: Double, y: Double, count: Int = 1, button: MouseButton = .left) {
+    static func click(x: Double, y: Double, count: Int = 1, button: MouseButton = .left) async {
         let point = CGPoint(x: x, y: y)
         let clamped = max(1, min(count, 3))
         let (downType, upType, btn): (CGEventType, CGEventType, CGMouseButton) = switch button {
@@ -230,9 +245,8 @@ enum InteractionManager {
         // with no preceding .mouseMoved can silently no-op on controls that gate on
         // mouseEntered/cursorUpdate (NSOutlineView/NSTableView rows especially) — the
         // reason a manual peek_move then peek_click works where a bare click doesn't.
-        CGEvent(mouseEventSource: eventSource, mouseType: .mouseMoved, mouseCursorPosition: point, mouseButton: .left)?
-            .post(tap: .cghidEventTap)
-        usleep(15000)
+        postMouseEvent(.mouseMoved, at: point)
+        await pause(15)
 
         for i in 1...clamped {
             let down = CGEvent(
@@ -251,27 +265,21 @@ enum InteractionManager {
             up?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
 
             down?.post(tap: .cghidEventTap)
-            usleep(30000)
+            await pause(30)
             up?.post(tap: .cghidEventTap)
             if i < clamped {
-                usleep(50000) // inter-click gap, well under macOS's ~500ms double-click threshold
+                await pause(50) // inter-click gap, well under macOS's ~500ms double-click threshold
             }
         }
     }
 
-    static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) {
+    static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) async {
         let dx = toX - fromX
         let dy = toY - fromY
         let distance = (dx * dx + dy * dy).squareRoot()
 
-        let mouseDown = CGEvent(
-            mouseEventSource: eventSource,
-            mouseType: .leftMouseDown,
-            mouseCursorPosition: CGPoint(x: fromX, y: fromY),
-            mouseButton: .left
-        )
-        mouseDown?.post(tap: .cghidEventTap)
-        usleep(100_000)
+        postMouseEvent(.leftMouseDown, at: CGPoint(x: fromX, y: fromY))
+        await pause(100)
 
         let steps = max(10, min(40, Int(distance / 5)))
         let dragInitThreshold = 6.0
@@ -281,23 +289,11 @@ enum InteractionManager {
                 t = max(t, min(1.0, dragInitThreshold / distance))
             }
             let point = CGPoint(x: fromX + dx * t, y: fromY + dy * t)
-            let drag = CGEvent(
-                mouseEventSource: eventSource,
-                mouseType: .leftMouseDragged,
-                mouseCursorPosition: point,
-                mouseButton: .left
-            )
-            drag?.post(tap: .cghidEventTap)
-            usleep(10000)
+            postMouseEvent(.leftMouseDragged, at: point)
+            await pause(10)
         }
 
-        let mouseUp = CGEvent(
-            mouseEventSource: eventSource,
-            mouseType: .leftMouseUp,
-            mouseCursorPosition: CGPoint(x: toX, y: toY),
-            mouseButton: .left
-        )
-        mouseUp?.post(tap: .cghidEventTap)
+        postMouseEvent(.leftMouseUp, at: CGPoint(x: toX, y: toY))
     }
 
     /// Move the cursor to a screen point by posting `.mouseMoved` events — no buttons pressed.
@@ -321,75 +317,48 @@ enum InteractionManager {
         toY: Double,
         steps: Int = 1,
         dwellMs: UInt32 = 0
-    ) {
+    ) async {
         let clampedSteps = max(1, steps)
         let startX = fromX ?? toX
         let startY = fromY ?? toY
 
         if clampedSteps == 1 || (fromX == nil && fromY == nil) {
-            let move = CGEvent(
-                mouseEventSource: eventSource,
-                mouseType: .mouseMoved,
-                mouseCursorPosition: CGPoint(x: toX, y: toY),
-                mouseButton: .left
-            )
-            move?.post(tap: .cghidEventTap)
+            postMouseEvent(.mouseMoved, at: CGPoint(x: toX, y: toY))
         } else {
             let dx = toX - startX
             let dy = toY - startY
             for i in 1...clampedSteps {
                 let t = Double(i) / Double(clampedSteps)
                 let point = CGPoint(x: startX + dx * t, y: startY + dy * t)
-                let move = CGEvent(
-                    mouseEventSource: eventSource,
-                    mouseType: .mouseMoved,
-                    mouseCursorPosition: point,
-                    mouseButton: .left
-                )
-                move?.post(tap: .cghidEventTap)
+                postMouseEvent(.mouseMoved, at: point)
                 if i < clampedSteps {
-                    usleep(10000) // 10ms between intermediate moves, matches drag()'s cadence
+                    await pause(10) // between moves, matches drag()'s cadence
                 }
             }
         }
 
-        // Flush: synthetic .mouseMoved events are dispatched asynchronously by the window
-        // server, so an immediate readback of CGEvent.location or AXUIElementCopyElementAtPosition
-        // races the dispatch and reports stale state. A small floor sleep guarantees the
-        // event has been applied before move() returns. Honor an explicit dwell that's
-        // larger; otherwise just pay the 15ms flush.
+        // Flush: synthetic .mouseMoved events dispatch asynchronously, so an immediate
+        // AX/cursor readback races them. A floor sleep ensures the move applied first.
         let totalSleepMs = max(dwellMs, 15)
-        usleep(totalSleepMs * 1000)
+        await pause(Double(totalSleepMs))
     }
 
-    /// Scroll at screen coordinates.
-    /// deltaY: positive = scroll down (content moves up), negative = scroll up.
-    /// deltaX: positive = scroll right (content moves left), negative = scroll left.
-    ///
-    /// - Parameters:
-    ///   - steps: number of scroll events to emit (clamped to >= 1). 1 = a single
-    ///     instantaneous event (fast, deterministic — the content jumps by the delta).
-    ///     > 1 spreads the delta across a phased event stream so the scroll visibly
-    ///     accelerates and decelerates (smooth trackpad-style motion).
-    ///   - durationMs: wall-clock time to spread the stream over. When `steps` is 1
-    ///     and `durationMs` > 0, a step count is derived at ~60fps; when `steps` > 1
-    ///     and `durationMs` is 0, a duration is derived at ~16ms/step.
-    ///
-    /// The smooth path keeps the *total* delta exactly equal to the requested delta —
-    /// the ease-in-out curve only redistributes it over time, so callers relying on a
-    /// precise scroll amount still land in the same place.
-    static func scroll(x: Double, y: Double, deltaX: Int32, deltaY: Int32, steps: Int = 1, durationMs: UInt32 = 0) {
+    /// Scroll at screen coordinates. Positive deltaY/deltaX scroll down/right.
+    /// steps == 1 posts one instant event; steps > 1 (or durationMs) spreads the delta
+    /// across a phased ease-in-out stream for smooth motion, preserving the total delta.
+    static func scroll(
+        x: Double,
+        y: Double,
+        deltaX: Int32,
+        deltaY: Int32,
+        steps: Int = 1,
+        durationMs: UInt32 = 0
+    ) async {
         let point = CGPoint(x: x, y: y)
 
         // Move cursor to target so scroll event reaches the correct view
-        let move = CGEvent(
-            mouseEventSource: eventSource,
-            mouseType: .mouseMoved,
-            mouseCursorPosition: point,
-            mouseButton: .left
-        )
-        move?.post(tap: .cghidEventTap)
-        usleep(50000)
+        postMouseEvent(.mouseMoved, at: point)
+        await pause(50)
 
         let smooth = steps > 1 || durationMs > 0
         if !smooth {
@@ -402,10 +371,9 @@ enum InteractionManager {
         // Resolve the step/duration pair, filling in whichever the caller omitted.
         let resolvedSteps = steps > 1 ? steps : max(2, Int(durationMs) / 16)
         let resolvedDuration = durationMs > 0 ? durationMs : UInt32(resolvedSteps * 16)
-        let sleepPerStep = UInt32(Double(resolvedDuration) * 1000 / Double(resolvedSteps))
+        let sleepPerStepMs = Double(resolvedDuration) / Double(resolvedSteps)
 
-        // Ease-in-out weight per step (∝ t·(1−t)): small at the ends, large in the
-        // middle — this is what produces the visible accel/decel.
+        // Ease-in-out weights (∝ t·(1−t)): small at the ends, large in the middle.
         let weights = (1...resolvedSteps).map { i -> Double in
             let t = (Double(i) - 0.5) / Double(resolvedSteps)
             return t * (1 - t)
@@ -416,7 +384,7 @@ enum InteractionManager {
         for i in 0..<resolvedSteps {
             let phase: Int64 = i == 0 ? 1 : 2 // kCGScrollPhaseBegan : kCGScrollPhaseChanged
             postScrollEvent(deltaX: dxs[i], deltaY: dys[i], phase: phase)
-            usleep(sleepPerStep)
+            await pause(sleepPerStepMs)
         }
         // Terminate the gesture so the view settles (kCGScrollPhaseEnded, zero delta).
         postScrollEvent(deltaX: 0, deltaY: 0, phase: 4)
@@ -459,8 +427,7 @@ enum InteractionManager {
         return out
     }
 
-    static func type(text: String, delayMs: UInt32 = 5) {
-        let usec = delayMs * 1000
+    static func type(text: String, delayMs: UInt32 = 5) async {
         for char in text {
             let (keyCode, shift) = KeyMapping.lookup(char)
             let utf16 = Array(String(char).utf16)
@@ -478,7 +445,7 @@ enum InteractionManager {
 
             keyDown?.post(tap: .cghidEventTap)
             keyUp?.post(tap: .cghidEventTap)
-            usleep(usec)
+            await pause(Double(delayMs))
         }
     }
 

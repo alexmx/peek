@@ -32,8 +32,10 @@ enum AccessibilityManager {
         }
         app.activate()
 
+        // Sync on purpose: rare off-Space retry; the common path returns above without
+        // sleeping. Going async would ripple through the whole sync AX-read call graph.
         for _ in 0..<20 {
-            usleep(100_000) // 100ms
+            Delay.blockingMilliseconds(100)
             if let w = AXBridge.window(pid: pid, windowID: windowID) {
                 return w
             }
@@ -47,13 +49,18 @@ enum AccessibilityManager {
         try PermissionManager.requireAccessibility()
 
         let app = AXBridge.application(pid: pid)
-        var ref: AnyObject?
-        var result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
 
-        if result == .success, let ref {
+        func fetchMenuBar() -> AXUIElement? {
+            var ref: AnyObject?
+            guard AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref) == .success,
+                  let ref else {
+                return nil
+            }
             // swiftlint:disable:next force_cast
-            return ref as! AXUIElement
+            return (ref as! AXUIElement)
         }
+
+        if let bar = fetchMenuBar() { return bar }
 
         // Menu bar not accessible — app may be on another Space. Activate and retry.
         guard let runningApp = NSRunningApplication(processIdentifier: pid) else {
@@ -61,13 +68,10 @@ enum AccessibilityManager {
         }
         runningApp.activate()
 
+        // Sync on purpose — see resolveWindow: rare off-Space retry path.
         for _ in 0..<20 {
-            usleep(100_000) // 100ms
-            result = AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref)
-            if result == .success, let ref {
-                // swiftlint:disable:next force_cast
-                return ref as! AXUIElement
-            }
+            Delay.blockingMilliseconds(100)
+            if let bar = fetchMenuBar() { return bar }
         }
 
         throw PeekError.noMenuBar(pid)

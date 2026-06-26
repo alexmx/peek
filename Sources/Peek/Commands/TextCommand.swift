@@ -78,12 +78,7 @@ struct TextCommand: AsyncParsableCommand {
             substring: substring
         )
 
-        switch format {
-        case .json:
-            try printJSON(result)
-        case .toon:
-            try printTOON(result)
-        case .default:
+        try emit(result, as: format) {
             print(result.text)
             if substring != nil {
                 print("\nmatch at offset \(result.offset), length \(result.text.count)")

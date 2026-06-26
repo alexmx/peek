@@ -22,12 +22,7 @@ struct AppsCommand: AsyncParsableCommand {
             apps = apps.filter { $0.name.localizedCaseInsensitiveContains(app) }
         }
 
-        switch format {
-        case .json:
-            try printJSON(apps)
-        case .toon:
-            try printTOON(apps)
-        case .default:
+        try emit(apps, as: format) {
             printAppList(apps)
         }
     }

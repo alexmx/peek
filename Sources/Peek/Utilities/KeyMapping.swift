@@ -30,7 +30,7 @@ enum KeyMapping {
     }
 
     static var allKeyNames: [String] {
-        let chars = table.keys.filter { !$0.isWhitespace && !$0.isNewline }.map(String.init)
+        let chars = table.keys.filter { !$0.isWhitespace }.map(String.init)
         return (namedKeys.keys + chars).sorted()
     }
 

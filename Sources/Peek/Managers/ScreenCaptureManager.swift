@@ -21,23 +21,7 @@ enum ScreenCaptureManager {
         }
 
         if let crop {
-            // Compute Retina scale from actual image vs window point size
-            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
-            guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
-                throw PeekError.windowNotFound(windowID)
-            }
-            let scaleX = CGFloat(image.width) / scWindow.frame.width
-            let scaleY = CGFloat(image.height) / scWindow.frame.height
-            let scaledRect = CGRect(
-                x: crop.origin.x * scaleX,
-                y: crop.origin.y * scaleY,
-                width: crop.size.width * scaleX,
-                height: crop.size.height * scaleY
-            )
-            guard let cropped = image.cropping(to: scaledRect) else {
-                throw PeekError.invalidCropRegion
-            }
-            image = cropped
+            image = try await cropImage(image, to: crop, windowID: windowID)
         }
 
         try writePNG(image, to: outputPath)
@@ -56,26 +40,32 @@ enum ScreenCaptureManager {
         }
 
         if let crop {
-            let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
-            guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
-                throw PeekError.windowNotFound(windowID)
-            }
-            let scaleX = CGFloat(image.width) / scWindow.frame.width
-            let scaleY = CGFloat(image.height) / scWindow.frame.height
-            let scaledRect = CGRect(
-                x: crop.origin.x * scaleX,
-                y: crop.origin.y * scaleY,
-                width: crop.size.width * scaleX,
-                height: crop.size.height * scaleY
-            )
-            guard let cropped = image.cropping(to: scaledRect) else {
-                throw PeekError.invalidCropRegion
-            }
-            image = cropped
+            image = try await cropImage(image, to: crop, windowID: windowID)
         }
 
         let data = try encodePNG(image)
         return (data, image.width, image.height)
+    }
+
+    /// Crop a captured window image to a window-relative rect, scaling the rect by the
+    /// image's Retina factor (actual pixels vs the window's point size from SCShareableContent).
+    private static func cropImage(_ image: CGImage, to crop: CGRect, windowID: CGWindowID) async throws -> CGImage {
+        let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: false)
+        guard let scWindow = content.windows.first(where: { $0.windowID == windowID }) else {
+            throw PeekError.windowNotFound(windowID)
+        }
+        let scaleX = CGFloat(image.width) / scWindow.frame.width
+        let scaleY = CGFloat(image.height) / scWindow.frame.height
+        let scaledRect = CGRect(
+            x: crop.origin.x * scaleX,
+            y: crop.origin.y * scaleY,
+            width: crop.size.width * scaleX,
+            height: crop.size.height * scaleY
+        )
+        guard let cropped = image.cropping(to: scaledRect) else {
+            throw PeekError.invalidCropRegion
+        }
+        return cropped
     }
 
     /// CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime.

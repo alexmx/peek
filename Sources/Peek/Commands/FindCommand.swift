@@ -73,12 +73,7 @@ struct FindCommand: AsyncParsableCommand {
             return
         }
 
-        switch format {
-        case .json:
-            try printJSON(node)
-        case .toon:
-            try printTOON(node)
-        case .default:
+        try emit(node, as: format) {
             print(node.formatted)
         }
     }
@@ -95,12 +90,7 @@ struct FindCommand: AsyncParsableCommand {
             limit: limit
         )
 
-        switch format {
-        case .json:
-            try printJSON(results)
-        case .toon:
-            try printTOON(results)
-        case .default:
+        try emit(results, as: format) {
             if results.isEmpty {
                 print("No matching elements found.")
             } else {
