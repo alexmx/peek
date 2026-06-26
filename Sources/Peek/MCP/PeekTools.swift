@@ -316,6 +316,12 @@ enum PeekTools {
         var deltaX: Int?
         @InputProperty("Use drag gesture instead of scroll wheel (required for iOS Simulator).")
         var drag: Bool?
+        @InputProperty(
+            "Spread scroll across N events for smooth animated motion (default 1 = instant jump)."
+        )
+        var steps: Int?
+        @InputProperty("Duration in ms to spread the smooth scroll over; pairs with steps.")
+        var duration_ms: Int?
     }
 
     struct TypeArgs: MCPToolInput {
@@ -678,7 +684,7 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
+        description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
@@ -691,7 +697,12 @@ enum PeekTools {
                     toX: Double(args.x - Int(dx)), toY: Double(args.y - Int(dy))
                 )
             } else {
-                InteractionManager.scroll(x: Double(args.x), y: Double(args.y), deltaX: dx, deltaY: dy)
+                InteractionManager.scroll(
+                    x: Double(args.x), y: Double(args.y),
+                    deltaX: dx, deltaY: dy,
+                    steps: max(1, args.steps ?? 1),
+                    durationMs: UInt32(max(0, args.duration_ms ?? 0))
+                )
             }
             return try json(["x": args.x, "y": args.y, "deltaX": Int(dx), "deltaY": Int(dy)])
         }

@@ -24,6 +24,18 @@ struct ScrollCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Use drag gesture instead of scroll wheel (for touch-based apps like iOS Simulator)")
     var drag: Bool = false
 
+    @Option(
+        name: .long,
+        help: "Spread the scroll across N phased events for smooth accel/decel motion (default 1 = instant jump)"
+    )
+    var steps: Int = 1
+
+    @Option(
+        name: .long,
+        help: "Wall-clock duration in ms to spread a smooth scroll over (implies smooth; pairs with --steps)"
+    )
+    var durationMs: Int = 0
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -49,7 +61,11 @@ struct ScrollCommand: AsyncParsableCommand {
                 toX: Double(x - deltaX), toY: Double(y - deltaY)
             )
         } else {
-            InteractionManager.scroll(x: Double(x), y: Double(y), deltaX: Int32(deltaX), deltaY: Int32(deltaY))
+            InteractionManager.scroll(
+                x: Double(x), y: Double(y),
+                deltaX: Int32(deltaX), deltaY: Int32(deltaY),
+                steps: max(1, steps), durationMs: UInt32(max(0, durationMs))
+            )
         }
 
         let result = ScrollResult(x: x, y: y, deltaX: deltaX, deltaY: deltaY)

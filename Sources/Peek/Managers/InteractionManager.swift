@@ -365,7 +365,20 @@ enum InteractionManager {
     /// Scroll at screen coordinates.
     /// deltaY: positive = scroll down (content moves up), negative = scroll up.
     /// deltaX: positive = scroll right (content moves left), negative = scroll left.
-    static func scroll(x: Double, y: Double, deltaX: Int32, deltaY: Int32) {
+    ///
+    /// - Parameters:
+    ///   - steps: number of scroll events to emit (clamped to >= 1). 1 = a single
+    ///     instantaneous event (fast, deterministic — the content jumps by the delta).
+    ///     > 1 spreads the delta across a phased event stream so the scroll visibly
+    ///     accelerates and decelerates (smooth trackpad-style motion).
+    ///   - durationMs: wall-clock time to spread the stream over. When `steps` is 1
+    ///     and `durationMs` > 0, a step count is derived at ~60fps; when `steps` > 1
+    ///     and `durationMs` is 0, a duration is derived at ~16ms/step.
+    ///
+    /// The smooth path keeps the *total* delta exactly equal to the requested delta —
+    /// the ease-in-out curve only redistributes it over time, so callers relying on a
+    /// precise scroll amount still land in the same place.
+    static func scroll(x: Double, y: Double, deltaX: Int32, deltaY: Int32, steps: Int = 1, durationMs: UInt32 = 0) {
         let point = CGPoint(x: x, y: y)
 
         // Move cursor to target so scroll event reaches the correct view
@@ -378,8 +391,40 @@ enum InteractionManager {
         move?.post(tap: .cghidEventTap)
         usleep(50000)
 
-        // CGEvent: positive wheel1 = scroll up, so negate for our convention (positive = down)
-        // Mark as continuous (trackpad-style) for broader app compatibility
+        let smooth = steps > 1 || durationMs > 0
+        if !smooth {
+            // Single-shot: positive wheel1 = scroll up, so negate for our convention
+            // (positive = down). Marked continuous (trackpad-style) for broad compatibility.
+            postScrollEvent(deltaX: deltaX, deltaY: deltaY, phase: nil)
+            return
+        }
+
+        // Resolve the step/duration pair, filling in whichever the caller omitted.
+        let resolvedSteps = steps > 1 ? steps : max(2, Int(durationMs) / 16)
+        let resolvedDuration = durationMs > 0 ? durationMs : UInt32(resolvedSteps * 16)
+        let sleepPerStep = UInt32(Double(resolvedDuration) * 1000 / Double(resolvedSteps))
+
+        // Ease-in-out weight per step (∝ t·(1−t)): small at the ends, large in the
+        // middle — this is what produces the visible accel/decel.
+        let weights = (1...resolvedSteps).map { i -> Double in
+            let t = (Double(i) - 0.5) / Double(resolvedSteps)
+            return t * (1 - t)
+        }
+        let dys = distributeDelta(deltaY, across: weights)
+        let dxs = distributeDelta(deltaX, across: weights)
+
+        for i in 0..<resolvedSteps {
+            let phase: Int64 = i == 0 ? 1 : 2 // kCGScrollPhaseBegan : kCGScrollPhaseChanged
+            postScrollEvent(deltaX: dxs[i], deltaY: dys[i], phase: phase)
+            usleep(sleepPerStep)
+        }
+        // Terminate the gesture so the view settles (kCGScrollPhaseEnded, zero delta).
+        postScrollEvent(deltaX: 0, deltaY: 0, phase: 4)
+    }
+
+    /// Post one continuous (pixel-unit) scroll-wheel event. `phase`, when non-nil, sets
+    /// `kCGScrollWheelEventScrollPhase` so apps render the gesture as a smooth stream.
+    private static func postScrollEvent(deltaX: Int32, deltaY: Int32, phase: Int64?) {
         let event = CGEvent(
             scrollWheelEvent2Source: eventSource,
             units: .pixel,
@@ -389,7 +434,29 @@ enum InteractionManager {
             wheel3: 0
         )
         event?.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
+        if let phase {
+            event?.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+        }
         event?.post(tap: .cghidEventTap)
+    }
+
+    /// Split an integer `total` across `weights` so the per-step values sum back to
+    /// exactly `total`. Uses cumulative rounding: each step gets the difference between
+    /// the running rounded target and what's been assigned, absorbing the remainder.
+    static func distributeDelta(_ total: Int32, across weights: [Double]) -> [Int32] {
+        let sum = weights.reduce(0, +)
+        guard sum > 0 else { return weights.map { _ in 0 } }
+        var out = [Int32]()
+        out.reserveCapacity(weights.count)
+        var assigned: Int32 = 0
+        var acc = 0.0
+        for w in weights {
+            acc += w / sum * Double(total)
+            let target = Int32(acc.rounded())
+            out.append(target - assigned)
+            assigned = target
+        }
+        return out
     }
 
     static func type(text: String, delayMs: UInt32 = 5) {
