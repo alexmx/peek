@@ -172,7 +172,7 @@ Manual configuration:
 
 ## Use with AI agents
 
-A skill guide for agents driving peek via the CLI lives at [`skills/peek/SKILL.md`](skills/peek/SKILL.md). Install it with [Skillman](https://github.com/alexmx/skillman):
+A skill guide for agents driving peek via the CLI lives at [`skills/use-peek/SKILL.md`](skills/use-peek/SKILL.md). Install it with [Skillman](https://github.com/alexmx/skillman):
 
 ```bash
 skillman install github.com/alexmx/peek

@@ -1,5 +1,5 @@
 ---
-name: peek
+name: use-peek
 description: Use the peek CLI to inspect, debug, and interact with native macOS app windows. Use when the user asks to debug a macOS app, inspect UI elements, take screenshots, click buttons, or automate interactions with native apps.
 argument-hint: [command]
 ---
