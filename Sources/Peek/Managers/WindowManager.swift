@@ -45,110 +45,165 @@ enum WindowManager {
     /// Per-attempt ceiling for the ScreenCaptureKit query.
     private static let shareableContentTimeout: TimeInterval = 5
 
-    /// Window list via ScreenCaptureKit, bounded by a timeout.
-    ///
-    /// `SCShareableContent.excludingDesktopWindows` intermittently hangs (~49s) leaking its
-    /// continuation. A TaskGroup timeout can't bound it — the group awaits all children and
-    /// the query ignores cancellation. So we run it detached and race a resume-once
-    /// continuation: on hang the timeout resumes the caller and the detached task is
-    /// abandoned. Mapping runs inside the task (SCShareableContent/SCWindow aren't Sendable).
+    /// `SCShareableContent.excludingDesktopWindows` intermittently hangs (~49s) and ignores
+    /// cancellation. Without serialization, repeated calls each abandon a hung query while it
+    /// keeps a live `replayd` connection, stacking parallel hangs that pin `replayd`. This
+    /// runs one detached query at a time (see `WindowQuery`), capping `replayd` to a single
+    /// connection per process.
+    private static let query = WindowQuery()
+
     private static func fetchWindows() async throws -> [WindowInfo] {
-        let box = FetchContinuation()
-
-        let work = Task.detached(priority: .userInitiated) {
-            do {
-                let content = try await SCShareableContent.excludingDesktopWindows(
-                    true,
-                    onScreenWindowsOnly: false
-                )
-                let onScreenIDs = onScreenWindowIDs()
-                let windows = content.windows.compactMap { scWindow -> WindowInfo? in
-                    guard let app = scWindow.owningApplication,
-                          scWindow.windowLayer == 0 else { return nil }
-
-                    let frame = scWindow.frame
-                    guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
-
-                    let title = scWindow.title ?? ""
-                    let isOnScreen = onScreenIDs.contains(scWindow.windowID)
-
-                    // Offscreen + no title = placeholder/staging window
-                    if !isOnScreen, title.isEmpty { return nil }
-
-                    // Skip AutoFill helper windows
-                    if app.applicationName.hasPrefix("AutoFill") { return nil }
-
-                    return WindowInfo(
-                        windowID: scWindow.windowID,
-                        ownerName: app.applicationName,
-                        windowTitle: title,
-                        pid: app.processID,
-                        frame: frame,
-                        isOnScreen: isOnScreen
-                    )
-                }
-                box.complete(.success(windows))
-            } catch let error as NSError where error.domain.contains("SCStream") {
-                // ScreenCaptureKit denial (-3801).
-                box.complete(.failure(PeekError.screenCaptureNotGranted))
-            } catch {
-                box.complete(.failure(error))
-            }
-        }
-
-        let timeout = Task {
-            do {
-                try await Delay.seconds(shareableContentTimeout)
-                box.complete(.failure(PeekError.captureFailed))
-            } catch {
-                // Cancelled because the query already finished — nothing to do.
-            }
-        }
-        defer { timeout.cancel() }
-
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { cont in
-                box.attach(cont)
-            }
-        } onCancel: {
-            box.complete(.failure(CancellationError()))
-            work.cancel()
+        try await query.run(timeout: shareableContentTimeout) {
+            try await shareableWindows()
         }
     }
 
-    /// Resume-once race between the query, the timeout, and the awaiting continuation.
-    /// First completion wins; a result arriving before `attach` is buffered, not dropped.
-    private final class FetchContinuation: Sendable {
-        private struct State {
+    /// Runs inside the detached query task: `SCShareableContent`/`SCWindow` aren't Sendable,
+    /// but the returned `[WindowInfo]` is.
+    private static func shareableWindows() async throws -> [WindowInfo] {
+        do {
+            let content = try await SCShareableContent.excludingDesktopWindows(
+                true,
+                onScreenWindowsOnly: false
+            )
+            let onScreenIDs = onScreenWindowIDs()
+            return content.windows.compactMap { scWindow -> WindowInfo? in
+                guard let app = scWindow.owningApplication,
+                      scWindow.windowLayer == 0 else { return nil }
+
+                let frame = scWindow.frame
+                guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
+
+                let title = scWindow.title ?? ""
+                let isOnScreen = onScreenIDs.contains(scWindow.windowID)
+
+                // Offscreen + no title = placeholder/staging window
+                if !isOnScreen, title.isEmpty { return nil }
+
+                // Skip AutoFill helper windows
+                if app.applicationName.hasPrefix("AutoFill") { return nil }
+
+                return WindowInfo(
+                    windowID: scWindow.windowID,
+                    ownerName: app.applicationName,
+                    windowTitle: title,
+                    pid: app.processID,
+                    frame: frame,
+                    isOnScreen: isOnScreen
+                )
+            }
+        } catch let error as NSError where error.domain.contains("SCStream") {
+            // ScreenCaptureKit denial (-3801).
+            throw PeekError.screenCaptureNotGranted
+        }
+    }
+
+    /// Coalesces callers onto one in-flight query. Each parks on a resume-once waiter,
+    /// resumed by whichever comes first: the query completing (broadcast to all waiters) or
+    /// its own timeout/cancellation. `running` stays true until the query *truly* finishes,
+    /// so a caller timing out never re-spawns a query that's still wedged.
+    private final class WindowQuery: Sendable {
+        private struct Waiter {
             var cont: CheckedContinuation<[WindowInfo], Error>?
             var pending: Result<[WindowInfo], Error>?
-            var done = false
+        }
+
+        private struct State {
+            var running = false
+            var waiters: [UUID: Waiter] = [:]
         }
 
         private let state = Mutex(State())
 
-        func attach(_ c: CheckedContinuation<[WindowInfo], Error>) {
-            state.withLock { s in
-                if let pending = s.pending {
-                    s.done = true
-                    c.resume(with: pending)
-                } else {
-                    s.cont = c
+        func run(
+            timeout: TimeInterval,
+            _ body: @escaping @Sendable () async throws -> [WindowInfo]
+        ) async throws -> [WindowInfo] {
+            let id = UUID()
+            let startQuery = state.withLock { s -> Bool in
+                s.waiters[id] = Waiter()
+                if s.running { return false }
+                s.running = true
+                return true
+            }
+
+            if startQuery {
+                Task.detached(priority: .userInitiated) {
+                    let result: Result<[WindowInfo], Error>
+                    do {
+                        result = .success(try await body())
+                    } catch {
+                        result = .failure(error)
+                    }
+                    self.broadcast(result)
                 }
+            }
+
+            let timeoutTask = Task {
+                try? await Delay.seconds(timeout)
+                self.deliver(id, .failure(PeekError.captureFailed))
+            }
+            defer { timeoutTask.cancel() }
+
+            return try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { cont in
+                    self.attach(id, cont)
+                }
+            } onCancel: {
+                self.deliver(id, .failure(CancellationError()))
             }
         }
 
-        func complete(_ result: Result<[WindowInfo], Error>) {
-            state.withLock { s in
-                guard !s.done else { return }
-                if let c = s.cont {
-                    s.cont = nil
-                    s.done = true
-                    c.resume(with: result)
-                } else if s.pending == nil {
-                    s.pending = result // arrived before attach; first one wins
+        /// Park a caller's continuation, consuming a result that raced ahead of it.
+        private func attach(_ id: UUID, _ cont: CheckedContinuation<[WindowInfo], Error>) {
+            let pending: Result<[WindowInfo], Error>? = state.withLock { s in
+                guard var w = s.waiters[id] else { return nil }
+                if let p = w.pending {
+                    s.waiters[id] = nil
+                    return p
                 }
+                w.cont = cont
+                s.waiters[id] = w
+                return nil
             }
+            if let pending { cont.resume(with: pending) }
+        }
+
+        /// Resume one waiter (timeout/cancellation). First delivery wins; buffered if the
+        /// continuation hasn't attached yet.
+        private func deliver(_ id: UUID, _ result: Result<[WindowInfo], Error>) {
+            let cont: CheckedContinuation<[WindowInfo], Error>? = state.withLock { s in
+                guard var w = s.waiters[id] else { return nil }
+                if let c = w.cont {
+                    s.waiters[id] = nil
+                    return c
+                }
+                if w.pending == nil {
+                    w.pending = result
+                    s.waiters[id] = w
+                }
+                return nil
+            }
+            cont?.resume(with: result)
+        }
+
+        /// Query finished: clear `running` and resume every still-parked waiter.
+        private func broadcast(_ result: Result<[WindowInfo], Error>) {
+            let conts: [CheckedContinuation<[WindowInfo], Error>] = state.withLock { s in
+                s.running = false
+                var resumed: [CheckedContinuation<[WindowInfo], Error>] = []
+                for (id, var w) in s.waiters {
+                    if let c = w.cont {
+                        resumed.append(c)
+                        s.waiters[id] = nil
+                    } else if w.pending == nil {
+                        w.pending = result
+                        s.waiters[id] = w
+                    }
+                }
+                return resumed
+            }
+            for c in conts { c.resume(with: result) }
         }
     }
 

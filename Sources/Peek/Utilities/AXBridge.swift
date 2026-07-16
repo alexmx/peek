@@ -92,7 +92,6 @@ enum AXBridge {
 
     // MARK: - Application
 
-    /// Create an AXUIElement for an application by PID.
     static func application(pid: pid_t) -> AXUIElement {
         AXUIElementCreateApplication(pid)
     }
@@ -385,7 +384,6 @@ enum AXBridge {
 
     // MARK: - Menu Attributes
 
-    /// Read the keyboard shortcut from a menu item element.
     static func menuShortcut(of element: AXUIElement) -> String? {
         var cmdCharRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXMenuItemCmdCharAttribute as CFString, &cmdCharRef) == .success,

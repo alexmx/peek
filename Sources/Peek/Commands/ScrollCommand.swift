@@ -52,8 +52,7 @@ struct ScrollCommand: AsyncParsableCommand {
         }
 
         if drag {
-            // Drag gesture: swipe from (x, y) to (x - deltaX, y - deltaY)
-            // Negative because dragging up scrolls content down
+            // Swipe opposite the scroll delta: dragging up scrolls content down.
             await InteractionManager.drag(
                 fromX: Double(x), fromY: Double(y),
                 toX: Double(x - deltaX), toY: Double(y - deltaY)

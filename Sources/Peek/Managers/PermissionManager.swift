@@ -27,7 +27,7 @@ enum PermissionManager {
             ? AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
             : AXIsProcessTrusted()
 
-        let screenRecording = await probeScreenRecording()
+        let screenRecording = await probeScreenCapture() == .works
         if !screenRecording, prompt {
             CGRequestScreenCaptureAccess()
         }
@@ -35,16 +35,25 @@ enum PermissionManager {
         return Status(accessibility: accessibility, screenRecording: screenRecording)
     }
 
-    /// Whether Screen Recording actually works, via a real ScreenCaptureKit query.
-    /// Preflight can report granted while SCShareableContent denies, so probe instead.
-    /// Cache is cleared first so the result reflects current state.
-    private static func probeScreenRecording() async -> Bool {
+    /// Outcome of a live ScreenCaptureKit probe. `denied` means the grant is actively refused
+    /// (a stale positive from preflight); `inconclusive` means the query failed for another
+    /// reason — e.g. a wedged/slow `replayd` — which is not a permission problem.
+    enum ScreenCaptureProbe {
+        case works, denied, inconclusive
+    }
+
+    /// Probe Screen Recording with a real ScreenCaptureKit query. `CGPreflightScreenCaptureAccess`
+    /// can report granted while SCShareableContent denies — most commonly a stale grant after the
+    /// host app updates. Cache is cleared first so the result reflects current state.
+    static func probeScreenCapture() async -> ScreenCaptureProbe {
         WindowManager.invalidateCache()
         do {
             _ = try await WindowManager.listWindows()
-            return true
+            return .works
+        } catch PeekError.screenCaptureNotGranted {
+            return .denied
         } catch {
-            return false
+            return .inconclusive
         }
     }
 }

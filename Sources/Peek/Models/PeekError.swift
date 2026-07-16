@@ -15,6 +15,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
     case noMenuBar(pid_t)
     case menuItemNotFound(String)
     case screenCaptureNotGranted
+    case screenCaptureStale
     case invalidCropRegion
     case captureFailed
     case encodingFailed
@@ -52,6 +53,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
             "No enabled menu item matching '\(title)' found. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) are filtered out by macOS Accessibility and won't appear here — if you know the shortcut, send it directly with peek_key."
         case .screenCaptureNotGranted:
             "Screen Recording permission not granted. Enable it in System Settings > Privacy & Security > Screen Recording."
+        case .screenCaptureStale:
+            "Screen Recording permission appears stale: macOS reports it granted but capturing returns nothing. This commonly happens after the host app (e.g. Claude Code) updates, since macOS ties the grant to the app's code signature. Fix without a reboot: toggle the host app off/on under System Settings > Privacy & Security > Screen Recording, or run 'tccutil reset ScreenCapture' and re-grant, then restart the host app."
         case .invalidCropRegion:
             "Crop region is outside the window bounds."
         case .captureFailed:

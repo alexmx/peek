@@ -104,7 +104,6 @@ enum MonitorManager {
         return lhs.x < rMaxX && rhs.x < lMaxX && lhs.y < rMaxY && rhs.y < lMaxY
     }
 
-    /// Flatten a node tree into a list.
     static func flattenNodes(_ node: AXNode) -> [AXNode] {
         var result = [node.withoutChildren]
         for child in node.children {

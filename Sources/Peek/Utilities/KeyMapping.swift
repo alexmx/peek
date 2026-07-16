@@ -9,7 +9,6 @@ enum KeyMapping {
         if let mapping = table[char] {
             return mapping
         }
-        // Uppercase letters
         if char.isUppercase, let lower = char.lowercased().first, let mapping = table[lower] {
             return (mapping.keyCode, true)
         }

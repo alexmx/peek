@@ -123,7 +123,6 @@ enum MenuBarManager {
         return nil
     }
 
-    /// Search recursively through menu tree for matching items.
     static func searchMenuNode(_ node: MenuNode, title: String, path: [String], results: inout [MenuNode]) {
         let currentPath = node.title.isEmpty ? path : path + [node.title]
 
