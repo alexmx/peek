@@ -62,7 +62,7 @@ struct WindowTarget: ParsableArguments {
         }
         if let app {
             let matching = windows.filter { $0.ownerName.localizedCaseInsensitiveContains(app) }
-            if let window = matching.first(where: { $0.isOnScreen }) ?? matching.first {
+            if let window = frontmostMatch(matching) {
                 return Resolved(windowID: window.windowID, pid: window.pid)
             }
             if let runningPID = findRunningPID(byName: app) {
@@ -72,7 +72,7 @@ struct WindowTarget: ParsableArguments {
         }
         if let pid {
             let matching = windows.filter { $0.pid == pid }
-            if let window = matching.first(where: { $0.isOnScreen }) ?? matching.first {
+            if let window = frontmostMatch(matching) {
                 return Resolved(windowID: window.windowID, pid: window.pid)
             }
             if NSRunningApplication(processIdentifier: pid) != nil {
@@ -81,6 +81,21 @@ struct WindowTarget: ParsableArguments {
             throw ValidationError("No window found for PID \(pid). Run 'peek apps' to see available apps.")
         }
         throw ValidationError("Provide a window ID, --app, or --pid.")
+    }
+
+    /// Among windows matching `--app`/`--pid`, pick the frontmost on-screen one — the window
+    /// highest in CGWindowList z-order. Activation and keyboard input target the app's key
+    /// window, so a multi-window app must resolve to its frontmost window; enumeration order
+    /// (SCShareableContent) is unrelated to z-order and unstable across calls, which would
+    /// otherwise route input into an arbitrary background window. Falls back to the first
+    /// on-screen window, then the first window, if none appear in the z-order list.
+    private static func frontmostMatch(_ matching: [WindowInfo]) -> WindowInfo? {
+        guard !matching.isEmpty else { return nil }
+        let byID = Dictionary(matching.map { ($0.windowID, $0) }, uniquingKeysWith: { first, _ in first })
+        for id in WindowManager.onScreenWindowIDsFrontToBack() where byID[id] != nil {
+            return byID[id]
+        }
+        return matching.first(where: { $0.isOnScreen }) ?? matching.first
     }
 
     /// Look up a running app's PID by case-insensitive name substring. Used to address

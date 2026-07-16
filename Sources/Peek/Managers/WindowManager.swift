@@ -131,7 +131,7 @@ enum WindowManager {
                 Task.detached(priority: .userInitiated) {
                     let result: Result<[WindowInfo], Error>
                     do {
-                        result = .success(try await body())
+                        result = try await .success(body())
                     } catch {
                         result = .failure(error)
                     }
@@ -216,5 +216,17 @@ enum WindowManager {
             return []
         }
         return Set(list.compactMap { $0[kCGWindowNumber as String] as? CGWindowID })
+    }
+
+    /// On-screen window IDs in front-to-back z-order (frontmost first), via CGWindowList.
+    /// Used to resolve `--app`/`--pid` to the frontmost matching window.
+    static func onScreenWindowIDsFrontToBack() -> [CGWindowID] {
+        guard let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] else {
+            return []
+        }
+        return list.compactMap { $0[kCGWindowNumber as String] as? CGWindowID }
     }
 }
