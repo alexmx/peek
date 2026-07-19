@@ -268,6 +268,10 @@ enum PeekTools {
             "Mouse button: 'left' (default) or 'right'. Right-click opens context menus on canvases / web views."
         )
         var button: String?
+        @InputProperty(
+            "Modifier keys held during the click: any subset of cmd, shift, option, control, fn. E.g. ['shift'] for range select, ['cmd'] to toggle / open in background."
+        )
+        var modifiers: [String]?
     }
 
     struct DragArgs: MCPToolInput {
@@ -604,7 +608,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window). Re-read frames after activate/ShowMenu/menu click — windows can move."
+        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass modifiers=['shift'|'cmd'|'option'|'control'|'fn'] to hold keys during the click (shift-click = range select, cmd-click = toggle / open in background). Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window). Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
@@ -613,14 +617,19 @@ enum PeekTools {
             guard let button = InteractionManager.MouseButton(rawValue: buttonRaw) else {
                 throw PeekError.invalidArgument(name: "button", value: buttonRaw, valid: ["left", "right"])
             }
-            await InteractionManager.click(x: Double(args.x), y: Double(args.y), count: count, button: button)
+            let mods = args.modifiers ?? []
+            let flags = try KeyMapping.parseModifiers(mods)
+            await InteractionManager.click(
+                x: Double(args.x), y: Double(args.y), count: count, button: button, flags: flags
+            )
             struct Result: Encodable {
                 let x: Int
                 let y: Int
                 let count: Int
                 let button: String
+                let modifiers: [String]
             }
-            return try json(Result(x: args.x, y: args.y, count: count, button: button.rawValue))
+            return try json(Result(x: args.x, y: args.y, count: count, button: button.rawValue, modifiers: mods))
         }
     }
 

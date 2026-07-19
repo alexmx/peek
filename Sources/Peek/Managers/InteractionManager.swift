@@ -233,7 +233,13 @@ enum InteractionManager {
     /// with the `clickState` field set (1, 2, or 3) so AppKit treats them as a single
     /// click, double-click, or triple-click — used for word/line selection in text views.
     /// `button` picks the mouse button (left or right).
-    static func click(x: Double, y: Double, count: Int = 1, button: MouseButton = .left) async {
+    static func click(
+        x: Double,
+        y: Double,
+        count: Int = 1,
+        button: MouseButton = .left,
+        flags: CGEventFlags = []
+    ) async {
         let point = CGPoint(x: x, y: y)
         let clamped = max(1, min(count, 3))
         let (downType, upType, btn): (CGEventType, CGEventType, CGMouseButton) = switch button {
@@ -263,6 +269,14 @@ enum InteractionManager {
             )
             down?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
             up?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
+
+            // Hold the modifier flags (shift/cmd/option/control) for the duration of the
+            // click so gestures like shift-click (range select) and cmd-click (toggle /
+            // open-in-background) register. Empty flags leave a plain click unchanged.
+            if !flags.isEmpty {
+                down?.flags = flags
+                up?.flags = flags
+            }
 
             down?.post(tap: .cghidEventTap)
             await pause(30)

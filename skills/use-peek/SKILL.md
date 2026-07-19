@@ -107,7 +107,7 @@ peek key --key escape --app Calculator
 
 ### `peek click` — click at screen coordinates
 
-`--x N --y N`. `--count 2`/`3` for double/triple click (word/line selection in text views). `--button right` opens context menus on canvases / web views. For labeled elements, use `peek action --do Press` instead. For drag gestures, use `peek drag`.
+`--x N --y N`. `--count 2`/`3` for double/triple click (word/line selection in text views). `--button right` opens context menus on canvases / web views. `--modifiers cmd shift option control fn` (space/comma-separated) holds keys during the click — shift-click extends a selection (range select), cmd-click toggles / opens in background. For labeled elements, use `peek action --do Press` instead. For drag gestures, use `peek drag`.
 
 ### `peek move` — move the cursor without clicking
 

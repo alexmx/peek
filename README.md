@@ -132,7 +132,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | Command | Description | Key options |
 |---|---|---|
 | `action` | Find an element and perform an AX action | `--do Press\|Confirm\|Cancel\|ShowMenu\|Increment\|Decrement\|Raise\|Select` (`Select` sets AXSelected for outline/table rows that lack Press — match the row's label, it climbs to the row); filters as `find`; `--all`; `--verify none\|tree\|diff` (default `none`), `--depth`, `--delay` (default 0.15s) |
-| `click` | Click at screen coordinates | `--x --y`; `--count 1\|2\|3` (double = word, triple = line); `--button left\|right` (right opens context menus); `--app` to auto-activate |
+| `click` | Click at screen coordinates | `--x --y`; `--count 1\|2\|3` (double = word, triple = line); `--button left\|right` (right opens context menus); `--modifiers cmd\|shift\|option\|control\|fn` (held during click — shift-click = range select, cmd-click = toggle / open in background); `--app` to auto-activate |
 | `move` | Move the cursor without clicking — drives hover state, tooltips, cursor updates | `--x --y`; `--from-x --from-y` + `--steps N` for smoothed motion; `--dwell-ms N`; returns `cursor` + `element` for hover verification |
 | `drag` | Drag between two screen points | `--from-x --from-y --to-x --to-y` |
 | `scroll` | Scroll at coordinates | `--x --y --delta-y` (positive = DOWN); `--delta-x`; `--steps N` / `--duration-ms` for smooth accel/decel motion (default: instant jump); `--drag` for touch apps |

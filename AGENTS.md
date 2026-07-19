@@ -80,7 +80,7 @@ Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lan
 - **menu** — Menu bar structure. `--find` searches items, `--click` triggers an item, `--path` returns just a scoped submenu (e.g. `--path Debug`) to avoid dumping the full menu tree on large apps. The MCP variant soft-caps no-arg responses.
 
 ### Interaction
-- **click** — Click at `--x`/`--y` screen coordinates. `--count 2`/`3` for double/triple click (word/line selection in text views). `--button right` for right-click (opens context menus).
+- **click** — Click at `--x`/`--y` screen coordinates. `--count 2`/`3` for double/triple click (word/line selection in text views). `--button right` for right-click (opens context menus). `--modifiers` holds keys during the click (cmd, shift, option, control, fn; space/comma-separated) — shift-click for range select, cmd-click to toggle / open in background.
 - **move** — Move cursor to `--x`/`--y` (no click). Drives hover state, tooltips, Dock magnification. `--from-x`/`--from-y` + `--steps N` for smoothed motion; `--dwell-ms` holds at destination so hover renders. Returns `cursor` (OS-reported position) and `element` (system-wide AX hit-test under cursor; null over empty desktop).
 - **drag** — Drag between two screen points with `--from-x`/`--from-y`/`--to-x`/`--to-y`. For drag-reorder, drag-and-drop, marquee selection.
 - **scroll** — Scroll at `--x`/`--y` screen coordinates with `--delta-y` (required) and `--delta-x` (optional). Default is an instant jump; `--steps N` (and/or `--duration-ms`) spreads it across phased events for smooth animated motion (total delta unchanged). `--drag` for touch-based apps like iOS Simulator.

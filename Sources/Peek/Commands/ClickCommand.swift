@@ -1,4 +1,5 @@
 import ArgumentParser
+import CoreGraphics
 import Foundation
 
 struct ClickCommand: AsyncParsableCommand {
@@ -27,6 +28,13 @@ struct ClickCommand: AsyncParsableCommand {
     )
     var button: String = "left"
 
+    @Option(
+        name: .long,
+        parsing: .upToNextOption,
+        help: "Modifier keys held during the click: cmd, shift, option (alt), control (ctrl), fn. Space- or comma-separated. E.g. shift-click for range select, cmd-click to toggle / open in background."
+    )
+    var modifiers: [String] = []
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -35,6 +43,7 @@ struct ClickCommand: AsyncParsableCommand {
         let y: Int
         let count: Int
         let button: String
+        let modifiers: [String]
     }
 
     func run() async throws {
@@ -42,17 +51,24 @@ struct ClickCommand: AsyncParsableCommand {
             throw PeekError.invalidArgument(name: "button", value: button, valid: ["left", "right"])
         }
 
+        let modTokens = modifiers
+            .flatMap { $0.split(separator: ",").map(String.init) }
+            .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        let flags = try KeyMapping.parseModifiers(modTokens)
+
         if let resolved = try await target.activateIfSpecified() {
             try await InteractionManager.ensureOnTarget(points: [(x, y)], pid: resolved.pid, windowID: target.windowID)
         }
 
-        await InteractionManager.click(x: Double(x), y: Double(y), count: count, button: btn)
+        await InteractionManager.click(x: Double(x), y: Double(y), count: count, button: btn, flags: flags)
 
-        let result = ClickResult(x: x, y: y, count: max(1, min(count, 3)), button: btn.rawValue)
+        let result = ClickResult(x: x, y: y, count: max(1, min(count, 3)), button: btn.rawValue, modifiers: modTokens)
         try emit(result, as: format) {
             let multiplier = ["single", "double", "triple"][result.count - 1]
             let buttonLabel = btn == .right ? "right-clicked" : "clicked"
-            print("\(multiplier.capitalized) \(buttonLabel) at (\(x), \(y))")
+            let modText = modTokens.isEmpty ? "" : " with " + modTokens.joined(separator: "+")
+            print("\(multiplier.capitalized) \(buttonLabel) at (\(x), \(y))\(modText)")
         }
     }
 }
