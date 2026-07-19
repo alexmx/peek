@@ -99,6 +99,10 @@ peek text --app Notes --role TextArea --substring "Reminder" --bounds
 # Read the menu bar and discover shortcuts
 peek menu --app Safari --find "New Tab"
 
+# Drive a status item (NSStatusItem / SwiftUI MenuBarExtra) the AX tree hides by default
+peek menu --app YourApp --extras            # list status items
+peek menu --app YourApp --extras --click "Sync"   # press one to open its menu
+
 # Fire any shortcut at a specific app — ⌘-combos, F-keys, Escape, arrows
 peek key --key s --modifiers cmd --app TextEdit
 
@@ -125,7 +129,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | `tree` | Accessibility tree of a window | `--depth N` |
 | `find` | Search elements by AX attributes or hit-test | `--role`, `--title` (matches AXTitle OR AXDescription), `--value`, `--desc`, `--enabled true\|false`; `--x --y` for hit-test; `--limit N` (use `--limit 1` for existence checks) |
 | `text` | Read an element's full text, incl. parameterized (NavigableStaticText) text `find`/`tree` show as empty | `--role`/`--title`/`--value`/`--desc` to select; `--offset --length` to page; `--bounds` (screen rect of the range), `--selection` (caret/selection range), `--substring TEXT` (locate by content, pairs with `--bounds`) |
-| `menu` | Inspect or click menu bar items | `--find QUERY`, `--path "Menu > Submenu"`, `--click TITLE` |
+| `menu` | Inspect or click menu bar items | `--find QUERY`, `--path "Menu > Submenu"`, `--click TITLE`, `--extras` (status-item / menu bar extra bar) |
 
 ### Interaction
 
@@ -140,7 +144,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | `key` | Send a single key chord | `--key` (character or named: escape, tab, return, delete, arrows, home, end, pageup, pagedown, f1-f12, space); `--modifiers cmd,shift,option,control,fn` |
 | `activate` | Bring an app to the foreground | `--app`, `--pid` |
 
-Window-less system UI (Dock, Control Center, status-menu helpers) is addressable too — pass `--app` or `--pid` and `find`/`tree`/`action`/`move` scope to the app's AX root. These processes don't appear in `peek apps`.
+Window-less system UI (Dock, Control Center, status-menu helpers) is addressable too — pass `--app` or `--pid` and `find`/`tree`/`action`/`move` scope to the app's AX root. These processes don't appear in `peek apps`. An app's own status items (NSStatusItem / SwiftUI MenuBarExtra) live on a separate AX bar — reach them with `peek menu --extras` rather than `tree`/`find`.
 
 `click`, `drag`, and `scroll` with a target (`--app`/`--pid`/`<window-id>`) verify the point actually lands on that app/window — raising an occluded target window, or erroring if the coordinates are stale or over another window (so a background app doesn't silently receive the event). Re-read frames with `peek find` on that error, or pass a `<window-id>` for multi-window apps.
 

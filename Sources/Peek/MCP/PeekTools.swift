@@ -439,6 +439,10 @@ enum PeekTools {
         var find: String?
         @InputProperty("Return only the submenu at this path ('Debug' or 'Edit > Find').")
         var path: String?
+        @InputProperty(
+            "Operate on the status-item / menu bar extra bar (NSStatusItem, SwiftUI MenuBarExtra) instead of the main menu bar. Combine with find/path to inspect, or click to press a status item (opens its menu — read it with a follow-up extras call)."
+        )
+        var extras: Bool?
     }
 
     struct LaunchArgs: MCPToolInput {
@@ -843,28 +847,29 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Read or click an app's menu bar. Modes: 'find' (read-only, returns matches with paths like 'Edit > Copy'); 'path' (read-only, scoped submenu — 'Debug' or 'Edit > Find'); 'click' (triggers an item, activates the app first). No-arg form truncates on large menus — pass find or path. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via peek_key."
+        description: "Read or click an app's menu bar. Modes: 'find' (read-only, returns matches with paths like 'Edit > Copy'); 'path' (read-only, scoped submenu — 'Debug' or 'Edit > Find'); 'click' (triggers an item, activates the app first). Pass extras=true to target the status-item / menu bar extra bar (NSStatusItem, SwiftUI MenuBarExtra) instead of the main menu — inspect it, or click a status item to open its menu (read the opened menu with a follow-up extras call). No-arg form truncates on large menus — pass find or path. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via peek_key."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
             // The menu bar is per-app, not per-window — resolving a window would
             // wrongly fail for apps that are running but have no windows (Finder
             // with no Finder windows open, background-mode utilities, etc.).
             let pid = try await resolvePID(windowID: args.window_id, app: args.app, pid: args.pid)
+            let extras = args.extras ?? false
             if let clickTitle = args.click {
                 // Clicking a menu item needs the menu to actually open — app must be FG.
                 _ = try await InteractionManager.activateApp(pid: pid)
-                let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle)
+                let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle, extras: extras)
                 return try json(["title": title])
             } else if let findTitle = args.find {
                 // Read-only menu search — works on backgrounded apps via AX.
-                let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle)
+                let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle, extras: extras)
                 return try json(items)
             } else if let scopedPath = args.path {
                 // Read-only scoped submenu — avoids dumping the full menu tree.
-                let subtree = try MenuBarManager.menuSubtree(pid: pid, path: scopedPath)
+                let subtree = try MenuBarManager.menuSubtree(pid: pid, path: scopedPath, extras: extras)
                 return try json(subtree)
             } else {
-                let tree = try MenuBarManager.menuBar(pid: pid)
+                let tree = try MenuBarManager.menuBar(pid: pid, extras: extras)
                 return try cappedMenuTree(tree)
             }
         }

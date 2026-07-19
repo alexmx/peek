@@ -13,6 +13,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
     case coordinateOffTarget(x: Int, y: Int, target: String, actual: String)
     case actionFailed(String, AXError)
     case noMenuBar(pid_t)
+    case noExtrasMenuBar(pid_t)
     case menuItemNotFound(String)
     case screenCaptureNotGranted
     case screenCaptureStale
@@ -49,6 +50,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
             "Action '\(action)' failed: \(error.label). Try a different action for this element role."
         case .noMenuBar(let pid):
             "No menu bar found for process \(pid)."
+        case .noExtrasMenuBar(let pid):
+            "No status-item (menu bar extra) menu found for process \(pid). The app may expose no NSStatusItem, or its status item uses a custom view with no accessibility — locate it visually and drive it with coordinate clicks."
         case .menuItemNotFound(let title):
             "No enabled menu item matching '\(title)' found. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) are filtered out by macOS Accessibility and won't appear here — if you know the shortcut, send it directly with peek_key."
         case .screenCaptureNotGranted:

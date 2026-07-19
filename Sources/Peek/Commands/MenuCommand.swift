@@ -19,6 +19,9 @@ struct MenuCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find')")
     var path: String?
 
+    @Flag(name: .long, help: "Operate on the status-item (menu bar extra) bar instead of the main menu bar")
+    var extras = false
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -31,7 +34,7 @@ struct MenuCommand: AsyncParsableCommand {
 
         if let click {
             _ = try? await InteractionManager.activateApp(pid: pid)
-            let title = try MenuBarManager.clickMenuItem(pid: pid, title: click)
+            let title = try MenuBarManager.clickMenuItem(pid: pid, title: click, extras: extras)
             try emit(ClickResult(title: title), as: format) {
                 print("Clicked menu item: \(title)")
             }
@@ -39,7 +42,7 @@ struct MenuCommand: AsyncParsableCommand {
         }
 
         if let find {
-            let items = try MenuBarManager.findMenuItems(pid: pid, title: find)
+            let items = try MenuBarManager.findMenuItems(pid: pid, title: find, extras: extras)
             try emit(items, as: format) {
                 for item in items {
                     var line = item.title
@@ -54,9 +57,9 @@ struct MenuCommand: AsyncParsableCommand {
         }
 
         let tree: MenuNode = if let path {
-            try MenuBarManager.menuSubtree(pid: pid, path: path)
+            try MenuBarManager.menuSubtree(pid: pid, path: path, extras: extras)
         } else {
-            try MenuBarManager.menuBar(pid: pid)
+            try MenuBarManager.menuBar(pid: pid, extras: extras)
         }
 
         try emit(tree, as: format) {

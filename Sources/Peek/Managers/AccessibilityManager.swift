@@ -44,15 +44,32 @@ enum AccessibilityManager {
         throw PeekError.noWindows
     }
 
-    /// Get the menu bar element for an application, activating if needed.
+    /// Get the main menu bar element for an application, activating if needed.
     static func menuBar(pid: pid_t) throws -> AXUIElement {
+        try menuBarElement(pid: pid, attribute: kAXMenuBarAttribute, missing: PeekError.noMenuBar(pid))
+    }
+
+    /// Get the "extras" menu bar — the status-item bar hosting NSStatusItem /
+    /// SwiftUI MenuBarExtra items. Lives on the app's AXApplication under a separate
+    /// attribute from the main menu bar, so it needs its own fetch.
+    static func extrasMenuBar(pid: pid_t) throws -> AXUIElement {
+        try menuBarElement(pid: pid, attribute: kAXExtrasMenuBarAttribute, missing: PeekError.noExtrasMenuBar(pid))
+    }
+
+    /// Copy a menu-bar-style attribute off the AXApplication, activating and
+    /// retrying once if the first fetch fails (app may be on another Space).
+    private static func menuBarElement(
+        pid: pid_t,
+        attribute: String,
+        missing: @autoclosure () -> PeekError
+    ) throws -> AXUIElement {
         try PermissionManager.requireAccessibility()
 
         let app = AXBridge.application(pid: pid)
 
         func fetchMenuBar() -> AXUIElement? {
             var ref: AnyObject?
-            guard AXUIElementCopyAttributeValue(app, kAXMenuBarAttribute as CFString, &ref) == .success,
+            guard AXUIElementCopyAttributeValue(app, attribute as CFString, &ref) == .success,
                   let ref else {
                 return nil
             }
@@ -64,7 +81,7 @@ enum AccessibilityManager {
 
         // Menu bar not accessible — app may be on another Space. Activate and retry.
         guard let runningApp = NSRunningApplication(processIdentifier: pid) else {
-            throw PeekError.noMenuBar(pid)
+            throw missing()
         }
         runningApp.activate()
 
@@ -74,7 +91,7 @@ enum AccessibilityManager {
             if let bar = fetchMenuBar() { return bar }
         }
 
-        throw PeekError.noMenuBar(pid)
+        throw missing()
     }
 
     // MARK: - Tree Building
