@@ -107,11 +107,10 @@ enum AppLifecycleManager {
             launcher.cancel()
         }
 
-        // Use CGWindowListCopyWindowInfo (sync, Core Graphics) instead of
-        // WindowManager.listWindows which routes through SCShareableContent. The
-        // SC API leaks `CheckedContinuation` when invoked repeatedly inside the
-        // MCP server (works for the first few calls, then its bridged completion
-        // handler stops firing). CGWindowList has no async dependency.
+        // Poll for the window with a direct CGWindowList scan (sync, Core Graphics): it needs
+        // no size/permission gating and returns the moment any normal-layer window appears,
+        // which is what "wait for window" wants. WindowManager.listWindows now also uses
+        // CGWindowList, but applies the apps-listing filters (min size, titles) we don't want here.
         WindowManager.invalidateCache()
         var firstWindow: (windowID: UInt32, title: String)?
         if waitForWindow {

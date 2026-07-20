@@ -46,9 +46,8 @@ enum PermissionManager {
     /// can report granted while SCShareableContent denies — most commonly a stale grant after the
     /// host app updates. Cache is cleared first so the result reflects current state.
     static func probeScreenCapture() async -> ScreenCaptureProbe {
-        WindowManager.invalidateCache()
         do {
-            _ = try await WindowManager.listWindows()
+            try await WindowManager.probeShareableContent()
             return .works
         } catch PeekError.screenCaptureNotGranted {
             return .denied

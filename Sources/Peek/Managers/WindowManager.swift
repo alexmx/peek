@@ -29,31 +29,75 @@ enum WindowManager {
     static func listWindows() async throws -> [WindowInfo] {
         if let cached = cachedSnapshot() { return cached }
 
-        // Fast gate for the denied case. Not authoritative: preflight can report
-        // granted while SCShareableContent still denies — fetchWindows handles that.
+        // CGWindowList itself needs no permission, but window *titles* (kCGWindowName) only
+        // populate with Screen Recording granted — gate so callers get an actionable permission
+        // error instead of untitled windows they can't target by name.
         guard CGPreflightScreenCaptureAccess() else {
             throw PeekError.screenCaptureNotGranted
         }
 
-        let result = try await fetchWindows()
+        let result = cgWindowList()
         storeSnapshot(result)
         return result
     }
 
     // MARK: - Private
 
-    /// Per-attempt ceiling for the ScreenCaptureKit query.
+    /// Enumerate user windows via `CGWindowListCopyWindowInfo` — synchronous and in-process.
+    /// Unlike `SCShareableContent` it never round-trips to `replayd`, so it can't hang/wedge:
+    /// the old ScreenCaptureKit enumeration hung ~49s (ignoring cancellation) and pinned
+    /// `replayd`, the root of the "MCP dies after a while" reports. `.optionAll` includes
+    /// off-screen/minimized windows; on-screen state comes from the lightweight on-screen list.
+    private static func cgWindowList() -> [WindowInfo] {
+        let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
+        guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
+            return []
+        }
+        let onScreenIDs = onScreenWindowIDs()
+        return list.compactMap { info -> WindowInfo? in
+            // Normal-layer windows only — drop menu bar, Dock, status items, panels.
+            guard info[kCGWindowLayer as String] as? Int == 0,
+                  let windowID = info[kCGWindowNumber as String] as? CGWindowID,
+                  let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  let boundsValue = info[kCGWindowBounds as String],
+                  let frame = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary)
+            else { return nil }
+
+            guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
+
+            let ownerName = info[kCGWindowOwnerName as String] as? String ?? ""
+            // AutoFill helper windows masquerade as their host app; drop them.
+            if ownerName.hasPrefix("AutoFill") { return nil }
+
+            let title = info[kCGWindowName as String] as? String ?? ""
+            let isOnScreen = onScreenIDs.contains(windowID)
+            // Off-screen with no title = placeholder/staging window.
+            if !isOnScreen, title.isEmpty { return nil }
+
+            return WindowInfo(
+                windowID: windowID,
+                ownerName: ownerName,
+                windowTitle: title,
+                pid: pid,
+                frame: frame,
+                isOnScreen: isOnScreen
+            )
+        }
+    }
+
+    /// Per-attempt ceiling for the ScreenCaptureKit probe.
     private static let shareableContentTimeout: TimeInterval = 5
 
     /// `SCShareableContent.excludingDesktopWindows` intermittently hangs (~49s) and ignores
-    /// cancellation. Without serialization, repeated calls each abandon a hung query while it
-    /// keeps a live `replayd` connection, stacking parallel hangs that pin `replayd`. This
-    /// runs one detached query at a time (see `WindowQuery`), capping `replayd` to a single
-    /// connection per process.
+    /// cancellation. This runs one detached query at a time (see `WindowQuery`), capping `replayd`
+    /// to a single connection per process. Reserved for the Screen Recording permission probe
+    /// (doctor + capture-failure messaging) — the per-call listing path uses `cgWindowList()`.
     private static let query = WindowQuery()
 
-    private static func fetchWindows() async throws -> [WindowInfo] {
-        try await query.run(timeout: shareableContentTimeout) {
+    /// Bounded, coalesced ScreenCaptureKit query for the permission probe only. Throws
+    /// `.screenCaptureNotGranted` on an active denial, `.captureFailed` on timeout.
+    static func probeShareableContent() async throws {
+        _ = try await query.run(timeout: shareableContentTimeout) {
             try await shareableWindows()
         }
     }
