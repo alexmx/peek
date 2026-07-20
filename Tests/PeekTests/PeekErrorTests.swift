@@ -126,8 +126,8 @@ struct PeekErrorTests {
         let error = PeekError.captureFailed
         let description = error.errorDescription
         #expect(description != nil)
-        #expect(try #require(description?.localizedCaseInsensitiveContains("time")))
-        #expect(try #require(description?.contains("peek doctor")))
+        #expect(try #require(description?.localizedCaseInsensitiveContains("capture")))
+        #expect(try #require(description?.contains("peek apps")))
     }
 
     @Test
@@ -260,7 +260,7 @@ struct PeekErrorTests {
             (.windowNotFound(123), "peek apps"),
             (.accessibilityNotTrusted, "System Settings"),
             (.screenCaptureNotGranted, "System Settings"),
-            (.captureFailed, "peek doctor"),
+            (.captureFailed, "peek apps"),
             (.actionFailed("Press", .actionUnsupported), "different action")
         ]
 

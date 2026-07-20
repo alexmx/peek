@@ -95,7 +95,7 @@ enum WindowManager {
     private static let query = WindowQuery()
 
     /// Bounded, coalesced ScreenCaptureKit query for the permission probe only. Throws
-    /// `.screenCaptureNotGranted` on an active denial, `.captureFailed` on timeout.
+    /// `.screenCaptureNotGranted` on an active denial, `.timeout` on a wedged `replayd`.
     static func probeShareableContent() async throws {
         _ = try await query.run(timeout: shareableContentTimeout) {
             try await shareableWindows()
@@ -185,7 +185,7 @@ enum WindowManager {
 
             let timeoutTask = Task {
                 try? await Delay.seconds(timeout)
-                self.deliver(id, .failure(PeekError.captureFailed))
+                self.deliver(id, .failure(PeekError.timeout("screen-recording probe", timeout)))
             }
             defer { timeoutTask.cancel() }
 

@@ -61,7 +61,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
         case .invalidCropRegion:
             "Crop region is outside the window bounds."
         case .captureFailed:
-            "Screen capture timed out. Try running 'peek doctor --prompt' to re-grant Screen Recording permission."
+            "Could not capture the window. It may have moved off-screen or to another Space, been minimized, or closed since it was last listed — re-check with 'peek apps' (include_offscreen=true), then peek_activate and retry."
         case .encodingFailed:
             "Failed to encode result as JSON."
         case .activationFailed(let pid, let name):

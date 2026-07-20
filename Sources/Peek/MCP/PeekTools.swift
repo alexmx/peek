@@ -326,9 +326,9 @@ enum PeekTools {
         @InputProperty("Y coordinate")
         var y: Int
         @InputProperty("Vertical scroll in pixels. Positive = DOWN, negative = UP.")
-        var deltaY: Int
+        var delta_y: Int
         @InputProperty("Horizontal scroll in pixels. Positive = RIGHT, negative = LEFT.")
-        var deltaX: Int?
+        var delta_x: Int?
         @InputProperty("Use drag gesture instead of scroll wheel (required for iOS Simulator).")
         var drag: Bool?
         @InputProperty(
@@ -706,12 +706,12 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. deltaY: positive scrolls DOWN, negative UP. deltaX: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
+        description: "Scroll at screen coordinates. delta_y: positive scrolls DOWN, negative UP. delta_x: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
-            let dx = Int32(clamping: args.deltaX ?? 0)
-            let dy = Int32(clamping: args.deltaY)
+            let dx = Int32(clamping: args.delta_x ?? 0)
+            let dy = Int32(clamping: args.delta_y)
             if args.drag ?? false {
                 await InteractionManager.drag(
                     fromX: Double(args.x), fromY: Double(args.y),
@@ -725,7 +725,7 @@ enum PeekTools {
                     durationMs: UInt32(max(0, args.duration_ms ?? 0))
                 )
             }
-            return try json(["x": args.x, "y": args.y, "deltaX": Int(dx), "deltaY": Int(dy)])
+            return try json(["x": args.x, "y": args.y, "delta_x": Int(dx), "delta_y": Int(dy)])
         }
     }
 

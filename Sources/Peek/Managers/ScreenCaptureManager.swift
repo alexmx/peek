@@ -143,11 +143,11 @@ enum ScreenCaptureManager {
             1,
             nil
         ) else {
-            throw PeekError.captureFailed
+            throw PeekError.encodingFailed
         }
         CGImageDestinationAddImage(destination, image, nil)
         guard CGImageDestinationFinalize(destination) else {
-            throw PeekError.captureFailed
+            throw PeekError.encodingFailed
         }
         return mutableData as Data
     }
