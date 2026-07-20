@@ -26,7 +26,7 @@ struct TypeCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-        _ = try await target.activateIfSpecified()
+        _ = try await target.activateIfSpecified(strict: false)
 
         await InteractionManager.type(text: text, delayMs: delayMs)
 

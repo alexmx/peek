@@ -143,17 +143,40 @@ enum InteractionManager {
         NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier
     }
 
-    /// True if `windowID` is the front-most normal-layer (user) window on screen.
-    /// Floating layers (menu bar, dock, status items) are skipped so they don't mask
-    /// our window's true z-position.
+    /// True if `windowID` is the front-most window *within its own CG window layer*.
+    ///
+    /// Normal app windows live at layer 0, so for them this reads as "is our window the
+    /// front-most user window on screen." But panels, non-activating panels, and SwiftUI
+    /// MenuBarExtra windows float at higher layers; scoping the comparison to the target's
+    /// own layer keeps the check meaningful for them. Comparing a layer-3 panel against the
+    /// front-most layer-0 window never matches, so a frontmost, focused panel would look
+    /// permanently "not topmost" — stalling activation until it throws `activationFailed`
+    /// even though the app is frontmost and the field focused. If the window isn't in the
+    /// on-screen list at all (minimized, on another Space, or a kind CGWindowList doesn't
+    /// report), we can't verify z-order — don't block.
     private static func isWindowTopmost(_ windowID: CGWindowID) -> Bool {
         let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard let windows = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
             return true
         }
+        return isTopmostInLayer(windowID: windowID, windows: windows)
+    }
+
+    /// Pure z-order check: is `windowID` the front-most window within its own CG window
+    /// layer, given a front-to-back `windows` list (as returned by
+    /// `CGWindowListCopyWindowInfo` with `.optionOnScreenOnly`)? Factored out of
+    /// `isWindowTopmost` so the layer-scoping logic is deterministically testable without
+    /// a live window server.
+    static func isTopmostInLayer(windowID: CGWindowID, windows: [[String: Any]]) -> Bool {
+        guard let target = windows.first(where: {
+            ($0[kCGWindowNumber as String] as? CGWindowID) == windowID
+        }) else {
+            return true
+        }
+        let targetLayer = target[kCGWindowLayer as String] as? Int ?? 0
         for info in windows {
             let layer = info[kCGWindowLayer as String] as? Int ?? 0
-            if layer != 0 { continue }
+            if layer != targetLayer { continue }
             return (info[kCGWindowNumber as String] as? CGWindowID) == windowID
         }
         return true

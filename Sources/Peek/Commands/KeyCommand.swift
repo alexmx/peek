@@ -43,7 +43,7 @@ struct KeyCommand: AsyncParsableCommand {
             throw PeekError.invalidArgument(name: "key", value: key, valid: KeyMapping.allKeyNames)
         }
 
-        _ = try await target.activateIfSpecified()
+        _ = try await target.activateIfSpecified(strict: false)
 
         InteractionManager.sendKey(keyCode: code, flags: flags)
 

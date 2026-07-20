@@ -88,14 +88,24 @@ enum PeekTools {
     /// which of its windows is on top — otherwise a transient popover (search
     /// popup, autocomplete) sitting above the main window would falsely fail the
     /// topmost check.
-    private static func activateTarget(windowID: Int?, app: String?, pid: Int?) async throws {
+    ///
+    /// `strict: false` makes a failed activation non-fatal — used by peek_type/peek_key,
+    /// whose HID keystrokes reach the OS-frontmost app whether or not peek could *confirm*
+    /// the raise. A strict gate there would abort input that would have worked (e.g. a
+    /// focused MenuBarExtra/panel field where topmost-confirmation stalls). Only
+    /// `activationFailed` is swallowed; resolution/permission errors still throw.
+    private static func activateTarget(windowID: Int?, app: String?, pid: Int?, strict: Bool = true) async throws {
         guard windowID != nil || app != nil || pid != nil else { return }
-        if windowID != nil {
-            let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
-            _ = try await InteractionManager.activate(pid: p, windowID: wid)
-        } else {
-            let p = try await resolvePID(windowID: nil, app: app, pid: pid)
-            _ = try await InteractionManager.activateApp(pid: p)
+        do {
+            if windowID != nil {
+                let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
+                _ = try await InteractionManager.activate(pid: p, windowID: wid)
+            } else {
+                let p = try await resolvePID(windowID: nil, app: app, pid: pid)
+                _ = try await InteractionManager.activateApp(pid: p)
+            }
+        } catch PeekError.activationFailed where !strict {
+            // Best-effort: proceed to post events to the frontmost app anyway.
         }
     }
 
@@ -736,7 +746,7 @@ enum PeekTools {
         let delayMs = UInt32(max(0, args.delay_ms ?? 5))
         let budget = max(defaultTimeout, Double(args.text.count) * Double(delayMs + 5) / 1000.0 + 5)
         return try await withTimeout("peek_type", seconds: budget) {
-            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid, strict: false)
             await InteractionManager.type(text: args.text, delayMs: delayMs)
             return try json(["characters": args.text.count])
         }
@@ -752,7 +762,7 @@ enum PeekTools {
             guard let code = KeyMapping.keyCode(named: args.key) else {
                 throw PeekError.invalidArgument(name: "key", value: args.key, valid: KeyMapping.allKeyNames)
             }
-            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid)
+            try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid, strict: false)
             InteractionManager.sendKey(keyCode: code, flags: flags)
             return try json(["key": args.key, "modifiers": mods.joined(separator: ","), "keyCode": String(code)])
         }

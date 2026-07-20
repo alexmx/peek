@@ -28,10 +28,22 @@ struct WindowTarget: ParsableArguments {
     }
 
     /// Resolve and foreground the target when a targeting flag was provided; returns nil otherwise.
-    func activateIfSpecified() async throws -> Resolved? {
+    ///
+    /// `strict: false` makes a failed activation non-fatal (the resolved target is still
+    /// returned). HID keystroke events (`type`/`key`) post to the OS-frontmost app whether
+    /// or not peek could *confirm* the raise, so a strict gate would abort input that would
+    /// have worked — the exact papercut where a focused panel field rejects `type` because
+    /// activation confirmation stalled. Resolution errors (no such window/app) and permission
+    /// failures still throw; only `activationFailed` is swallowed. Coordinate gestures
+    /// (`click`/`drag`/`scroll`) stay strict — they need the window actually raised.
+    func activateIfSpecified(strict: Bool = true) async throws -> Resolved? {
         guard isSpecified else { return nil }
         let resolved = try await resolve()
-        _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        do {
+            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+        } catch PeekError.activationFailed where !strict {
+            // Best-effort: proceed to post events to the frontmost app anyway.
+        }
         return resolved
     }
 
