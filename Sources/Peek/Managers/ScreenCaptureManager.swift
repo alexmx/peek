@@ -14,6 +14,7 @@ enum ScreenCaptureManager {
 
     /// Capture a window to a PNG file and return the result.
     static func capture(windowID: CGWindowID, outputPath: String, crop: CGRect? = nil) async throws -> CaptureResult {
+        try requireCapturableWindowID(windowID)
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {
@@ -33,6 +34,7 @@ enum ScreenCaptureManager {
         windowID: CGWindowID,
         crop: CGRect? = nil
     ) async throws -> (data: Data, width: Int, height: Int) {
+        try requireCapturableWindowID(windowID)
         try PermissionManager.requireScreenCapture()
 
         guard var image = captureWindowImage(windowID) else {
@@ -45,6 +47,16 @@ enum ScreenCaptureManager {
 
         let data = try encodePNG(image)
         return (data, image.width, image.height)
+    }
+
+    /// `--app`/`--pid` targeting of a window-less app resolves to the sentinel window ID 0
+    /// (see `WindowTarget.findWindow`) — meaningful for AX commands that scope to the
+    /// AXApplication root, but never capturable. Reject it with an actionable message
+    /// instead of letting the capture fail with a misleading "off-screen/minimized" error.
+    private static func requireCapturableWindowID(_ windowID: CGWindowID) throws {
+        guard windowID != kCGNullWindowID else {
+            throw PeekError.noCapturableWindow
+        }
     }
 
     /// Crop a captured window image to a window-relative rect, scaling the rect by the
@@ -70,17 +82,15 @@ enum ScreenCaptureManager {
     }
 
     /// A window's frame in points via CGWindowList — synchronous, no ScreenCaptureKit/`replayd`
-    /// round-trip. Returns nil if the window no longer exists.
+    /// round-trip. Returns nil if the window no longer exists. Goes through
+    /// `WindowManager.windowInfo(byID:)` because `.optionIncludingWindow` returns nothing
+    /// for off-screen windows — and dismissed panels are still croppable captures.
     private static func windowFrame(_ windowID: CGWindowID) -> CGRect? {
-        guard let list = CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID) as? [[String: Any]],
-              let bounds = list.first?[kCGWindowBounds as String] as? NSDictionary,
-              let frame = CGRect(dictionaryRepresentation: bounds) else {
-            return nil
-        }
-        return frame
+        WindowManager.windowInfo(byID: windowID)?.frame
     }
 
-    /// CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime.
+    /// CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime —
+    /// for on-screen windows only (see `screencaptureFallback` for the off-screen case).
     /// ScreenCaptureKit (SCScreenshotManager/SCStream) requires a RunLoop and hangs in CLI tools.
     @_silgen_name("CGWindowListCreateImage")
     private static func _CGWindowListCreateImage(
@@ -91,12 +101,47 @@ enum ScreenCaptureManager {
     ) -> CGImage?
 
     private static func captureWindowImage(_ windowID: CGWindowID) -> CGImage? {
-        _CGWindowListCreateImage(
+        if let image = _CGWindowListCreateImage(
             .null,
             .optionIncludingWindow,
             windowID,
             [.boundsIgnoreFraming, .bestResolution]
-        )
+        ) {
+            return image
+        }
+        return screencaptureFallback(windowID)
+    }
+
+    /// On macOS 15 the CG capture path returns nil for off-screen windows, but their
+    /// backing stores persist and stay capturable — a dismissed MenuBarExtra panel being
+    /// the canonical case. `screencapture -l` (ScreenCaptureKit-based) reaches them, so
+    /// shell out to it rather than SCScreenshotManager: building an SCContentFilter needs
+    /// SCShareableContent, whose `replayd` wedges peek deliberately moved away from.
+    /// `-x` mutes the shutter sound, `-o` omits the window shadow to match the CG path's
+    /// `boundsIgnoreFraming`. Uses the same Screen Recording grant; steals no focus.
+    private static func screencaptureFallback(_ windowID: CGWindowID) -> CGImage? {
+        guard windowID != kCGNullWindowID,
+              WindowManager.windowInfo(byID: windowID) != nil else { return nil }
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("peek-capture-\(windowID)-\(UUID().uuidString).png")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+        process.arguments = ["-x", "-o", "-l", String(windowID), tempURL.path]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return nil
+        }
+        // Decode from in-memory data, not the file: CGImageSource images decode lazily,
+        // and the temp file is deleted on return.
+        guard process.terminationStatus == 0,
+              let data = try? Data(contentsOf: tempURL),
+              let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
     /// Distinguish "window is hidden" and "stale Screen Recording grant" from a generic

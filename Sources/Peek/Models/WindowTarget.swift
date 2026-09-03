@@ -50,7 +50,18 @@ struct WindowTarget: ParsableArguments {
     /// Core resolution logic shared by CLI commands and MCP tools.
     static func resolve(windowID: UInt32? = nil, app: String? = nil, pid: pid_t? = nil) async throws -> Resolved {
         let windows = try await WindowManager.listWindows()
-        return try findWindow(in: windows, windowID: windowID, app: app, pid: pid)
+        do {
+            return try findWindow(in: windows, windowID: windowID, app: app, pid: pid)
+        } catch let error as ValidationError {
+            // The listing drops non-standard windows (menu-bar panels, status items, small
+            // utility windows), but an explicit ID is the caller saying "this window exists" —
+            // trust it and look the ID up directly before failing. Capture in particular works
+            // on such windows: a MenuBarExtra panel stays capturable by ID even after dismissal.
+            if let windowID, let info = WindowManager.windowInfo(byID: windowID) {
+                return Resolved(windowID: info.windowID, pid: info.pid)
+            }
+            throw error
+        }
     }
 
     /// Find a window from a list based on search criteria.
@@ -59,7 +70,9 @@ struct WindowTarget: ParsableArguments {
     /// Notification Center, window-less menu-bar apps), returns a sentinel
     /// `Resolved(windowID: 0, pid:)` so the caller can scope to the AXApplication
     /// root — see `AccessibilityManager.resolveWindow` for the read side of this
-    /// contract. Explicit `windowID` lookups never fall back; only `--app`/`--pid`.
+    /// contract. Explicit `windowID` lookups never fall back to that sentinel; only
+    /// `--app`/`--pid`. (`resolve` gives explicit IDs a different fallback: a direct
+    /// CGWindowList lookup for windows the filtered listing drops.)
     static func findWindow(
         in windows: [WindowInfo],
         windowID: UInt32? = nil,

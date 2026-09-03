@@ -3,11 +3,17 @@ import CoreGraphics
 import Foundation
 
 enum AppManager {
-    static func listApps(windows: [WindowInfo]) -> [AppEntry] {
+    /// `includeWindowOwners` also lists non-regular (accessory/LSUIElement) apps that own
+    /// at least one window in `windows` — menu-bar apps are accessory-policy, so a panels
+    /// listing would otherwise drop exactly the apps it exists to surface.
+    static func listApps(windows: [WindowInfo], includeWindowOwners: Bool = false) -> [AppEntry] {
         let windowsByPID = Dictionary(grouping: windows, by: { $0.pid })
 
         return NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular }
+            .filter {
+                $0.activationPolicy == .regular
+                    || (includeWindowOwners && windowsByPID[$0.processIdentifier] != nil)
+            }
             .map { app in
                 let pid = app.processIdentifier
                 let appWindows = (windowsByPID[pid] ?? []).map { w in
@@ -20,7 +26,8 @@ enum AppManager {
                             width: Int(w.frame.width),
                             height: Int(w.frame.height)
                         ),
-                        isOnScreen: w.isOnScreen
+                        isOnScreen: w.isOnScreen,
+                        layer: w.layer
                     )
                 }
                 return AppEntry(

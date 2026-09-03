@@ -26,8 +26,11 @@ enum WindowManager {
         cache.withLock { $0 = nil }
     }
 
-    static func listWindows() async throws -> [WindowInfo] {
-        if let cached = cachedSnapshot() { return cached }
+    /// `includePanels` keeps windows the default listing filters out — menu-bar panels
+    /// (MenuBarExtra), status items, small utility windows — and skips the cache (the
+    /// snapshot only ever holds the filtered listing).
+    static func listWindows(includePanels: Bool = false) async throws -> [WindowInfo] {
+        if !includePanels, let cached = cachedSnapshot() { return cached }
 
         // CGWindowList itself needs no permission, but window *titles* (kCGWindowName) only
         // populate with Screen Recording granted — gate so callers get an actionable permission
@@ -36,9 +39,33 @@ enum WindowManager {
             throw PeekError.screenCaptureNotGranted
         }
 
-        let result = cgWindowList()
-        storeSnapshot(result)
+        let result = cgWindowList(includePanels: includePanels)
+        if !includePanels { storeSnapshot(result) }
         return result
+    }
+
+    /// Direct single-window lookup — sees windows the filtered listing drops (menu-bar
+    /// panels, status items, small utility windows). Backs the explicit-window-ID fallback
+    /// in `WindowTarget.resolve`. Scans the full `.optionAll` list rather than using
+    /// `.optionIncludingWindow`: relative queries return nothing for off-screen windows,
+    /// and a dismissed MenuBarExtra panel is exactly that (off-screen, backing store intact).
+    static func windowInfo(byID windowID: CGWindowID) -> WindowInfo? {
+        guard windowID != kCGNullWindowID,
+              let list = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]],
+              let info = list.first(where: { $0[kCGWindowNumber as String] as? CGWindowID == windowID }),
+              let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+              let boundsValue = info[kCGWindowBounds as String],
+              let frame = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary)
+        else { return nil }
+        return WindowInfo(
+            windowID: windowID,
+            ownerName: info[kCGWindowOwnerName as String] as? String ?? "",
+            windowTitle: info[kCGWindowName as String] as? String ?? "",
+            pid: pid,
+            frame: frame,
+            isOnScreen: info[kCGWindowIsOnscreen as String] as? Bool ?? false,
+            layer: info[kCGWindowLayer as String] as? Int ?? 0
+        )
     }
 
     // MARK: - Private
@@ -48,22 +75,26 @@ enum WindowManager {
     /// the old ScreenCaptureKit enumeration hung ~49s (ignoring cancellation) and pinned
     /// `replayd`, the root of the "MCP dies after a while" reports. `.optionAll` includes
     /// off-screen/minimized windows; on-screen state comes from the lightweight on-screen list.
-    private static func cgWindowList() -> [WindowInfo] {
+    private static func cgWindowList(includePanels: Bool = false) -> [WindowInfo] {
         let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
         guard let list = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]] else {
             return []
         }
         let onScreenIDs = onScreenWindowIDs()
         return list.compactMap { info -> WindowInfo? in
-            // Normal-layer windows only — drop menu bar, Dock, status items, panels.
-            guard info[kCGWindowLayer as String] as? Int == 0,
-                  let windowID = info[kCGWindowNumber as String] as? CGWindowID,
+            guard let windowID = info[kCGWindowNumber as String] as? CGWindowID,
                   let pid = info[kCGWindowOwnerPID as String] as? pid_t,
                   let boundsValue = info[kCGWindowBounds as String],
                   let frame = CGRect(dictionaryRepresentation: boundsValue as! CFDictionary)
             else { return nil }
 
-            guard frame.width > minWindowSize, frame.height > minWindowSize else { return nil }
+            let layer = info[kCGWindowLayer as String] as? Int ?? 0
+            if !includePanels {
+                // Normal-layer windows only — drop menu bar, Dock, status items, panels,
+                // and tiny utility windows.
+                guard layer == 0, frame.width > minWindowSize, frame.height > minWindowSize
+                else { return nil }
+            }
 
             let ownerName = info[kCGWindowOwnerName as String] as? String ?? ""
             // AutoFill helper windows masquerade as their host app; drop them.
@@ -71,8 +102,10 @@ enum WindowManager {
 
             let title = info[kCGWindowName as String] as? String ?? ""
             let isOnScreen = onScreenIDs.contains(windowID)
-            // Off-screen with no title = placeholder/staging window.
-            if !isOnScreen, title.isEmpty { return nil }
+            // Off-screen with no title = placeholder/staging window. Panels are exempt:
+            // a dismissed MenuBarExtra panel is off-screen and untitled, yet its backing
+            // store persists and stays capturable by window ID.
+            if !includePanels, !isOnScreen, title.isEmpty { return nil }
 
             return WindowInfo(
                 windowID: windowID,
@@ -80,7 +113,8 @@ enum WindowManager {
                 windowTitle: title,
                 pid: pid,
                 frame: frame,
-                isOnScreen: isOnScreen
+                isOnScreen: isOnScreen,
+                layer: layer
             )
         }
     }

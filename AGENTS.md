@@ -71,7 +71,7 @@ Window-less UI (Dock, Control Center, status-menu helpers) is addressable by `--
 Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lands on that app/window — raising an occluded target window, or erroring (`coordinateOffTarget`) when the coordinates are stale or over another window. This guards both the CLI and MCP paths.
 
 ### Discovery
-- **apps** — List running apps and windows. `--app` to filter by name.
+- **apps** — List running apps and windows. `--app` to filter by name. `--include-panels` adds non-standard windows (menu-bar panels, status items, small utility windows) and the accessory apps owning them, with a per-window `layer` (0 = normal, 25 = status item, 101 = menu/panel).
 
 ### Inspection
 - **tree** — Accessibility tree of a window. `--depth` to limit traversal (CLI default: full tree; MCP default: 5).
@@ -92,7 +92,7 @@ Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lan
 - **quit** — Terminate a running app by `--pid`, `--bundle-id`, or `--name`. `--force` uses forceTerminate.
 
 ### Monitoring
-- **capture** — Screenshot to PNG. `--output` path, `--x`/`--y`/`--width`/`--height` to crop (window-relative pixels).
+- **capture** — Screenshot to PNG. `--output` path, `--x`/`--y`/`--width`/`--height` to crop (window-relative pixels). Menu-bar panels (MenuBarExtra): get the id from `apps --include-panels` and capture by explicit window id — a panel's backing store persists after it dismisses, so the capture works even once it's closed (no racing the dismiss; content reflects the last open state).
 
 ### System
 - **doctor** — Check Accessibility/Screen Recording permissions. `--prompt` to open System Settings.

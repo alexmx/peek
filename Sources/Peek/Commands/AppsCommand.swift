@@ -11,12 +11,18 @@ struct AppsCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Filter by app name (case-insensitive substring)")
     var app: String?
 
+    @Flag(
+        name: .long,
+        help: "Include non-standard windows (menu-bar panels, status items, small utility windows) and the accessory apps that own them; each window reports its layer"
+    )
+    var includePanels = false
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
     func run() async throws {
-        let windows = try await WindowManager.listWindows()
-        var apps = AppManager.listApps(windows: windows)
+        let windows = try await WindowManager.listWindows(includePanels: includePanels)
+        var apps = AppManager.listApps(windows: windows, includeWindowOwners: includePanels)
 
         if let app {
             apps = apps.filter { $0.name.localizedCaseInsensitiveContains(app) }
@@ -49,7 +55,8 @@ struct AppsCommand: AsyncParsableCommand {
                     let ttl = String(title.prefix(30)).padding(toLength: 31, withPad: " ", startingAt: 0)
                     let frame = "(\(w.frame.x), \(w.frame.y)) \(w.frame.width)x\(w.frame.height)"
                     let onScreen = w.isOnScreen ? "" : "  [offscreen]"
-                    print("  \(id)\(ttl)\(frame)\(onScreen)")
+                    let layer = w.layer == 0 ? "" : "  [layer \(w.layer)]"
+                    print("  \(id)\(ttl)\(frame)\(onScreen)\(layer)")
                 }
             }
 

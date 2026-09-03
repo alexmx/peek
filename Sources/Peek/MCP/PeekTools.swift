@@ -182,6 +182,10 @@ enum PeekTools {
             "Include off-screen / minimized / other-Space windows (default: false; off-screen windows aren't interactable without peek_activate)."
         )
         var include_offscreen: Bool?
+        @InputProperty(
+            "Include non-standard windows — menu-bar panels (MenuBarExtra), status items, small utility windows — and the accessory apps that own them; each window reports its layer (0 = normal, 25 = status item, 101 = menu/panel). Implies include_offscreen (a dismissed panel is off-screen yet still capturable by window ID). Noisy without an app filter."
+        )
+        var include_panels: Bool?
     }
 
     struct TreeArgs: MCPToolInput {
@@ -542,15 +546,16 @@ enum PeekTools {
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running apps and their windows with IDs and frames. Pass `app=X` when known — no-arg form lists every running app and is for discovery only. If peek_launch with wait_for_window=true was just called, the windowID/title are in its result — skip this call. Off-screen windows trimmed by default; include_offscreen=true to see them."
+        description: "List running apps and their windows with IDs and frames. Pass `app=X` when known — no-arg form lists every running app and is for discovery only. If peek_launch with wait_for_window=true was just called, the windowID/title are in its result — skip this call. Off-screen windows trimmed by default; include_offscreen=true to see them. Menu-bar panels / status items are invisible by default; include_panels=true to list them (e.g. to capture a MenuBarExtra panel by window ID)."
     ) { (args: AppsArgs) in
         try await withTimeout("peek_apps") {
-            let windows = try await WindowManager.listWindows()
-            var entries = AppManager.listApps(windows: windows)
+            let includePanels = args.include_panels ?? false
+            let windows = try await WindowManager.listWindows(includePanels: includePanels)
+            var entries = AppManager.listApps(windows: windows, includeWindowOwners: includePanels)
             if let app = args.app {
                 entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
             }
-            if !(args.include_offscreen ?? false) {
+            if !(args.include_offscreen ?? includePanels) {
                 entries = entries.map { entry in
                     AppEntry(
                         name: entry.name,
@@ -834,7 +839,7 @@ enum PeekTools {
 
     static let capture = MCPTool(
         name: "peek_capture",
-        description: "Screenshot a window. Returns image inline unless output path given. Crop x/y/w/h is WINDOW-relative (subtract window frame origin from screen coords). If capture fails, run peek_doctor — Screen Recording permission is binary-signature-bound and can revoke after rebuilds."
+        description: "Screenshot a window. Returns image inline unless output path given. Crop x/y/w/h is WINDOW-relative (subtract window frame origin from screen coords). Menu-bar panels (MenuBarExtra): find the window_id via peek_apps include_panels=true and capture by that explicit ID — works even after the panel dismisses (its backing store persists), so no need to race the panel closing. If capture fails, run peek_doctor — Screen Recording permission is binary-signature-bound and can revoke after rebuilds."
     ) { (args: CaptureArgs) in
         try await withTimeout("peek_capture") {
             let (windowID, _) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)

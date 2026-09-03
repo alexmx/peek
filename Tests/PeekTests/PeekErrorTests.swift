@@ -131,6 +131,16 @@ struct PeekErrorTests {
     }
 
     @Test
+    func noCapturableWindowDescription() throws {
+        let error = PeekError.noCapturableWindow
+        let description = error.errorDescription
+        #expect(description != nil)
+        #expect(try #require(description?.contains("no standard windows")))
+        #expect(try #require(description?.contains("--include-panels")))
+        #expect(try #require(description?.contains("window ID")))
+    }
+
+    @Test
     func encodingFailedDescription() throws {
         let error = PeekError.encodingFailed
         let description = error.errorDescription
