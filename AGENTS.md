@@ -92,7 +92,7 @@ Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lan
 - **quit** — Terminate a running app by `--pid`, `--bundle-id`, or `--name`. `--force` uses forceTerminate.
 
 ### Monitoring
-- **capture** — Screenshot to PNG. `--output` path, `--x`/`--y`/`--width`/`--height` to crop (window-relative pixels). Menu-bar panels (MenuBarExtra): get the id from `apps --include-panels` and capture by explicit window id — a panel's backing store persists after it dismisses, so the capture works even once it's closed (no racing the dismiss; content reflects the last open state).
+- **capture** — Screenshot to PNG. `--output` path, `--x`/`--y`/`--width`/`--height` to crop (window-relative points). Menu-bar panels (MenuBarExtra): get the id from `apps --include-panels` and capture by explicit window id — a panel's backing store persists after it dismisses, so the capture works even once it's closed (no racing the dismiss; content reflects the last open state).
 
 ### System
 - **doctor** — Check Accessibility/Screen Recording permissions. `--prompt` to open System Settings.

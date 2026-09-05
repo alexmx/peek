@@ -430,9 +430,9 @@ enum PeekTools {
         var pid: Int?
         @InputProperty("Output file path. If omitted, the image is returned inline")
         var output: String?
-        @InputProperty("Crop X offset (window-relative pixels).")
+        @InputProperty("Crop X offset (window-relative points).")
         var x: Int?
-        @InputProperty("Crop Y offset (window-relative pixels).")
+        @InputProperty("Crop Y offset (window-relative points).")
         var y: Int?
         @InputProperty("Crop region width")
         var width: Int?

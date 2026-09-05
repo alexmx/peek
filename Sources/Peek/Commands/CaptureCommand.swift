@@ -12,10 +12,10 @@ struct CaptureCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Output file path (default: /tmp/peek/window_<id>.png)")
     var output: String?
 
-    @Option(name: .long, help: "Crop region X offset (window-relative pixels)")
+    @Option(name: .long, help: "Crop region X offset (window-relative points)")
     var x: Int?
 
-    @Option(name: .long, help: "Crop region Y offset (window-relative pixels)")
+    @Option(name: .long, help: "Crop region Y offset (window-relative points)")
     var y: Int?
 
     @Option(name: .long, help: "Crop region width")

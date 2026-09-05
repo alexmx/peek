@@ -34,13 +34,15 @@ All UI commands accept one of: `--app NAME` (case-insensitive substring), `--pid
 
 For coordinate ops (`click`/`drag`/`scroll`) with a target set, peek verifies the point lands on that app/window — it raises an occluded target window, or errors `(x, y) is over '<OtherApp>'` if the coordinates are stale or over another window. On that error, re-read frames with `peek find` (windows move/resize) or pass a specific `<window-id>` for multi-window apps.
 
-**Window-less apps** (Dock, Control Center, status-menu helpers): `--app NAME` or `--pid` scopes `find`/`tree`/`action` to the AXApplication root. Not in `peek apps` — go straight to `peek find --app Dock --role AXDockItem`.
+**Window-less apps** (Dock, Control Center, status-menu helpers): `--app NAME` or `--pid` scopes `find`/`tree`/`action` to the AXApplication root. Not in plain `peek apps` — go straight to `peek find --app Dock --role AXDockItem` (`peek apps --include-panels` does list the ones owning panels/status items).
 
 ## Commands
 
 ### `peek apps` — list running apps + windows
 
 `--app NAME` filters. Always pass it when you know the name (no-arg form lists every running app).
+
+`--include-panels` adds non-standard windows — menu-bar panels, status items, small utility windows — and the accessory apps that own them (menu-bar apps are otherwise invisible here). Each window gets a `layer`: 0 = normal, 25 = status item, 101 = menu/panel. Use it to get the window ID of a MenuBarExtra panel for `peek capture`.
 
 ### `peek tree` — accessibility tree
 
@@ -74,6 +76,7 @@ Finds + acts in one call. Filters: `--role`, `--title`, `--value`, `--desc`. `--
 Actions:
 - **Press** — buttons, popup buttons, checkboxes, items in an already-open menu
 - **Confirm** — text fields
+- **Cancel** — dialogs/sheets exposing AXCancel (Esc equivalent)
 - **ShowMenu** — rare; try Press first and read `unsupportedAction` errors
 - **Increment / Decrement** — sliders, steppers
 - **Raise** — windows
@@ -89,7 +92,7 @@ Modes:
 - `--find TITLE` — search across all menus, returns matches with paths
 - `--path "Menu > Submenu"` — return just that submenu
 - `--click TITLE` — trigger an item (activates the app)
-- `--extras` — operate on the status-item bar (NSStatusItem / SwiftUI MenuBarExtra `.menu` style) instead of the main menu. Combine with any mode: no-arg lists the status items, `--click "Sync"` presses one to open its menu (read the opened menu with a follow-up `--extras` call). This is the fix for "peek can't see the menu bar status item" — it lives on a separate AX bar the tree/find don't cover.
+- `--extras` — operate on the status-item bar (NSStatusItem / SwiftUI MenuBarExtra `.menu` style) instead of the main menu. Combine with any mode: no-arg lists the status items, `--click "Sync"` presses one to open its menu (read the opened menu with a follow-up `--extras` call). This is the fix for "peek can't see the menu bar status item" — it lives on a separate AX bar the tree/find don't cover. Clicking a `.window`-style extra opens a panel instead of a menu — inspect it with `find`/`tree` on the app, screenshot it via the panel flow under `peek capture`.
 
 No-arg form dumps the full menu bar — avoid on large apps. Items hidden via `NSMenuItem.isHidden=true` (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via `peek key`. If `--extras` reports no status menu, the app's item uses a custom view with no accessibility — locate it visually and click its coordinates.
 
@@ -104,7 +107,7 @@ peek key --key escape --app Calculator
 
 ### `peek type` — type literal text
 
-`--text "..."`. Pass `--app`/`--pid` to auto-activate. Use `peek key` for chords / non-character keys.
+`--text "..."`. Pass `--app`/`--pid` to auto-activate. `--delay-ms N` per-character delay (default 5) — bump to 10-20 if a lazy text field drops or duplicates characters. Use `peek key` for chords / non-character keys.
 
 ### `peek click` — click at screen coordinates
 
@@ -130,7 +133,7 @@ Most read-only commands and `peek action --do Press` work on backgrounded apps. 
 
 ### `peek launch` / `peek quit` — app lifecycle
 
-`peek launch` resolves by `--bundle-id` (preferred), `--name`, or `--path`. Pass `--wait-for-window` when the next call needs a window ID — the result then includes `windowID` and `windowTitle`, so you can skip a follow-up `peek apps`. Pass `--documents <path-or-url> ...` to open files in the launched app via `application:openURLs:` — single deterministic call instead of launch → File → Open dialog → navigate → click.
+`peek launch` resolves by `--bundle-id` (preferred), `--name`, or `--path`. Pass `--wait-for-window` when the next call needs a window ID (10s timeout) — the result then includes `windowID` and `windowTitle`, so you can skip a follow-up `peek apps`. Pass `--documents <path-or-url> ...` to open files in the launched app via `application:openURLs:` — single deterministic call instead of launch → File → Open dialog → navigate → click.
 
 `peek quit` resolves by `--pid` (preferred), `--bundle-id`, or `--name`. `--force` for forceTerminate.
 
@@ -138,7 +141,9 @@ Many apps persist state across launches — plan an explicit reset (clear button
 
 ### `peek capture` — screenshot a window
 
-`-o PATH` for output. Crop with `--x --y --width --height` in **window-relative** points (subtract the window's frame origin from screen coords).
+`-o PATH` for output (default `/tmp/peek/window_<id>.png`). Crop with `--x --y --width --height` in **window-relative** points (subtract the window's frame origin from screen coords).
+
+**Menu-bar panels (MenuBarExtra):** don't capture by `--app` — open the panel once, get its window ID from `peek apps --include-panels` (layer 101), and capture by that explicit ID. The panel's backing store persists after it dismisses, so the capture works even once it's closed (no racing the dismiss; content reflects the last open state). A `noCapturableWindow` error on `--app`/`--pid` means the app has no standard windows — this panel flow is the fix.
 
 ### `peek doctor` — check permissions
 

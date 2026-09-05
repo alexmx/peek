@@ -103,6 +103,10 @@ peek menu --app Safari --find "New Tab"
 peek menu --app YourApp --extras            # list status items
 peek menu --app YourApp --extras --click "Sync"   # press one to open its menu
 
+# Screenshot a menu-bar (MenuBarExtra) panel — open it once, then capture by window ID
+peek apps --app YourApp --include-panels          # → window id (layer 101)
+peek capture 5106 --output panel.png              # works even after the panel dismissed
+
 # Fire any shortcut at a specific app — ⌘-combos, F-keys, Escape, arrows
 peek key --key s --modifiers cmd --app TextEdit
 
@@ -118,7 +122,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 
 | Command | Description | Key options |
 |---|---|---|
-| `apps` | List running applications and their windows | `--app NAME` filter |
+| `apps` | List running applications and their windows | `--app NAME` filter; `--include-panels` adds non-standard windows (menu-bar panels, status items, small utility windows) and the accessory apps owning them, each with a `layer` (0 = normal, 25 = status item, 101 = menu/panel) |
 | `launch` | Launch an app by bundle ID, name, or path | `--bundle-id` (preferred), `--name`, `--path`; `--wait-for-window` blocks until a window appears and returns `windowID`/`windowTitle`; `--documents <path-or-url> ...` opens files in the app via `application:openURLs:` |
 | `quit` | Terminate a running app | `--pid` (preferred), `--bundle-id`, `--name`; `--force` |
 
@@ -144,7 +148,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | `key` | Send a single key chord | `--key` (character or named: escape, tab, return, delete, arrows, home, end, pageup, pagedown, f1-f12, space); `--modifiers cmd,shift,option,control,fn` |
 | `activate` | Bring an app to the foreground | `--app`, `--pid` |
 
-Window-less system UI (Dock, Control Center, status-menu helpers) is addressable too — pass `--app` or `--pid` and `find`/`tree`/`action`/`move` scope to the app's AX root. These processes don't appear in `peek apps`. An app's own status items (NSStatusItem / SwiftUI MenuBarExtra) live on a separate AX bar — reach them with `peek menu --extras` rather than `tree`/`find`.
+Window-less system UI (Dock, Control Center, status-menu helpers) is addressable too — pass `--app` or `--pid` and `find`/`tree`/`action`/`move` scope to the app's AX root. These processes don't appear in plain `peek apps` (`--include-panels` lists the ones owning panels or status items). An app's own status items (NSStatusItem / SwiftUI MenuBarExtra) live on a separate AX bar — reach them with `peek menu --extras` rather than `tree`/`find`.
 
 `click`, `drag`, and `scroll` with a target (`--app`/`--pid`/`<window-id>`) verify the point actually lands on that app/window — raising an occluded target window, or erroring if the coordinates are stale or over another window (so a background app doesn't silently receive the event). Re-read frames with `peek find` on that error, or pass a `<window-id>` for multi-window apps.
 
@@ -152,7 +156,7 @@ Window-less system UI (Dock, Control Center, status-menu helpers) is addressable
 
 | Command | Description | Key options |
 |---|---|---|
-| `capture` | Screenshot a window | `--output PATH`; `--x --y --width --height` for window-relative crop |
+| `capture` | Screenshot a window | `--output PATH`; `--x --y --width --height` for window-relative crop. Menu-bar panels (MenuBarExtra): get the window ID from `apps --include-panels` and capture by that explicit ID — a panel's backing store persists after it dismisses, so the capture works even once it's closed |
 | `doctor` | Check Accessibility + Screen Recording permissions | `--prompt` to open System Settings |
 | `mcp` | Start the MCP server | `--setup` for client config snippets |
 
