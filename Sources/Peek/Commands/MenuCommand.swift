@@ -10,13 +10,19 @@ struct MenuCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .long, help: "Click a menu item by title (case-insensitive substring)")
+    @Option(
+        name: .long,
+        help: "Click a menu item by title (case-insensitive substring, exact match preferred) or full path ('File > Open Recent > Clear Menu'). Combine with --path to scope the search."
+    )
     var click: String?
 
     @Option(name: .long, help: "Search for menu items by title (case-insensitive substring)")
     var find: String?
 
-    @Option(name: .long, help: "Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find')")
+    @Option(
+        name: .long,
+        help: "Return only the submenu at this path (e.g. 'Debug' or 'Edit > Find'). With --click, scopes the click to this submenu."
+    )
     var path: String?
 
     @Flag(name: .long, help: "Operate on the status-item (menu bar extra) bar instead of the main menu bar")
@@ -27,6 +33,7 @@ struct MenuCommand: AsyncParsableCommand {
 
     struct ClickResult: Encodable {
         let title: String
+        let path: String
     }
 
     func run() async throws {
@@ -34,9 +41,9 @@ struct MenuCommand: AsyncParsableCommand {
 
         if let click {
             _ = try? await InteractionManager.activateApp(pid: pid)
-            let title = try MenuBarManager.clickMenuItem(pid: pid, title: click, extras: extras)
-            try emit(ClickResult(title: title), as: format) {
-                print("Clicked menu item: \(title)")
+            let clicked = try MenuBarManager.clickMenuItem(pid: pid, title: click, path: path, extras: extras)
+            try emit(ClickResult(title: clicked.title, path: clicked.path), as: format) {
+                print("Clicked menu item: \(clicked.path)")
             }
             return
         }

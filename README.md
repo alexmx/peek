@@ -133,7 +133,7 @@ All commands accept `--format json` (default for MCP) or `--format toon` (token-
 | `tree` | Accessibility tree of a window | `--depth N` |
 | `find` | Search elements by AX attributes or hit-test | `--role`, `--title` (matches AXTitle OR AXDescription), `--value`, `--desc`, `--enabled true\|false`; `--x --y` for hit-test; `--limit N` (use `--limit 1` for existence checks) |
 | `text` | Read an element's full text, incl. parameterized (NavigableStaticText) text `find`/`tree` show as empty | `--role`/`--title`/`--value`/`--desc` to select; `--offset --length` to page; `--bounds` (screen rect of the range), `--selection` (caret/selection range), `--substring TEXT` (locate by content, pairs with `--bounds`) |
-| `menu` | Inspect or click menu bar items | `--find QUERY`, `--path "Menu > Submenu"`, `--click TITLE`, `--extras` (status-item / menu bar extra bar) |
+| `menu` | Inspect or click menu bar items | `--find QUERY`, `--path "Menu > Submenu"`, `--click TITLE` or `--click "Menu > Item"` (combine with `--path` to scope), `--extras` (status-item / menu bar extra bar) |
 
 ### Interaction
 

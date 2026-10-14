@@ -91,7 +91,7 @@ For menu BAR items, use `peek menu --click` instead.
 Modes:
 - `--find TITLE` — search across all menus, returns matches with paths
 - `--path "Menu > Submenu"` — return just that submenu
-- `--click TITLE` — trigger an item (activates the app)
+- `--click TITLE` — trigger an item (activates the app). Presses the first enabled match, preferring an exact title; prints the clicked item's full path. When a title repeats across menus (`Clear Menu` under Apple › Recent Items and File › Open Recent), pass the full path as `find` returns it (`--click "File > Open Recent > Clear Menu"`) or scope with `--path "File > Open Recent" --click "Clear Menu"`
 - `--extras` — operate on the status-item bar (NSStatusItem / SwiftUI MenuBarExtra `.menu` style) instead of the main menu. Combine with any mode: no-arg lists the status items, `--click "Sync"` presses one to open its menu (read the opened menu with a follow-up `--extras` call). This is the fix for "peek can't see the menu bar status item" — it lives on a separate AX bar the tree/find don't cover. Clicking a `.window`-style extra opens a panel instead of a menu — inspect it with `find`/`tree` on the app, screenshot it via the panel flow under `peek capture`.
 
 No-arg form dumps the full menu bar — avoid on large apps. Items hidden via `NSMenuItem.isHidden=true` (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via `peek key`. If `--extras` reports no status menu, the app's item uses a custom view with no accessibility — locate it visually and click its coordinates.

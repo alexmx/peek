@@ -447,11 +447,15 @@ enum PeekTools {
         var app: String?
         @InputProperty("Process ID")
         var pid: Int?
-        @InputProperty("Menu item title to click (case-insensitive substring)")
+        @InputProperty(
+            "Menu item to click: title (case-insensitive substring, exact match preferred) or full path as find returns it ('File > Open Recent > Clear Menu'). Use a path when the title appears in several menus."
+        )
         var click: String?
         @InputProperty("Search menu items by title (case-insensitive substring) — returns matches with path.")
         var find: String?
-        @InputProperty("Return only the submenu at this path ('Debug' or 'Edit > Find').")
+        @InputProperty(
+            "Return only the submenu at this path ('Debug' or 'Edit > Find'). With click, scopes the click to this submenu."
+        )
         var path: String?
         @InputProperty(
             "Operate on the status-item / menu bar extra bar (NSStatusItem, SwiftUI MenuBarExtra) instead of the main menu bar. Combine with find/path to inspect, or click to press a status item (opens its menu — read it with a follow-up extras call)."
@@ -862,7 +866,7 @@ enum PeekTools {
 
     static let menu = MCPTool(
         name: "peek_menu",
-        description: "Read or click an app's menu bar. Modes: 'find' (read-only, returns matches with paths like 'Edit > Copy'); 'path' (read-only, scoped submenu — 'Debug' or 'Edit > Find'); 'click' (triggers an item, activates the app first). Pass extras=true to target the status-item / menu bar extra bar (NSStatusItem, SwiftUI MenuBarExtra) instead of the main menu — inspect it, or click a status item to open its menu (read the opened menu with a follow-up extras call). No-arg form truncates on large menus — pass find or path. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via peek_key."
+        description: "Read or click an app's menu bar. Modes: 'find' (read-only, returns matches with paths like 'Edit > Copy'); 'path' (read-only, scoped submenu — 'Debug' or 'Edit > Find'); 'click' (triggers an item, activates the app first; returns the clicked item's full path). Click presses the first enabled match, preferring an exact title — when a title repeats across menus ('Clear Menu' under Apple > Recent Items and File > Open Recent), pass the full path as click or combine click with path. Pass extras=true to target the status-item / menu bar extra bar (NSStatusItem, SwiftUI MenuBarExtra) instead of the main menu — inspect it, or click a status item to open its menu (read the opened menu with a follow-up extras call). No-arg form truncates on large menus — pass find or path. Items hidden via NSMenuItem.isHidden=true (e.g. Safari's per-tab ⌘1-9) aren't visible to AX — send the shortcut via peek_key."
     ) { (args: MenuArgs) in
         try await withTimeout("peek_menu") {
             // The menu bar is per-app, not per-window — resolving a window would
@@ -873,8 +877,10 @@ enum PeekTools {
             if let clickTitle = args.click {
                 // Clicking a menu item needs the menu to actually open — app must be FG.
                 _ = try await InteractionManager.activateApp(pid: pid)
-                let title = try MenuBarManager.clickMenuItem(pid: pid, title: clickTitle, extras: extras)
-                return try json(["title": title])
+                let clicked = try MenuBarManager.clickMenuItem(
+                    pid: pid, title: clickTitle, path: args.path, extras: extras
+                )
+                return try json(["title": clicked.title, "path": clicked.path])
             } else if let findTitle = args.find {
                 // Read-only menu search — works on backgrounded apps via AX.
                 let items = try MenuBarManager.findMenuItems(pid: pid, title: findTitle, extras: extras)
