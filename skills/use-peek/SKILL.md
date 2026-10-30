@@ -125,7 +125,7 @@ peek key --key escape --app Calculator
 
 `--x --y --delta-y N` (positive scrolls **DOWN**, negative UP). `--delta-x` for horizontal. Default is an instant jump; `--steps N` (and/or `--duration-ms`) gives smooth animated motion (total delta unchanged). `--drag` for touch-based apps like iOS Simulator (swipe gesture).
 
-Pass a negative delta with the `=` form so it isn't read as a flag: `peek scroll --x 700 --y 400 --delta-y=-600 --steps 30`.
+Negative values work as-is (no `=` needed): `peek scroll --x 700 --y 400 --delta-y -600 --steps 30`. Same for negative screen coordinates on displays left of / above the main one.
 
 ### `peek activate` — bring an app to the foreground
 
