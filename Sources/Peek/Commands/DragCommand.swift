@@ -9,16 +9,16 @@ struct DragCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .long, help: "Source X screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Source X screen coordinate")
     var fromX: Int
 
-    @Option(name: .long, help: "Source Y screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Source Y screen coordinate")
     var fromY: Int
 
-    @Option(name: .long, help: "Destination X screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Destination X screen coordinate")
     var toX: Int
 
-    @Option(name: .long, help: "Destination Y screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Destination Y screen coordinate")
     var toY: Int
 
     @Option(name: .long, help: "Output format")

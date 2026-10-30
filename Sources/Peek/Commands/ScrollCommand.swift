@@ -9,16 +9,24 @@ struct ScrollCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .long, help: "X screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "X screen coordinate")
     var x: Int
 
-    @Option(name: .long, help: "Y screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Y screen coordinate")
     var y: Int
 
-    @Option(name: .long, help: "Vertical scroll amount in pixels. Positive = scroll DOWN, negative = scroll UP")
+    @Option(
+        name: .long,
+        parsing: .unconditional,
+        help: "Vertical scroll amount in pixels. Positive = scroll DOWN, negative = scroll UP"
+    )
     var deltaY: Int
 
-    @Option(name: .long, help: "Horizontal scroll amount in pixels. Positive = scroll RIGHT, negative = scroll LEFT")
+    @Option(
+        name: .long,
+        parsing: .unconditional,
+        help: "Horizontal scroll amount in pixels. Positive = scroll RIGHT, negative = scroll LEFT"
+    )
     var deltaX: Int = 0
 
     @Flag(name: .long, help: "Use drag gesture instead of scroll wheel (for touch-based apps like iOS Simulator)")

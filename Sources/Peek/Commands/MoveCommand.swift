@@ -10,16 +10,24 @@ struct MoveCommand: AsyncParsableCommand {
 
     @OptionGroup var target: WindowTarget
 
-    @Option(name: .long, help: "Destination X screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Destination X screen coordinate")
     var x: Int
 
-    @Option(name: .long, help: "Destination Y screen coordinate")
+    @Option(name: .long, parsing: .unconditional, help: "Destination Y screen coordinate")
     var y: Int
 
-    @Option(name: .long, help: "Optional start X for smoothed motion (requires --from-y and --steps > 1)")
+    @Option(
+        name: .long,
+        parsing: .unconditional,
+        help: "Optional start X for smoothed motion (requires --from-y and --steps > 1)"
+    )
     var fromX: Int?
 
-    @Option(name: .long, help: "Optional start Y for smoothed motion (requires --from-x and --steps > 1)")
+    @Option(
+        name: .long,
+        parsing: .unconditional,
+        help: "Optional start Y for smoothed motion (requires --from-x and --steps > 1)"
+    )
     var fromY: Int?
 
     @Option(

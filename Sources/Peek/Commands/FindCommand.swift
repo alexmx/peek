@@ -25,10 +25,10 @@ struct FindCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Filter by enabled state (true → enabled only, false → disabled only)")
     var enabled: Bool?
 
-    @Option(name: .long, help: "Hit-test X screen coordinate (use with --y)")
+    @Option(name: .long, parsing: .unconditional, help: "Hit-test X screen coordinate (use with --y)")
     var x: Int?
 
-    @Option(name: .long, help: "Hit-test Y screen coordinate (use with --x)")
+    @Option(name: .long, parsing: .unconditional, help: "Hit-test Y screen coordinate (use with --x)")
     var y: Int?
 
     @Option(name: .long, help: "Stop after this many matches (1 = first match; omit = all). Big speedup on deep trees.")
