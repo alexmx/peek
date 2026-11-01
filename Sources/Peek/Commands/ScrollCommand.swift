@@ -18,14 +18,14 @@ struct ScrollCommand: AsyncParsableCommand {
     @Option(
         name: .long,
         parsing: .unconditional,
-        help: "Vertical scroll amount in pixels. Positive = scroll DOWN, negative = scroll UP"
+        help: "Vertical scroll amount in points. Positive = scroll DOWN, negative = scroll UP (drag mode: see --drag)"
     )
     var deltaY: Int
 
     @Option(
         name: .long,
         parsing: .unconditional,
-        help: "Horizontal scroll amount in pixels. Positive = scroll RIGHT, negative = scroll LEFT"
+        help: "Horizontal scroll amount in points. Positive = scroll RIGHT, negative = scroll LEFT"
     )
     var deltaX: Int = 0
 
@@ -34,20 +34,22 @@ struct ScrollCommand: AsyncParsableCommand {
         inversion: .prefixedNo,
         help: """
         --drag swipes like a finger instead of using the scroll wheel; --no-drag forces the wheel. \
-        Default: drag over Xcode Device Hub / Simulator windows (they ignore wheel scrolls), wheel elsewhere.
+        Default: drag over Xcode Device Hub / Simulator windows (they ignore wheel scrolls), wheel elsewhere. \
+        A swipe's delta is finger travel in Mac screen points; the device is drawn scaled down, so its \
+        content moves about delta / scale, minus a few points of touch slop.
         """
     )
     var drag: Bool?
 
     @Option(
         name: .long,
-        help: "Spread the scroll across N phased events for smooth accel/decel motion (default 1 = instant jump)"
+        help: "Spread the scroll across N events for smooth accel/decel motion (wheel default 1 = instant jump; swipes are always paced)"
     )
     var steps: Int = 1
 
     @Option(
         name: .long,
-        help: "Wall-clock duration in ms to spread a smooth scroll over (implies smooth; pairs with --steps)"
+        help: "Wall-clock duration in ms of the scroll (wheel: implies smooth; swipe default 300-1000). Pairs with --steps"
     )
     var durationMs: Int = 0
 

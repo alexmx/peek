@@ -286,19 +286,23 @@ enum PeekTools {
         var x: Int
         @InputProperty("Y coordinate")
         var y: Int
-        @InputProperty("Vertical scroll in pixels. Positive = DOWN, negative = UP.")
+        @InputProperty(
+            "Vertical scroll in points. Positive = DOWN, negative = UP. For a swipe: finger travel in Mac screen points."
+        )
         var delta_y: Int
-        @InputProperty("Horizontal scroll in pixels. Positive = RIGHT, negative = LEFT.")
+        @InputProperty("Horizontal scroll in points. Positive = RIGHT, negative = LEFT.")
         var delta_x: Int?
         @InputProperty(
             "true = finger swipe, false = scroll wheel. Omit to auto-pick: drag over Xcode Device Hub / Simulator windows (they ignore wheel scrolls), wheel elsewhere."
         )
         var drag: Bool?
         @InputProperty(
-            "Spread scroll across N events for smooth animated motion (default 1 = instant jump)."
+            "Spread scroll across N events for smooth animated motion (wheel default 1 = instant jump; swipes are always paced)."
         )
         var steps: Int?
-        @InputProperty("Duration in ms to spread the smooth scroll over; pairs with steps.")
+        @InputProperty(
+            "Duration in ms of the scroll (wheel: implies smooth; swipe default 300-1000); pairs with steps."
+        )
         var duration_ms: Int?
     }
 
@@ -644,7 +648,7 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. delta_y: positive scrolls DOWN, negative UP. delta_x: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Over Xcode Device Hub / Simulator windows it swipes like a finger instead (they ignore wheel scrolls; steps/duration_ms don't apply); set drag to override. The result's mode says which was used. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
+        description: "Scroll at screen coordinates. delta_y: positive scrolls DOWN, negative UP. delta_x: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Over Xcode Device Hub / Simulator windows it swipes like a finger instead (they ignore wheel scrolls); set drag to override. A swipe's delta is finger travel in Mac screen points: the device is drawn scaled down, so its content moves about delta / scale (e.g. ~2x at 0.46x), minus a few points of touch slop. Swipes ease to a stop without momentum. The result's mode says which was used. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)

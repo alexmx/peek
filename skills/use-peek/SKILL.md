@@ -123,7 +123,7 @@ peek key --key escape --app Calculator
 
 ### `peek scroll` — scroll at screen coordinates
 
-`--x --y --delta-y N` (positive scrolls **DOWN**, negative UP). `--delta-x` for horizontal. Default is an instant jump; `--steps N` (and/or `--duration-ms`) gives smooth animated motion (total delta unchanged). Over Xcode Device Hub / Simulator windows it swipes like a finger automatically (they ignore wheel scrolls; `--steps` doesn't apply, and a fast swipe can fling past the delta); `--drag` / `--no-drag` force either mode. Output shows the mode used.
+`--x --y --delta-y N` (positive scrolls **DOWN**, negative UP). `--delta-x` for horizontal. Default is an instant jump; `--steps N` (and/or `--duration-ms`) gives smooth animated motion (total delta unchanged). Over Xcode Device Hub / Simulator windows it swipes like a finger automatically (they ignore wheel scrolls); `--drag` / `--no-drag` force either mode. Output shows the mode used. A swipe's delta is finger travel in **Mac screen points**: the device is drawn scaled down (Device Hub ~0.46x), so the app's content moves about delta / scale, minus a few points of touch slop. Swipes ease to a stop with no momentum; `--duration-ms` sets their speed (default 0.3–1s).
 
 Negative values work as-is (no `=` needed): `peek scroll --x 700 --y 400 --delta-y -600 --steps 30`. Same for negative screen coordinates on displays left of / above the main one.
 
