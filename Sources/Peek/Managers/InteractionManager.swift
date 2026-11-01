@@ -281,27 +281,47 @@ enum InteractionManager {
         releaseModifiers()
     }
 
-    static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) async {
+    /// Press at the start point, move to the end point, release. `steps`/`durationMs` pace
+    /// the move (default: 10–40 moves, 10ms apart). `easeInOut` accelerates then slows to a
+    /// stop instead of moving at constant speed, and `holdMs` keeps the button down at the end
+    /// point first — both so a touch host sees the finger stop (see `scroll`'s drag mode).
+    static func drag(
+        fromX: Double,
+        fromY: Double,
+        toX: Double,
+        toY: Double,
+        steps: Int? = nil,
+        durationMs: UInt32? = nil,
+        easeInOut: Bool = false,
+        holdMs: Double = 0
+    ) async {
         let dx = toX - fromX
         let dy = toY - fromY
         let distance = (dx * dx + dy * dy).squareRoot()
+        let end = CGPoint(x: toX, y: toY)
 
         postMouseEvent(.leftMouseDown, at: CGPoint(x: fromX, y: fromY))
         await pause(100)
 
-        let steps = max(10, min(40, Int(distance / 5)))
+        let moveSteps = max(1, steps ?? max(10, min(40, Int(distance / 5))))
+        let stepMs = durationMs.map { Double($0) / Double(moveSteps) } ?? 10
         let dragInitThreshold = 6.0
-        for i in 1...steps {
-            var t = Double(i) / Double(steps)
+        for i in 1...moveSteps {
+            var t = Double(i) / Double(moveSteps)
+            if easeInOut { t = t * t * (3 - 2 * t) } // smoothstep: zero speed at both ends
             if i == 1, distance > 0 {
                 t = max(t, min(1.0, dragInitThreshold / distance))
             }
-            let point = CGPoint(x: fromX + dx * t, y: fromY + dy * t)
-            postMouseEvent(.leftMouseDragged, at: point)
-            await pause(10)
+            postMouseEvent(.leftMouseDragged, at: CGPoint(x: fromX + dx * t, y: fromY + dy * t))
+            await pause(stepMs)
         }
 
-        postMouseEvent(.leftMouseUp, at: CGPoint(x: toX, y: toY))
+        for _ in 0..<Int(holdMs / 16) {
+            postMouseEvent(.leftMouseDragged, at: end)
+            await pause(16)
+        }
+
+        postMouseEvent(.leftMouseUp, at: end)
     }
 
     /// Move the cursor to a screen point by posting `.mouseMoved` events — no buttons pressed.
@@ -365,6 +385,10 @@ enum InteractionManager {
         return (cursor, element)
     }
 
+    /// How long a drag-mode scroll holds the finger still before lifting, so iOS sees zero
+    /// velocity and adds no momentum.
+    private static let swipeHoldMs: Double = 120
+
     enum ScrollMode: String, Encodable {
         case wheel, drag
     }
@@ -389,8 +413,11 @@ enum InteractionManager {
         return .drag
     }
 
-    /// Scroll at screen coordinates with the given mode. `.drag` swipes opposite the
-    /// delta (dragging up scrolls content down) and ignores steps/duration.
+    /// Scroll at screen coordinates with the given mode. `.drag` swipes opposite the delta
+    /// (dragging up scrolls content down), paced by steps/duration when given. It eases to a
+    /// stop and holds the finger still before lifting: a touch that ends mid-motion makes iOS
+    /// add momentum, so the content keeps going (often to its end) instead of following the
+    /// finger.
     static func scroll(
         x: Int,
         y: Int,
@@ -402,9 +429,16 @@ enum InteractionManager {
     ) async {
         switch mode {
         case .drag:
+            // Default to a calm swipe (~5ms per point, 0.3–1s): a fast one reads as a flick.
+            let distance = (Double(deltaX) * Double(deltaX) + Double(deltaY) * Double(deltaY)).squareRoot()
+            let duration = durationMs > 0 ? durationMs : UInt32(min(1000, max(300, distance * 5)))
             await drag(
                 fromX: Double(x), fromY: Double(y),
-                toX: Double(x) - Double(deltaX), toY: Double(y) - Double(deltaY)
+                toX: Double(x) - Double(deltaX), toY: Double(y) - Double(deltaY),
+                steps: steps > 1 ? steps : max(2, Int(duration) / 16),
+                durationMs: duration,
+                easeInOut: true,
+                holdMs: swipeHoldMs
             )
         case .wheel:
             await scroll(
