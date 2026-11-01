@@ -24,19 +24,8 @@ struct DragCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    struct DragResult: Encodable {
-        let fromX: Int
-        let fromY: Int
-        let toX: Int
-        let toY: Int
-    }
-
     func run() async throws {
-        if let resolved = try await target.activateIfSpecified() {
-            try await InteractionManager.ensureOnTarget(
-                points: [(fromX, fromY), (toX, toY)], pid: resolved.pid, windowID: target.windowID
-            )
-        }
+        try await target.activateAndGuard([(fromX, fromY), (toX, toY)])
 
         await InteractionManager.drag(
             fromX: Double(fromX), fromY: Double(fromY),

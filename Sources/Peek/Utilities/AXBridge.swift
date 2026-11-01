@@ -77,17 +77,8 @@ enum AXBridge {
         return CGRect(origin: point, size: size)
     }
 
-    private static func frameInfo(from rect: CGRect) -> AXNode.FrameInfo {
-        AXNode.FrameInfo(
-            x: Int(rect.origin.x),
-            y: Int(rect.origin.y),
-            width: Int(rect.size.width),
-            height: Int(rect.size.height)
-        )
-    }
-
     private static func frameInfo(of element: AXUIElement) -> AXNode.FrameInfo? {
-        frame(of: element).map(frameInfo(from:))
+        frame(of: element).map(AXNode.FrameInfo.init)
     }
 
     // MARK: - Application
@@ -112,8 +103,11 @@ enum AXBridge {
         _ = AXUIElementCopyAttributeValue(application(pid: pid), kAXWindowsAttribute as CFString, &ref)
     }
 
-    /// Get the AXUIElement for a specific window by CGWindowID.
-    /// Returns nil if the AX tree is inaccessible (e.g. app on another Space).
+    /// Get the AXUIElement for a specific window by CGWindowID: a top-level window, or a
+    /// sheet attached to one. Nil when nothing matches — AX doesn't expose background tabs
+    /// or windows on another Space, and another window must never stand in for the one asked
+    /// for. Exception: if the app reports no window IDs at all (the private bridge is
+    /// unsupported) and has exactly one window, that window is returned.
     static func window(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
         let appElement = application(pid: pid)
         var windowsRef: CFTypeRef?
@@ -121,10 +115,28 @@ enum AXBridge {
         guard result == .success, let windows = windowsRef as? [AXUIElement], !windows.isEmpty else {
             return nil
         }
-        return windows.first { win in
-            var id: CGWindowID = 0
-            return _AXUIElementGetWindow(win, &id) == .success && id == windowID
-        } ?? windows[0]
+
+        let ids = windows.map(cgWindowID(of:))
+        if let index = ids.firstIndex(of: windowID) {
+            return windows[index]
+        }
+        let sheets = windows.flatMap { (children(of: $0) ?? []).filter(isSheet) }
+        if let sheet = sheets.first(where: { cgWindowID(of: $0) == windowID }) {
+            return sheet
+        }
+        if windows.count == 1, ids.allSatisfy({ $0 == nil }) {
+            return windows[0]
+        }
+        return nil
+    }
+
+    private static func cgWindowID(of element: AXUIElement) -> CGWindowID? {
+        var id: CGWindowID = 0
+        return _AXUIElementGetWindow(element, &id) == .success ? id : nil
+    }
+
+    private static func isSheet(_ element: AXUIElement) -> Bool {
+        string(of: element, key: kAXRoleAttribute) == kAXSheetRole
     }
 
     // MARK: - Node Extraction
@@ -203,46 +215,19 @@ enum AXBridge {
     }
 
     private static func frameInfoFromAXValue(_ raw: Any) -> AXNode.FrameInfo? {
-        cgRect(from: raw as CFTypeRef).map(frameInfo(from:))
+        cgRect(from: raw as CFTypeRef).map(AXNode.FrameInfo.init)
     }
 
-    /// Check whether an element matches the given filter set without building a
-    /// full AXNode. Reads only the attributes each active filter needs, in order
-    /// of cheapest-first; returns on first mismatch. `role` is expected to be
-    /// already stripped of its "AX" prefix.
-    static func elementMatches(
-        _ element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        enabled: Bool?
-    ) -> Bool {
-        if let role {
-            let elementRole = stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown")
-            if elementRole != role { return false }
-        }
-        if let title {
-            let elementTitle = string(of: element, key: kAXTitleAttribute) ?? ""
-            let titleHit = elementTitle.localizedCaseInsensitiveContains(title)
-            if !titleHit {
-                let elementDesc = string(of: element, key: kAXDescriptionAttribute) ?? ""
-                if !elementDesc.localizedCaseInsensitiveContains(title) { return false }
-            }
-        }
-        if let value {
-            let elementValue = string(of: element, key: kAXValueAttribute) ?? ""
-            if !elementValue.localizedCaseInsensitiveContains(value) { return false }
-        }
-        if let description {
-            let elementDesc = string(of: element, key: kAXDescriptionAttribute) ?? ""
-            if !elementDesc.localizedCaseInsensitiveContains(description) { return false }
-        }
-        if let enabled {
-            let elementEnabled = bool(of: element, key: kAXEnabledAttribute) ?? true
-            if elementEnabled != enabled { return false }
-        }
-        return true
+    /// Check whether an element matches `filter` without building a full AXNode — only
+    /// the attributes the active filters need are read (see `ElementFilter.matches`).
+    static func elementMatches(_ element: AXUIElement, _ filter: ElementFilter) -> Bool {
+        filter.matches(
+            role: { stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown") },
+            title: { string(of: element, key: kAXTitleAttribute) },
+            value: { string(of: element, key: kAXValueAttribute) },
+            description: { string(of: element, key: kAXDescriptionAttribute) },
+            enabled: { bool(of: element, key: kAXEnabledAttribute) }
+        )
     }
 
     // MARK: - Actions

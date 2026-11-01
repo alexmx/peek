@@ -3,10 +3,6 @@ import CoreGraphics
 import Foundation
 
 struct ActionCommand: AsyncParsableCommand {
-    enum VerifyMode: String, ExpressibleByArgument {
-        case none, tree, diff
-    }
-
     static let configuration = CommandConfiguration(
         commandName: "action",
         abstract: "Perform an accessibility action on a UI element"
@@ -39,7 +35,7 @@ struct ActionCommand: AsyncParsableCommand {
         name: .long,
         help: "Verification mode after the action: 'none' (default), 'tree' (post-action snapshot), 'diff' (only what changed)"
     )
-    var verify: VerifyMode = .none
+    var verify: ActionVerifyMode = .none
 
     @Option(name: .long, help: "Tree depth limit when --verify=tree or --verify=diff")
     var depth: Int?
@@ -51,75 +47,32 @@ struct ActionCommand: AsyncParsableCommand {
     var format: OutputFormat = .default
 
     func validate() throws {
-        if role == nil, title == nil, value == nil, desc == nil {
+        if filter.isEmpty {
             throw ValidationError("At least one filter is required: --role, --title, --value, or --desc")
         }
     }
 
+    private var filter: ElementFilter {
+        ElementFilter(role: role, title: title, value: value, description: desc)
+    }
+
     func run() async throws {
         let resolved = try await target.resolve()
-        let action = self.do
-        let settleDelay = delay ?? 0.15
+        let outcome = try await InteractionManager.performAndVerify(
+            pid: resolved.pid, windowID: resolved.windowID, action: self.do,
+            filter: filter, all: all,
+            verify: verify, depth: depth, settleDelay: delay ?? 0.15
+        )
 
-        let beforeFlat: [AXNode]? = if verify == .diff {
-            try MonitorManager.flattenNodes(
-                AccessibilityManager.inspect(pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth)
-            )
-        } else {
-            nil
-        }
-
-        let nodes: [AXNode] = if all {
-            try await InteractionManager.performActionOnAll(
-                pid: resolved.pid, windowID: resolved.windowID, action: action,
-                role: role, title: title, value: value, description: desc
-            )
-        } else {
-            try await [InteractionManager.performAction(
-                pid: resolved.pid, windowID: resolved.windowID, action: action,
-                role: role, title: title, value: value, description: desc
-            )]
-        }
-
-        switch verify {
-        case .tree:
-            try await Delay.seconds(settleDelay)
-            let treeNode = try AccessibilityManager.inspect(
-                pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
-            )
-            try printActionResult(ActionTreeResult(action: nodes, resultTree: treeNode), nodes: nodes, action: action)
-        case .diff:
-            try await Delay.seconds(settleDelay)
-            let afterTree = try AccessibilityManager.inspect(
-                pid: resolved.pid, windowID: resolved.windowID, maxDepth: depth
-            )
-            let diff = MonitorManager.computeDiff(
-                before: beforeFlat ?? [],
-                after: MonitorManager.flattenNodes(afterTree)
-            )
-            try printActionResult(ActionDiffResult(action: nodes, diff: diff), nodes: nodes, action: action)
-        case .none:
-            switch format {
-            case .json:
-                if all { try printJSON(nodes) } else { try printJSON(nodes[0]) }
-            case .toon:
-                if all { try printTOON(nodes) } else { try printTOON(nodes[0]) }
-            case .default:
-                describe(nodes, action: action)
-                if all { print("\(nodes.count) element(s) affected.") }
+        try emit(outcome, as: format) {
+            for node in outcome.nodes {
+                print("Performed '\(AXBridge.stripAXPrefix(self.do))' on: \(node.formatted)")
+            }
+            if case .performed = outcome, all {
+                print("\(outcome.nodes.count) element(s) affected.")
             }
         }
     }
-
-    private func printActionResult(_ result: some Encodable, nodes: [AXNode], action: String) throws {
-        try emit(result, as: format) {
-            describe(nodes, action: action)
-        }
-    }
-
-    private func describe(_ nodes: [AXNode], action: String) {
-        for node in nodes {
-            print("Performed '\(AXBridge.stripAXPrefix(action))' on: \(node.formatted)")
-        }
-    }
 }
+
+extension ActionVerifyMode: ExpressibleByArgument {}

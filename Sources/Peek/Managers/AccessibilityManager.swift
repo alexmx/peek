@@ -22,26 +22,9 @@ enum AccessibilityManager {
             return AXBridge.application(pid: pid)
         }
 
-        if let w = AXBridge.window(pid: pid, windowID: windowID) {
-            return w
-        }
-
-        // AX tree inaccessible — app may be on another Space. Activate and retry.
-        guard let app = NSRunningApplication(processIdentifier: pid) else {
-            throw PeekError.noWindows
-        }
-        app.activate()
-
-        // Sync on purpose: rare off-Space retry; the common path returns above without
-        // sleeping. Going async would ripple through the whole sync AX-read call graph.
-        for _ in 0..<20 {
-            Delay.blockingMilliseconds(100)
-            if let w = AXBridge.window(pid: pid, windowID: windowID) {
-                return w
-            }
-        }
-
-        throw PeekError.noWindows
+        guard let window = retryAfterActivating(pid: pid, fetch: { AXBridge.window(pid: pid, windowID: windowID) })
+        else { throw PeekError.windowNotAccessible(windowID) }
+        return window
     }
 
     /// Get the main menu bar element for an application, activating if needed.
@@ -57,7 +40,7 @@ enum AccessibilityManager {
     }
 
     /// Copy a menu-bar-style attribute off the AXApplication, activating and
-    /// retrying once if the first fetch fails (app may be on another Space).
+    /// retrying if the first fetch fails.
     private static func menuBarElement(
         pid: pid_t,
         attribute: String,
@@ -66,32 +49,32 @@ enum AccessibilityManager {
         try PermissionManager.requireAccessibility()
 
         let app = AXBridge.application(pid: pid)
-
-        func fetchMenuBar() -> AXUIElement? {
-            var ref: AnyObject?
+        let bar: AXUIElement? = retryAfterActivating(pid: pid) {
+            var ref: CFTypeRef?
             guard AXUIElementCopyAttributeValue(app, attribute as CFString, &ref) == .success,
-                  let ref else {
-                return nil
-            }
+                  let ref, CFGetTypeID(ref) == AXUIElementGetTypeID() else { return nil }
             // swiftlint:disable:next force_cast
             return (ref as! AXUIElement)
         }
+        guard let bar else { throw missing() }
+        return bar
+    }
 
-        if let bar = fetchMenuBar() { return bar }
-
-        // Menu bar not accessible — app may be on another Space. Activate and retry.
-        guard let runningApp = NSRunningApplication(processIdentifier: pid) else {
-            throw missing()
-        }
-        runningApp.activate()
-
-        // Sync on purpose — see resolveWindow: rare off-Space retry path.
+    /// Run `fetch`; if it fails — typically because the app is on another Space and its
+    /// AX tree is inaccessible — activate the app and retry for up to 2s. Returns nil if
+    /// the app isn't running or `fetch` never succeeds.
+    ///
+    /// Sync on purpose: a rare off-Space path; the common case returns on the first fetch
+    /// without sleeping. Going async would ripple through the whole sync AX-read call graph.
+    private static func retryAfterActivating<T>(pid: pid_t, fetch: () -> T?) -> T? {
+        if let value = fetch() { return value }
+        guard let app = NSRunningApplication(processIdentifier: pid) else { return nil }
+        app.activate()
         for _ in 0..<20 {
             Delay.blockingMilliseconds(100)
-            if let bar = fetchMenuBar() { return bar }
+            if let value = fetch() { return value }
         }
-
-        throw missing()
+        return nil
     }
 
     // MARK: - Tree Building
@@ -131,22 +114,10 @@ enum AccessibilityManager {
         let node: AXNode
     }
 
-    /// Search the tree for nodes matching the given criteria.
-    static func find(
-        pid: pid_t,
-        windowID: CGWindowID,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        enabled: Bool? = nil,
-        limit: Int? = nil
-    ) throws -> [AXNode] {
+    /// Search the tree for nodes matching `filter`.
+    static func find(pid: pid_t, windowID: CGWindowID, filter: ElementFilter, limit: Int? = nil) throws -> [AXNode] {
         let window = try resolveWindow(pid: pid, windowID: windowID)
-        return findAll(
-            in: window, role: role, title: title, value: value,
-            description: description, enabled: enabled, limit: limit
-        ).map(\.node)
+        return findAll(in: window, filter: filter, limit: limit).map(\.node)
     }
 
     /// A range of text read from an element via parameterized AX attributes.
@@ -183,10 +154,7 @@ enum AccessibilityManager {
     static func readText(
         pid: pid_t,
         windowID: CGWindowID,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
+        filter: ElementFilter,
         offset: Int,
         length: Int?,
         bounds: Bool = false,
@@ -194,9 +162,7 @@ enum AccessibilityManager {
         substring: String? = nil
     ) throws -> TextContent {
         let window = try resolveWindow(pid: pid, windowID: windowID)
-        guard let match = findFirst(
-            in: window, role: role, title: title, value: value, description: description
-        ) else {
+        guard let match = findAll(in: window, filter: filter, limit: 1).first else {
             throw PeekError.elementNotFound
         }
         guard let total = AXBridge.numberOfCharacters(of: match.ref) else {
@@ -262,14 +228,7 @@ enum AccessibilityManager {
     }
 
     private static func boundsInfo(of ref: AXUIElement, offset: Int, length: Int) -> AXNode.FrameInfo? {
-        AXBridge.bounds(of: ref, offset: offset, length: length).map {
-            AXNode.FrameInfo(
-                x: Int($0.origin.x),
-                y: Int($0.origin.y),
-                width: Int($0.size.width),
-                height: Int($0.size.height)
-            )
-        }
+        AXBridge.bounds(of: ref, offset: offset, length: length).map(AXNode.FrameInfo.init)
     }
 
     /// Find the deepest element at the given screen coordinates.
@@ -307,92 +266,18 @@ enum AccessibilityManager {
         )
     }
 
-    /// DFS to find the first element matching filters.
-    static func findFirst(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?
-    ) -> ElementMatch? {
-        searchFirst(
-            in: element,
-            role: role.map(AXBridge.stripAXPrefix),
-            title: title,
-            value: value,
-            description: description,
-            depth: 0
-        )
-    }
-
-    /// DFS to find all elements matching filters.
-    static func findAll(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        enabled: Bool? = nil,
-        limit: Int? = nil
-    ) -> [ElementMatch] {
+    /// DFS for elements matching `filter`, stopping after `limit` matches.
+    static func findAll(in element: AXUIElement, filter: ElementFilter, limit: Int? = nil) -> [ElementMatch] {
         var results: [ElementMatch] = []
-        searchAll(
-            in: element,
-            role: role.map(AXBridge.stripAXPrefix),
-            title: title,
-            value: value,
-            description: description,
-            enabled: enabled,
-            limit: limit,
-            depth: 0,
-            results: &results
-        )
+        searchAll(in: element, filter: filter, limit: limit, depth: 0, results: &results)
         return results
     }
 
     // MARK: - Private Search
 
-    private static func searchFirst(
-        in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        depth: Int
-    ) -> ElementMatch? {
-        guard depth < maxDepth else { return nil }
-
-        if AXBridge.elementMatches(
-            element, role: role, title: title, value: value, description: description, enabled: nil
-        ) {
-            return ElementMatch(ref: element, node: AXBridge.nodeFromElement(element))
-        }
-
-        if let children = AXBridge.children(of: element) {
-            for child in children {
-                if let found = searchFirst(
-                    in: child,
-                    role: role,
-                    title: title,
-                    value: value,
-                    description: description,
-                    depth: depth + 1
-                ) {
-                    return found
-                }
-            }
-        }
-
-        return nil
-    }
-
     private static func searchAll(
         in element: AXUIElement,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?,
-        enabled: Bool?,
+        filter: ElementFilter,
         limit: Int?,
         depth: Int,
         results: inout [ElementMatch]
@@ -400,26 +285,14 @@ enum AccessibilityManager {
         guard depth < maxDepth else { return }
         if let limit, results.count >= limit { return }
 
-        if AXBridge.elementMatches(
-            element, role: role, title: title, value: value, description: description, enabled: enabled
-        ) {
+        if AXBridge.elementMatches(element, filter) {
             results.append(ElementMatch(ref: element, node: AXBridge.nodeFromElement(element)))
             if let limit, results.count >= limit { return }
         }
 
         if let children = AXBridge.children(of: element) {
             for child in children {
-                searchAll(
-                    in: child,
-                    role: role,
-                    title: title,
-                    value: value,
-                    description: description,
-                    enabled: enabled,
-                    limit: limit,
-                    depth: depth + 1,
-                    results: &results
-                )
+                searchAll(in: child, filter: filter, limit: limit, depth: depth + 1, results: &results)
                 if let limit, results.count >= limit { return }
             }
         }

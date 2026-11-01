@@ -53,18 +53,21 @@ enum InteractionManager {
 
         let name = app.localizedName ?? "Unknown"
 
-        if isFrontmost(app), isWindowTopmost(windowID) {
+        // Skip activation only when the window is verifiably on top — a window missing from
+        // the on-screen list (background tab, minimized, other Space) still needs the full path.
+        if isFrontmost(app), isWindowTopmost(windowID, requireOnScreen: true) {
             return ActivateResult(pid: pid, windowID: windowID, app: name)
         }
 
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
-
-        if try await !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.5) {
-            // One bounded retry — cooperative activation occasionally drops the first call.
-            if try await !activateAndAwait(app: app, window: window, windowID: windowID, timeout: 0.3) {
-                throw PeekError.activationFailed(pid, name)
-            }
-        }
+        try await requestActivation(
+            pid: pid, name: name,
+            request: {
+                app.activate()
+                AXBridge.raise(window)
+            },
+            until: { isFrontmost(app) && isWindowTopmost(windowID) }
+        )
 
         return ActivateResult(pid: pid, windowID: windowID, app: name)
     }
@@ -88,11 +91,11 @@ enum InteractionManager {
             return ActivateResult(pid: pid, windowID: 0, app: name)
         }
 
-        if try await !activateAppAndAwait(app: app, timeout: 0.5) {
-            if try await !activateAppAndAwait(app: app, timeout: 0.3) {
-                throw PeekError.activationFailed(pid, name)
-            }
-        }
+        try await requestActivation(
+            pid: pid, name: name,
+            request: { app.activate() },
+            until: { isFrontmost(app) }
+        )
 
         return ActivateResult(pid: pid, windowID: 0, app: name)
     }
@@ -100,39 +103,28 @@ enum InteractionManager {
     private static let tickMs: Double = 25
     private static let settleMs: Double = 20
 
-    private static func activateAppAndAwait(app: NSRunningApplication, timeout: TimeInterval) async throws -> Bool {
-        app.activate()
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if isFrontmost(app) {
-                try await Delay.milliseconds(settleMs)
-                return true
+    /// Run `request`, then poll until `isDone` holds (plus a short settle), retrying once —
+    /// cooperative activation occasionally drops the first request. Throws
+    /// `activationFailed` if both attempts (0.5s, then 0.3s) time out.
+    private static func requestActivation(
+        pid: pid_t,
+        name: String,
+        request: () -> Void,
+        until isDone: () -> Bool
+    ) async throws {
+        for timeout: TimeInterval in [0.5, 0.3] {
+            request()
+            let deadline = Date().addingTimeInterval(timeout)
+            while Date() < deadline {
+                if isDone() {
+                    try await Delay.milliseconds(settleMs)
+                    return
+                }
+                try await Delay.milliseconds(tickMs)
             }
-            try await Delay.milliseconds(tickMs)
+            if isDone() { return }
         }
-        return isFrontmost(app)
-    }
-
-    /// Request activation and poll until the app is frontmost AND the target window
-    /// is the topmost normal-layer window, or `timeout` elapses.
-    private static func activateAndAwait(
-        app: NSRunningApplication,
-        window: AXUIElement,
-        windowID: CGWindowID,
-        timeout: TimeInterval
-    ) async throws -> Bool {
-        app.activate()
-        AXBridge.raise(window)
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            if isFrontmost(app), isWindowTopmost(windowID) {
-                try await Delay.milliseconds(settleMs)
-                return true
-            }
-            try await Delay.milliseconds(tickMs)
-        }
-        return isFrontmost(app) && isWindowTopmost(windowID)
+        throw PeekError.activationFailed(pid, name)
     }
 
     /// True if `app` is the workspace-frontmost application.
@@ -153,33 +145,26 @@ enum InteractionManager {
     /// permanently "not topmost" — stalling activation until it throws `activationFailed`
     /// even though the app is frontmost and the field focused. If the window isn't in the
     /// on-screen list at all (minimized, on another Space, or a kind CGWindowList doesn't
-    /// report), we can't verify z-order — don't block.
-    private static func isWindowTopmost(_ windowID: CGWindowID) -> Bool {
-        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let windows = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
-            return true
-        }
-        return isTopmostInLayer(windowID: windowID, windows: windows)
+    /// report), we can't verify z-order — don't block, unless `requireOnScreen` is set.
+    private static func isWindowTopmost(_ windowID: CGWindowID, requireOnScreen: Bool = false) -> Bool {
+        isTopmostInLayer(
+            windowID: windowID,
+            windows: WindowManager.windowRecords([.optionOnScreenOnly, .excludeDesktopElements]),
+            requireOnScreen: requireOnScreen
+        )
     }
 
     /// Pure z-order check: is `windowID` the front-most window within its own CG window
-    /// layer, given a front-to-back `windows` list (as returned by
-    /// `CGWindowListCopyWindowInfo` with `.optionOnScreenOnly`)? Factored out of
+    /// layer, given a front-to-back `windows` list (an on-screen
+    /// `WindowManager.windowRecords` query)? Factored out of
     /// `isWindowTopmost` so the layer-scoping logic is deterministically testable without
     /// a live window server.
-    static func isTopmostInLayer(windowID: CGWindowID, windows: [[String: Any]]) -> Bool {
-        guard let target = windows.first(where: {
-            ($0[kCGWindowNumber as String] as? CGWindowID) == windowID
-        }) else {
-            return true
+    static func isTopmostInLayer(windowID: CGWindowID, windows: [WindowRecord], requireOnScreen: Bool = false) -> Bool {
+        guard let target = windows.first(where: { $0.windowID == windowID }) else {
+            return !requireOnScreen
         }
-        let targetLayer = target[kCGWindowLayer as String] as? Int ?? 0
-        for info in windows {
-            let layer = info[kCGWindowLayer as String] as? Int ?? 0
-            if layer != targetLayer { continue }
-            return (info[kCGWindowNumber as String] as? CGWindowID) == windowID
-        }
-        return true
+        let frontmostInLayer = windows.first(where: { $0.layer == target.layer })
+        return frontmostInLayer?.windowID == windowID
     }
 
     struct ActivateResult: Encodable {
@@ -190,25 +175,9 @@ enum InteractionManager {
 
     // MARK: - Coordinate targeting
 
-    private struct HitWindow {
-        let pid: pid_t
-        let windowID: CGWindowID
-        let bounds: CGRect
-    }
-
     /// On-screen, normal-layer (user) windows ordered front-to-back, with screen bounds.
-    private static func onScreenWindowsFrontToBack() -> [HitWindow] {
-        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let infos = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else { return [] }
-        return infos.compactMap { info in
-            guard (info[kCGWindowLayer as String] as? Int ?? -1) == 0,
-                  let pid = info[kCGWindowOwnerPID as String] as? pid_t,
-                  let num = info[kCGWindowNumber as String] as? CGWindowID,
-                  let boundsDict = info[kCGWindowBounds as String],
-                  let rect = CGRect(dictionaryRepresentation: boundsDict as! CFDictionary)
-            else { return nil }
-            return HitWindow(pid: pid, windowID: num, bounds: rect)
-        }
+    private static func onScreenWindowsFrontToBack() -> [WindowRecord] {
+        WindowManager.windowRecords([.optionOnScreenOnly, .excludeDesktopElements]).filter { $0.layer == 0 }
     }
 
     private static func appName(of pid: pid_t) -> String {
@@ -295,11 +264,10 @@ enum InteractionManager {
 
             // Hold the modifier flags (shift/cmd/option/control) for the duration of the
             // click so gestures like shift-click (range select) and cmd-click (toggle /
-            // open-in-background) register. Empty flags leave a plain click unchanged.
-            if !flags.isEmpty {
-                down?.flags = flags
-                up?.flags = flags
-            }
+            // open-in-background) register. Set explicitly even when empty, so a plain
+            // click never inherits modifiers the session believes are held.
+            down?.flags = flags
+            up?.flags = flags
 
             down?.post(tap: .cghidEventTap)
             await pause(30)
@@ -308,6 +276,9 @@ enum InteractionManager {
                 await pause(50) // inter-click gap, well under macOS's ~500ms double-click threshold
             }
         }
+        guard !flags.isEmpty else { return }
+        await pause(15) // let the mouse-up land before releasing (see sendKey)
+        releaseModifiers()
     }
 
     static func drag(fromX: Double, fromY: Double, toX: Double, toY: Double) async {
@@ -380,6 +351,20 @@ enum InteractionManager {
         await pause(Double(totalSleepMs))
     }
 
+    struct CursorPoint: Encodable {
+        let x: Int
+        let y: Int
+    }
+
+    /// The OS-reported cursor position, rounded, and the system-wide AX element under it
+    /// (nil over empty desktop). Read after `move` to confirm where the hover landed.
+    static func cursorReadback() -> (cursor: CursorPoint?, element: AXNode?) {
+        guard let location = CGEvent(source: nil)?.location else { return (nil, nil) }
+        let cursor = CursorPoint(x: Int(location.x.rounded()), y: Int(location.y.rounded()))
+        let element = try? AccessibilityManager.elementAtScreenPoint(x: location.x, y: location.y)
+        return (cursor, element)
+    }
+
     enum ScrollMode: String, Encodable {
         case wheel, drag
     }
@@ -393,10 +378,15 @@ enum InteractionManager {
     /// window under the point belongs to a touch host, `.wheel` otherwise.
     static func defaultScrollMode(x: Int, y: Int) -> ScrollMode {
         let point = CGPoint(x: Double(x), y: Double(y))
-        guard let top = onScreenWindowsFrontToBack().first(where: { $0.bounds.contains(point) }),
-              let bundleID = NSRunningApplication(processIdentifier: top.pid)?.bundleIdentifier
-        else { return .wheel }
-        return touchHostBundleIDs.contains(bundleID) ? .drag : .wheel
+        let top = onScreenWindowsFrontToBack().first(where: { $0.bounds.contains(point) })
+        return scrollMode(forBundleID: top
+            .flatMap { NSRunningApplication(processIdentifier: $0.pid)?.bundleIdentifier })
+    }
+
+    /// `.drag` for touch hosts (Device Hub, Simulator), `.wheel` for any other app or none.
+    static func scrollMode(forBundleID bundleID: String?) -> ScrollMode {
+        guard let bundleID, touchHostBundleIDs.contains(bundleID) else { return .wheel }
+        return .drag
     }
 
     /// Scroll at screen coordinates with the given mode. `.drag` swipes opposite the
@@ -510,6 +500,7 @@ enum InteractionManager {
     }
 
     static func type(text: String, delayMs: UInt32 = 5) async {
+        var usedShift = false
         for char in text {
             let (keyCode, shift) = KeyMapping.lookup(char)
             let utf16 = Array(String(char).utf16)
@@ -520,24 +511,44 @@ enum InteractionManager {
             keyDown?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
             keyUp?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
 
-            if shift {
-                keyDown?.flags = .maskShift
-                keyUp?.flags = .maskShift
-            }
+            // Explicit flags on every keystroke: inheriting a held cmd/option/control from
+            // the session would turn text into shortcuts.
+            let flags: CGEventFlags = shift ? .maskShift : []
+            keyDown?.flags = flags
+            keyUp?.flags = flags
+            usedShift = usedShift || shift
 
             keyDown?.post(tap: .cghidEventTap)
             keyUp?.post(tap: .cghidEventTap)
             await pause(Double(delayMs))
         }
+        if usedShift { releaseModifiers() }
     }
 
-    static func sendKey(keyCode: CGKeyCode, flags: CGEventFlags) {
+    static func sendKey(keyCode: CGKeyCode, flags: CGEventFlags) async {
         let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
         let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
         keyDown?.flags = flags
         keyUp?.flags = flags
         keyDown?.post(tap: .cghidEventTap)
         keyUp?.post(tap: .cghidEventTap)
+        guard !flags.isEmpty else { return }
+        // Let the key-up land first; a release posted in the same instant can be applied
+        // before it, leaving the modifiers held.
+        await pause(15)
+        releaseModifiers()
+    }
+
+    /// Post a modifiers-released `flagsChanged` event, as a real keyboard does when the last
+    /// modifier key comes up. A posted event that carries modifier flags leaves the session
+    /// believing those keys are held until a real modifier is pressed, so later synthetic
+    /// keys and clicks would inherit them — shortcuts instead of text, cmd-clicks instead of
+    /// clicks. Call after posting any event that carried modifiers.
+    private static func releaseModifiers() {
+        let event = CGEvent(source: nil)
+        event?.type = .flagsChanged
+        event?.flags = []
+        event?.post(tap: .cghidEventTap)
     }
 
     /// AX actions that only take visible effect when the target app is frontmost.
@@ -548,63 +559,23 @@ enum InteractionManager {
     /// Returns true if the given AX action requires the target app to be FG to work.
     /// Accepts both `Press` and `AXPress` style names.
     private static func actionNeedsFocus(_ action: String) -> Bool {
-        let stripped = action.hasPrefix("AX") ? String(action.dropFirst(2)) : action
-        return focusRequiringActions.contains(stripped)
+        focusRequiringActions.contains(AXBridge.stripAXPrefix(action))
     }
 
-    /// Perform an AX action on the first element matching the given filters.
+    /// Perform an AX action on the first element matching the given filters, or on every
+    /// match when `all` is set. Returns the matched nodes; throws `elementNotFound` if none.
     /// Auto-activates the target app only if the action is in `focusRequiringActions`.
     static func performAction(
         pid: pid_t,
         windowID: CGWindowID,
         action: String,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?
-    ) async throws -> AXNode {
-        try PermissionManager.requireAccessibility()
-
-        let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
-        guard let match = AccessibilityManager.findFirst(
-            in: window,
-            role: role,
-            title: title,
-            value: value,
-            description: description
-        ) else {
-            throw PeekError.elementNotFound
-        }
-
-        if actionNeedsFocus(action) {
-            _ = try await activate(pid: pid, windowID: windowID)
-        }
-
-        try AXBridge.performAction(action, on: match.ref)
-        return match.node
-    }
-
-    /// Perform an AX action on all elements matching the given filters.
-    /// Auto-activates the target app only if the action is in `focusRequiringActions`.
-    static func performActionOnAll(
-        pid: pid_t,
-        windowID: CGWindowID,
-        action: String,
-        role: String?,
-        title: String?,
-        value: String?,
-        description: String?
+        filter: ElementFilter,
+        all: Bool
     ) async throws -> [AXNode] {
         try PermissionManager.requireAccessibility()
 
         let window = try AccessibilityManager.resolveWindow(pid: pid, windowID: windowID)
-        let matches = AccessibilityManager.findAll(
-            in: window,
-            role: role,
-            title: title,
-            value: value,
-            description: description
-        )
+        let matches = AccessibilityManager.findAll(in: window, filter: filter, limit: all ? nil : 1)
 
         guard !matches.isEmpty else {
             throw PeekError.elementNotFound
@@ -619,5 +590,44 @@ enum InteractionManager {
         }
 
         return matches.map(\.node)
+    }
+
+    /// `performAction`, then capture the result per `verify`: the post-action tree, or a
+    /// before/after diff, taken `settleDelay` seconds after the action. Snapshots use
+    /// `depth` or the full tree — a control's updated value (e.g. Calculator's display)
+    /// often lives deeper than a shallow default would reach.
+    static func performAndVerify(
+        pid: pid_t,
+        windowID: CGWindowID,
+        action: String,
+        filter: ElementFilter,
+        all: Bool,
+        verify: ActionVerifyMode,
+        depth: Int?,
+        settleDelay: TimeInterval
+    ) async throws -> ActionOutcome {
+        func snapshot() throws -> AXNode {
+            try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: depth)
+        }
+
+        let before = verify == .diff ? try snapshot().flattened : []
+        let nodes = try await performAction(
+            pid: pid, windowID: windowID, action: action, filter: filter, all: all
+        )
+
+        switch verify {
+        case .none:
+            return .performed(nodes, all: all)
+        case .tree:
+            try await Delay.seconds(settleDelay)
+            return try .tree(ActionTreeResult(action: nodes, resultTree: snapshot()))
+        case .diff:
+            try await Delay.seconds(settleDelay)
+            let after = try snapshot().flattened
+            return .diff(ActionDiffResult(
+                action: nodes,
+                diff: TreeDiff(before: before, after: after)
+            ))
+        }
     }
 }

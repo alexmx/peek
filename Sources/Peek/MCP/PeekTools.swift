@@ -55,79 +55,26 @@ enum PeekTools {
         return (resolved.windowID, resolved.pid)
     }
 
-    /// Resolve just the target PID, without requiring the app to have a window.
-    /// Used by tools that only need to touch the menu bar (per-app, not per-window).
-    /// Falls back to `resolveWindow` if a `window_id` was explicitly passed so the
-    /// caller still gets a useful error if it's invalid.
+    /// Resolve just the target PID, without requiring the app to have a window — tools
+    /// that only touch the menu bar or the app as a whole. See `WindowTarget.resolvePID`.
     private static func resolvePID(windowID: Int?, app: String?, pid: Int?) async throws -> pid_t {
-        if let pid {
-            return pid_t(pid)
-        }
-        if let app {
-            let match = NSWorkspace.shared.runningApplications.first {
-                $0.activationPolicy == .regular
-                    && $0.localizedName?.localizedCaseInsensitiveContains(app) == true
-            }
-            guard let match else { throw PeekError.appNotFound(app) }
-            return match.processIdentifier
-        }
-        if windowID != nil {
-            let (_, p) = try await resolveWindow(windowID: windowID, app: nil, pid: nil)
-            return p
-        }
-        throw PeekError.appNotFound("(no pid, app, or window_id)")
+        try await WindowTarget.resolvePID(windowID: windowID.map { UInt32($0) }, app: app, pid: pid.map { pid_t($0) })
     }
 
-    /// Bring the targeted app to the foreground for tools that post CGEvents
-    /// (click, scroll, type). If no target was provided, skip activation entirely —
-    /// the caller is doing a raw-coordinate event.
-    ///
-    /// When the caller passes a specific `window_id`, we enforce that THAT window
-    /// is topmost (matters for click/scroll at known coordinates). When the caller
-    /// only passes app/pid, we just ensure the app is frontmost without policing
-    /// which of its windows is on top — otherwise a transient popover (search
-    /// popup, autocomplete) sitting above the main window would falsely fail the
-    /// topmost check.
-    ///
-    /// `strict: false` makes a failed activation non-fatal — used by peek_type/peek_key,
-    /// whose HID keystrokes reach the OS-frontmost app whether or not peek could *confirm*
-    /// the raise. A strict gate there would abort input that would have worked (e.g. a
-    /// focused MenuBarExtra/panel field where topmost-confirmation stalls). Only
-    /// `activationFailed` is swallowed; resolution/permission errors still throw.
+    /// Activate the target before posting input. See `WindowTarget.activate`.
     private static func activateTarget(windowID: Int?, app: String?, pid: Int?, strict: Bool = true) async throws {
-        guard windowID != nil || app != nil || pid != nil else { return }
-        do {
-            if windowID != nil {
-                let (wid, p) = try await resolveWindow(windowID: windowID, app: app, pid: pid)
-                _ = try await InteractionManager.activate(pid: p, windowID: wid)
-            } else {
-                let p = try await resolvePID(windowID: nil, app: app, pid: pid)
-                _ = try await InteractionManager.activateApp(pid: p)
-            }
-        } catch PeekError.activationFailed where !strict {
-            // Best-effort: proceed to post events to the frontmost app anyway.
-        }
-    }
-
-    /// Guard a coordinate op against the wrong window, when a target was provided.
-    /// Delegates to InteractionManager.ensureOnTarget (shared with the CLI commands).
-    private static func guardCoordinates(
-        _ points: [(x: Int, y: Int)], windowID: Int?, app: String?, pid: Int?
-    ) async throws {
-        guard windowID != nil || app != nil || pid != nil else { return }
-        let resolved = try await resolvePID(windowID: windowID, app: app, pid: pid)
-        try await InteractionManager.ensureOnTarget(
-            points: points, pid: resolved, windowID: windowID.map { CGWindowID($0) }
+        try await WindowTarget.activate(
+            windowID: windowID.map { UInt32($0) }, app: app, pid: pid.map { pid_t($0) }, strict: strict
         )
     }
 
-    /// Activate then guard for coordinate gestures (click/drag/scroll): bring the
-    /// target frontmost, then verify the points land on it.
+    /// Activate the target, then verify the points land on it. See `WindowTarget.activateAndGuard`.
     private static func activateAndGuard(
         _ points: [(x: Int, y: Int)], windowID: Int?, app: String?, pid: Int?
     ) async throws {
-        try await activateTarget(windowID: windowID, app: app, pid: pid)
-        try await guardCoordinates(points, windowID: windowID, app: app, pid: pid)
+        try await WindowTarget.activateAndGuard(
+            points, windowID: windowID.map { UInt32($0) }, app: app, pid: pid.map { pid_t($0) }
+        )
     }
 
     /// Default tree depth when `args.depth` is not provided. Caps the response size
@@ -603,9 +550,11 @@ enum PeekTools {
             } else {
                 let results = try AccessibilityManager.find(
                     pid: pid, windowID: windowID,
-                    role: args.role, title: args.title,
-                    value: args.value, description: args.desc,
-                    enabled: args.enabled, limit: args.limit
+                    filter: ElementFilter(
+                        role: args.role, title: args.title, value: args.value,
+                        description: args.desc, enabled: args.enabled
+                    ),
+                    limit: args.limit
                 )
                 return try json(results)
             }
@@ -620,8 +569,7 @@ enum PeekTools {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let result = try AccessibilityManager.readText(
                 pid: pid, windowID: windowID,
-                role: args.role, title: args.title,
-                value: args.value, description: args.desc,
+                filter: ElementFilter(role: args.role, title: args.title, value: args.value, description: args.desc),
                 offset: args.offset ?? 0, length: args.length,
                 bounds: args.bounds ?? false,
                 selection: args.selection ?? false,
@@ -642,19 +590,12 @@ enum PeekTools {
             guard let button = InteractionManager.MouseButton(rawValue: buttonRaw) else {
                 throw PeekError.invalidArgument(name: "button", value: buttonRaw, valid: ["left", "right"])
             }
-            let mods = args.modifiers ?? []
+            let mods = KeyMapping.modifierTokens(args.modifiers ?? [])
             let flags = try KeyMapping.parseModifiers(mods)
             await InteractionManager.click(
                 x: Double(args.x), y: Double(args.y), count: count, button: button, flags: flags
             )
-            struct Result: Encodable {
-                let x: Int
-                let y: Int
-                let count: Int
-                let button: String
-                let modifiers: [String]
-            }
-            return try json(Result(x: args.x, y: args.y, count: count, button: button.rawValue, modifiers: mods))
+            return try json(ClickResult(x: args.x, y: args.y, count: count, button: button.rawValue, modifiers: mods))
         }
     }
 
@@ -674,43 +615,14 @@ enum PeekTools {
                 steps: steps,
                 dwellMs: UInt32(dwell)
             )
-            let cursorLoc = CGEvent(source: nil)?.location
-            let cursor = cursorLoc.map { CursorPoint(x: Int($0.x.rounded()), y: Int($0.y.rounded())) }
-            let element: AXNode? = if let cursorLoc {
-                try? AccessibilityManager.elementAtScreenPoint(x: cursorLoc.x, y: cursorLoc.y)
-            } else {
-                nil
-            }
-            struct Result: Encodable {
-                let x: Int
-                let y: Int
-                let from_x: Int?
-                let from_y: Int?
-                let steps: Int
-                let dwell_ms: Int
-                let cursor: CursorPoint?
-                let element: AXNode?
-            }
-            return try json(Result(
+            let (cursor, element) = InteractionManager.cursorReadback()
+            return try json(MoveResult(
                 x: args.x, y: args.y,
-                from_x: args.from_x, from_y: args.from_y,
-                steps: steps, dwell_ms: dwell,
+                fromX: args.from_x, fromY: args.from_y,
+                steps: steps, dwellMs: dwell,
                 cursor: cursor, element: element
             ))
         }
-    }
-
-    struct CursorPoint: Encodable {
-        let x: Int
-        let y: Int
-    }
-
-    struct ScrollToolResult: Encodable {
-        let x: Int
-        let y: Int
-        let delta_x: Int
-        let delta_y: Int
-        let mode: InteractionManager.ScrollMode
     }
 
     static let drag = MCPTool(
@@ -726,10 +638,7 @@ enum PeekTools {
                 fromX: Double(args.from_x), fromY: Double(args.from_y),
                 toX: Double(args.to_x), toY: Double(args.to_y)
             )
-            return try json([
-                "from_x": args.from_x, "from_y": args.from_y,
-                "to_x": args.to_x, "to_y": args.to_y
-            ])
+            return try json(DragResult(fromX: args.from_x, fromY: args.from_y, toX: args.to_x, toY: args.to_y))
         }
     }
 
@@ -750,7 +659,7 @@ enum PeekTools {
                 steps: max(1, args.steps ?? 1),
                 durationMs: UInt32(max(0, args.duration_ms ?? 0))
             )
-            return try json(ScrollToolResult(x: args.x, y: args.y, delta_x: Int(dx), delta_y: Int(dy), mode: mode))
+            return try json(ScrollResult(x: args.x, y: args.y, deltaX: Int(dx), deltaY: Int(dy), mode: mode))
         }
     }
 
@@ -763,7 +672,7 @@ enum PeekTools {
         return try await withTimeout("peek_type", seconds: budget) {
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid, strict: false)
             await InteractionManager.type(text: args.text, delayMs: delayMs)
-            return try json(["characters": args.text.count])
+            return try json(TypeResult(characters: args.text.count))
         }
     }
 
@@ -772,14 +681,14 @@ enum PeekTools {
         description: "Send a single key chord — routes by virtual key code so it triggers app shortcuts (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys). Key is a single character or named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). Modifiers: any of cmd, shift, option, control, fn. Pass app/pid/window_id to auto-activate."
     ) { (args: KeyArgs) in
         try await withTimeout("peek_key") {
-            let mods = args.modifiers ?? []
+            let mods = KeyMapping.modifierTokens(args.modifiers ?? [])
             let flags = try KeyMapping.parseModifiers(mods)
             guard let code = KeyMapping.keyCode(named: args.key) else {
                 throw PeekError.invalidArgument(name: "key", value: args.key, valid: KeyMapping.allKeyNames)
             }
             try await activateTarget(windowID: args.window_id, app: args.app, pid: args.pid, strict: false)
-            InteractionManager.sendKey(keyCode: code, flags: flags)
-            return try json(["key": args.key, "modifiers": mods.joined(separator: ","), "keyCode": String(code)])
+            await InteractionManager.sendKey(keyCode: code, flags: flags)
+            return try json(KeyResult(key: args.key, modifiers: mods, keyCode: Int(code)))
         }
     }
 
@@ -790,49 +699,16 @@ enum PeekTools {
         let settleDelay = args.delay ?? 0.15
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-            let all = args.all ?? false
-            let verify = args.verify?.lowercased() ?? "none"
-
-            // verify=tree/diff uses the explicit depth or the full tree — Calculator's
-            // display value, for example, lives deeper than peek_tree's small default,
-            // and the agent's question is "did this control update?" not "give me a
-            // shallow snapshot".
-            let beforeFlat: [AXNode]? = if verify == "diff" {
-                try MonitorManager.flattenNodes(
-                    AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
-                )
-            } else {
-                nil
+            let verifyRaw = args.verify?.lowercased() ?? "none"
+            guard let verify = ActionVerifyMode(rawValue: verifyRaw) else {
+                throw PeekError.invalidArgument(name: "verify", value: verifyRaw, valid: ["none", "tree", "diff"])
             }
-
-            let nodes: [AXNode] = if all {
-                try await InteractionManager.performActionOnAll(
-                    pid: pid, windowID: windowID, action: args.action,
-                    role: args.role, title: args.title, value: args.value, description: args.desc
-                )
-            } else {
-                try await [InteractionManager.performAction(
-                    pid: pid, windowID: windowID, action: args.action,
-                    role: args.role, title: args.title, value: args.value, description: args.desc
-                )]
-            }
-
-            switch verify {
-            case "tree":
-                try await Delay.seconds(settleDelay)
-                let tree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
-                return try json(ActionTreeResult(action: nodes, resultTree: tree))
-            case "diff":
-                try await Delay.seconds(settleDelay)
-                let afterTree = try AccessibilityManager.inspect(pid: pid, windowID: windowID, maxDepth: args.depth)
-                let diff = MonitorManager.computeDiff(
-                    before: beforeFlat ?? [],
-                    after: MonitorManager.flattenNodes(afterTree)
-                )
-                return try json(ActionDiffResult(action: nodes, diff: diff))
-            default:
-                return all ? try json(nodes) : try json(nodes[0])
-            }
+            let outcome = try await InteractionManager.performAndVerify(
+                pid: pid, windowID: windowID, action: args.action,
+                filter: ElementFilter(role: args.role, title: args.title, value: args.value, description: args.desc),
+                all: args.all ?? false, verify: verify, depth: args.depth, settleDelay: settleDelay
+            )
+            return try json(outcome)
         }
     }
 
@@ -864,7 +740,7 @@ enum PeekTools {
                 let result = try await ScreenCaptureManager.capture(windowID: windowID, outputPath: path, crop: crop)
                 return try json(result)
             } else {
-                let (data, _, _) = try await ScreenCaptureManager.capturePNGData(windowID: windowID, crop: crop)
+                let data = try await ScreenCaptureManager.capturePNGData(windowID: windowID, crop: crop)
                 return .content([.image(data: data, mimeType: "image/png")])
             }
         }
@@ -881,9 +757,7 @@ enum PeekTools {
             let pid = try await resolvePID(windowID: args.window_id, app: args.app, pid: args.pid)
             let extras = args.extras ?? false
             if let clickTitle = args.click {
-                // Clicking a menu item needs the menu to actually open — app must be FG.
-                _ = try await InteractionManager.activateApp(pid: pid)
-                let clicked = try MenuBarManager.clickMenuItem(
+                let clicked = try await MenuBarManager.clickMenuItem(
                     pid: pid, title: clickTitle, path: args.path, extras: extras
                 )
                 return try json(["title": clicked.title, "path": clicked.path])
@@ -940,14 +814,10 @@ enum PeekTools {
         let poll = max(args.poll ?? 0.2, 0.05)
         return try await withTimeout("peek_wait", seconds: timeout + defaultTimeout) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
+            let filter = ElementFilter(role: args.role, title: args.title, value: args.value, description: args.desc)
             let deadline = Date().addingTimeInterval(timeout)
             while Date() < deadline {
-                let results = try AccessibilityManager.find(
-                    pid: pid, windowID: windowID,
-                    role: args.role, title: args.title,
-                    value: args.value, description: args.desc,
-                    limit: 1
-                )
+                let results = try AccessibilityManager.find(pid: pid, windowID: windowID, filter: filter, limit: 1)
                 if let first = results.first {
                     return try json(first)
                 }

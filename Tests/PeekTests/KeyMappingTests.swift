@@ -277,6 +277,14 @@ struct KeyMappingTests {
     }
 
     @Test
+    func modifierTokensSplitsCommasTrimsAndLowercases() {
+        #expect(KeyMapping.modifierTokens(["cmd,shift", "Option"]) == ["cmd", "shift", "option"])
+        #expect(KeyMapping.modifierTokens([" CMD , shift "]) == ["cmd", "shift"])
+        #expect(KeyMapping.modifierTokens(["cmd,,", ""]) == ["cmd"])
+        #expect(KeyMapping.modifierTokens([]).isEmpty)
+    }
+
+    @Test
     func keyCodeNamedRejectsUnmapped() {
         #expect(KeyMapping.keyCode(named: "é") == nil)
         #expect(KeyMapping.keyCode(named: "abc") == nil)

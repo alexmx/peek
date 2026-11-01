@@ -52,7 +52,7 @@ struct TextCommand: AsyncParsableCommand {
     var format: OutputFormat = .default
 
     func validate() throws {
-        if role == nil, title == nil, value == nil, desc == nil {
+        if filter.isEmpty {
             throw ValidationError("Provide at least one filter: --role, --title, --value, or --desc")
         }
         if substring != nil, length != nil {
@@ -62,15 +62,16 @@ struct TextCommand: AsyncParsableCommand {
         }
     }
 
+    private var filter: ElementFilter {
+        ElementFilter(role: role, title: title, value: value, description: desc)
+    }
+
     func run() async throws {
         let resolved = try await target.resolve()
         let result = try AccessibilityManager.readText(
             pid: resolved.pid,
             windowID: resolved.windowID,
-            role: role,
-            title: title,
-            value: value,
-            description: desc,
+            filter: filter,
             offset: offset,
             length: length,
             bounds: bounds,

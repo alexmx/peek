@@ -7,7 +7,7 @@ struct AccessibilityManagerTests {
     // MARK: - Test Helpers
 
     /// Recursively search an AXNode tree for nodes matching the given filters.
-    /// Replicates the old searchNode behavior using AXNode.matches().
+    /// Uses ElementFilter.matches, the same rules as the live AX search.
     private func searchNodes(
         _ node: AXNode,
         role: String?,
@@ -16,7 +16,7 @@ struct AccessibilityManagerTests {
         description: String?,
         results: inout [AXNode]
     ) {
-        if node.matches(role: role, title: title, value: value, description: description) {
+        if ElementFilter(role: role, title: title, value: value, description: description).matches(node) {
             results.append(node.withoutChildren)
         }
         for child in node.children {
@@ -152,7 +152,7 @@ struct AccessibilityManagerTests {
         ]
     )
 
-    // MARK: - AXNode.matches() Tests
+    // MARK: - ElementFilter.matches() Tests
 
     @Test
     func matchesByRole() {

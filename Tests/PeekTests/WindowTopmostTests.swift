@@ -4,13 +4,13 @@ import Testing
 
 @Suite("isTopmostInLayer z-order logic")
 struct WindowTopmostTests {
-    /// Build a front-to-back window list the way `CGWindowListCopyWindowInfo` returns it.
-    private func windows(_ entries: [(id: CGWindowID, layer: Int)]) -> [[String: Any]] {
+    /// Build a front-to-back window list the way an on-screen CGWindowList query returns it.
+    private func windows(_ entries: [(id: CGWindowID, layer: Int)]) -> [WindowRecord] {
         entries.map { entry in
-            [
-                kCGWindowNumber as String: entry.id,
-                kCGWindowLayer as String: entry.layer
-            ]
+            WindowRecord(
+                windowID: entry.id, pid: 1, ownerName: "", title: "",
+                bounds: .zero, layer: entry.layer, isOnScreen: true, alpha: 1
+            )
         }
     }
 
@@ -70,5 +70,13 @@ struct WindowTopmostTests {
     @Test
     func emptyList() {
         #expect(InteractionManager.isTopmostInLayer(windowID: 10, windows: []))
+    }
+
+    @Test
+    func unknownWindowIsNotTopmostWhenOnScreenRequired() {
+        let list = windows([(10, 0), (11, 0)])
+        #expect(!InteractionManager.isTopmostInLayer(windowID: 999, windows: list, requireOnScreen: true))
+        #expect(!InteractionManager.isTopmostInLayer(windowID: 10, windows: [], requireOnScreen: true))
+        #expect(InteractionManager.isTopmostInLayer(windowID: 10, windows: list, requireOnScreen: true))
     }
 }

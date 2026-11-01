@@ -82,26 +82,6 @@ struct AXNode: Encodable, Equatable {
         return line
     }
 
-    /// Check if this node matches the given filters.
-    ///
-    /// `title` is intentionally lenient: it matches against `AXTitle` OR `AXDescription`.
-    /// In practice an element exposes its human-readable label via one or the other (rarely
-    /// both), so callers asking for the "5" button shouldn't have to know whether AppKit
-    /// or SwiftUI chose to put the label in title vs description. Use `description` when
-    /// you specifically need the description-only filter.
-    func matches(role: String?, title: String?, value: String?, description: String?, enabled: Bool? = nil) -> Bool {
-        if let role, self.role != role { return false }
-        if let title {
-            let titleHit = self.title?.localizedCaseInsensitiveContains(title) == true
-            let descHit = self.description?.localizedCaseInsensitiveContains(title) == true
-            if !titleHit, !descHit { return false }
-        }
-        if let value, self.value?.localizedCaseInsensitiveContains(value) != true { return false }
-        if let description, self.description?.localizedCaseInsensitiveContains(description) != true { return false }
-        if let enabled, (self.enabled ?? true) != enabled { return false }
-        return true
-    }
-
     /// Copy of this node without children (for flat result lists).
     var withoutChildren: AXNode {
         AXNode(
@@ -117,6 +97,11 @@ struct AXNode: Encodable, Equatable {
         )
     }
 
+    /// This node and all its descendants, depth-first, each without children.
+    var flattened: [AXNode] {
+        [withoutChildren] + children.flatMap(\.flattened)
+    }
+
     /// A unique-ish identity for diffing: role + title + description + frame position.
     var identity: String {
         let parts = [role, title ?? "", description ?? ""]
@@ -124,5 +109,17 @@ struct AXNode: Encodable, Equatable {
             return parts.joined(separator: "|") + "|\(f.x),\(f.y)"
         }
         return parts.joined(separator: "|")
+    }
+}
+
+extension AXNode.FrameInfo {
+    /// Integer frame from a CGRect (each component truncated toward zero).
+    init(_ rect: CGRect) {
+        self.init(
+            x: Int(rect.origin.x),
+            y: Int(rect.origin.y),
+            width: Int(rect.size.width),
+            height: Int(rect.size.height)
+        )
     }
 }

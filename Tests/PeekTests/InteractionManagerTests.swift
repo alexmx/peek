@@ -54,4 +54,18 @@ struct InteractionManagerTests {
         let parts = InteractionManager.distributeDelta(742, across: [0.25])
         #expect(parts == [742])
     }
+
+    // MARK: - scrollMode(forBundleID:)
+
+    @Test
+    func touchHostsScrollByDrag() {
+        #expect(InteractionManager.scrollMode(forBundleID: "com.apple.dt.Devices") == .drag)
+        #expect(InteractionManager.scrollMode(forBundleID: "com.apple.iphonesimulator") == .drag)
+    }
+
+    @Test
+    func otherAppsScrollByWheel() {
+        #expect(InteractionManager.scrollMode(forBundleID: "com.apple.TextEdit") == .wheel)
+        #expect(InteractionManager.scrollMode(forBundleID: nil) == .wheel)
+    }
 }

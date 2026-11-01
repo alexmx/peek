@@ -28,12 +28,11 @@ struct PeekErrorTests {
     }
 
     @Test
-    func noWindowsDescription() throws {
-        let error = PeekError.noWindows
-        let description = error.errorDescription
-        #expect(description != nil)
-        #expect(try #require(description?.contains("window")))
-        #expect(try #require(description?.contains("application")))
+    func windowNotAccessibleDescription() throws {
+        let description = try #require(PeekError.windowNotAccessible(103).errorDescription)
+        #expect(description.contains("103"))
+        #expect(description.contains("background tab"))
+        #expect(description.contains("peek_activate"))
     }
 
     @Test
@@ -195,6 +194,7 @@ struct PeekErrorTests {
         let description = try #require(error.errorDescription)
         #expect(description.contains("42"))
         #expect(description.localizedCaseInsensitiveContains("hidden"))
+        #expect(description.localizedCaseInsensitiveContains("off-screen"))
         #expect(description.contains("peek_activate"))
     }
 
@@ -223,7 +223,7 @@ struct PeekErrorTests {
         let errors: [PeekError] = [
             .windowNotFound(123),
             .accessibilityNotTrusted,
-            .noWindows,
+            .windowNotAccessible(1),
             .failedToWrite("/tmp/test"),
             .elementNotFound,
             .actionFailed("Press", .actionUnsupported),

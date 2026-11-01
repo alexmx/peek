@@ -55,41 +55,41 @@ struct AXNodeTests {
         ]
     )
 
-    // MARK: - matches() Tests
+    // MARK: - ElementFilter.matches() Tests
 
     @Test
     func matchesExactRole() {
-        #expect(sampleNode.matches(role: "Button", title: nil, value: nil, description: nil))
-        #expect(!sampleNode.matches(role: "TextField", title: nil, value: nil, description: nil))
+        #expect(ElementFilter(role: "Button", title: nil, value: nil, description: nil).matches(sampleNode))
+        #expect(!ElementFilter(role: "TextField", title: nil, value: nil, description: nil).matches(sampleNode))
     }
 
     @Test
     func matchesTitleCaseInsensitive() {
-        #expect(sampleNode.matches(role: nil, title: "click", value: nil, description: nil))
-        #expect(sampleNode.matches(role: nil, title: "CLICK ME", value: nil, description: nil))
-        #expect(sampleNode.matches(role: nil, title: "Click", value: nil, description: nil))
-        #expect(!sampleNode.matches(role: nil, title: "Submit", value: nil, description: nil))
+        #expect(ElementFilter(role: nil, title: "click", value: nil, description: nil).matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: "CLICK ME", value: nil, description: nil).matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: "Click", value: nil, description: nil).matches(sampleNode))
+        #expect(!ElementFilter(role: nil, title: "Submit", value: nil, description: nil).matches(sampleNode))
     }
 
     @Test
     func matchesTitlePartial() {
-        #expect(sampleNode.matches(role: nil, title: "Click", value: nil, description: nil))
-        #expect(sampleNode.matches(role: nil, title: "Me", value: nil, description: nil))
-        #expect(!sampleNode.matches(role: nil, title: "Submit", value: nil, description: nil))
+        #expect(ElementFilter(role: nil, title: "Click", value: nil, description: nil).matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: "Me", value: nil, description: nil).matches(sampleNode))
+        #expect(!ElementFilter(role: nil, title: "Submit", value: nil, description: nil).matches(sampleNode))
     }
 
     @Test
     func matchesValueCaseInsensitive() {
-        #expect(sampleNode.matches(role: nil, title: nil, value: "pressed", description: nil))
-        #expect(sampleNode.matches(role: nil, title: nil, value: "PRESSED", description: nil))
-        #expect(sampleNode.matches(role: nil, title: nil, value: "press", description: nil))
+        #expect(ElementFilter(role: nil, title: nil, value: "pressed", description: nil).matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: nil, value: "PRESSED", description: nil).matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: nil, value: "press", description: nil).matches(sampleNode))
     }
 
     @Test
     func matchesDescriptionCaseInsensitive() {
-        #expect(sampleNode.matches(role: nil, title: nil, value: nil, description: "clickable"))
-        #expect(sampleNode.matches(role: nil, title: nil, value: nil, description: "BUTTON"))
-        #expect(!sampleNode.matches(role: nil, title: nil, value: nil, description: "text field"))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: "clickable").matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: "BUTTON").matches(sampleNode))
+        #expect(!ElementFilter(role: nil, title: nil, value: nil, description: "text field").matches(sampleNode))
     }
 
     @Test
@@ -99,9 +99,9 @@ struct AXNodeTests {
             role: "Button", title: nil, value: nil,
             description: "5", enabled: true, frame: nil, children: []
         )
-        #expect(descOnlyNode.matches(role: "Button", title: "5", value: nil, description: nil))
-        #expect(descOnlyNode.matches(role: nil, title: "5", value: nil, description: nil))
-        #expect(!descOnlyNode.matches(role: nil, title: "9", value: nil, description: nil))
+        #expect(ElementFilter(role: "Button", title: "5", value: nil, description: nil).matches(descOnlyNode))
+        #expect(ElementFilter(role: nil, title: "5", value: nil, description: nil).matches(descOnlyNode))
+        #expect(!ElementFilter(role: nil, title: "9", value: nil, description: nil).matches(descOnlyNode))
     }
 
     @Test
@@ -111,8 +111,8 @@ struct AXNodeTests {
             role: "Button", title: "Save", value: nil,
             description: nil, enabled: true, frame: nil, children: []
         )
-        #expect(titleOnlyNode.matches(role: nil, title: "save", value: nil, description: nil))
-        #expect(!titleOnlyNode.matches(role: nil, title: nil, value: nil, description: "save"))
+        #expect(ElementFilter(role: nil, title: "save", value: nil, description: nil).matches(titleOnlyNode))
+        #expect(!ElementFilter(role: nil, title: nil, value: nil, description: "save").matches(titleOnlyNode))
     }
 
     @Test
@@ -144,30 +144,37 @@ struct AXNodeTests {
             frame: nil,
             children: []
         )
-        #expect(enabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
-        #expect(!enabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
-        #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
-        #expect(!disabledNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil, enabled: true).matches(enabledNode))
+        #expect(!ElementFilter(role: nil, title: nil, value: nil, description: nil, enabled: false)
+            .matches(enabledNode))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil, enabled: false)
+            .matches(disabledNode))
+        #expect(!ElementFilter(role: nil, title: nil, value: nil, description: nil, enabled: true)
+            .matches(disabledNode))
         // Nodes with enabled=nil are treated as enabled (sensible default — most AX
         // elements omit the attribute when they're enabled).
-        #expect(implicitNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: true))
-        #expect(!implicitNode.matches(role: nil, title: nil, value: nil, description: nil, enabled: false))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil, enabled: true).matches(implicitNode))
+        #expect(!ElementFilter(role: nil, title: nil, value: nil, description: nil, enabled: false)
+            .matches(implicitNode))
         // Filter omitted → both pass
-        #expect(enabledNode.matches(role: nil, title: nil, value: nil, description: nil))
-        #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil).matches(enabledNode))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil).matches(disabledNode))
     }
 
     @Test
     func matchesMultipleFilters() {
-        #expect(sampleNode.matches(role: "Button", title: "Click", value: "pressed", description: "clickable"))
-        #expect(!sampleNode.matches(role: "Button", title: "Submit", value: "pressed", description: "clickable"))
-        #expect(!sampleNode.matches(role: "TextField", title: "Click", value: "pressed", description: "clickable"))
+        #expect(ElementFilter(role: "Button", title: "Click", value: "pressed", description: "clickable")
+            .matches(sampleNode))
+        #expect(!ElementFilter(role: "Button", title: "Submit", value: "pressed", description: "clickable")
+            .matches(sampleNode))
+        #expect(!ElementFilter(role: "TextField", title: "Click", value: "pressed", description: "clickable")
+            .matches(sampleNode))
     }
 
     @Test
     func matchesAllNil() {
-        #expect(sampleNode.matches(role: nil, title: nil, value: nil, description: nil))
-        #expect(disabledNode.matches(role: nil, title: nil, value: nil, description: nil))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil).matches(sampleNode))
+        #expect(ElementFilter(role: nil, title: nil, value: nil, description: nil).matches(disabledNode))
     }
 
     @Test
@@ -181,7 +188,7 @@ struct AXNodeTests {
             frame: nil,
             children: []
         )
-        #expect(!nodeWithoutValue.matches(role: nil, title: nil, value: "something", description: nil))
+        #expect(!ElementFilter(role: nil, title: nil, value: "something", description: nil).matches(nodeWithoutValue))
     }
 
     @Test
@@ -195,7 +202,7 @@ struct AXNodeTests {
             frame: nil,
             children: []
         )
-        #expect(!nodeWithEmptyTitle.matches(role: nil, title: "something", value: nil, description: nil))
+        #expect(!ElementFilter(role: nil, title: "something", value: nil, description: nil).matches(nodeWithEmptyTitle))
     }
 
     // MARK: - formatted Tests

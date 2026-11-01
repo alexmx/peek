@@ -45,24 +45,8 @@ struct MoveCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    struct CursorPoint: Encodable {
-        let x: Int
-        let y: Int
-    }
-
-    struct MoveResult: Encodable {
-        let x: Int
-        let y: Int
-        let fromX: Int?
-        let fromY: Int?
-        let steps: Int
-        let dwellMs: Int
-        let cursor: CursorPoint?
-        let element: AXNode?
-    }
-
     func run() async throws {
-        _ = try await target.activateIfSpecified()
+        try await target.activate()
 
         let clampedSteps = max(1, steps)
         let clampedDwell = max(0, dwellMs)
@@ -79,13 +63,7 @@ struct MoveCommand: AsyncParsableCommand {
         // Readbacks: OS-reported cursor position (verifies the synthetic event actually
         // landed at the window-server level) + the topmost AX element under that point
         // (verifies the caller is hovering what they intended).
-        let cursorLoc = CGEvent(source: nil)?.location
-        let cursor = cursorLoc.map { CursorPoint(x: Int($0.x.rounded()), y: Int($0.y.rounded())) }
-        let element: AXNode? = if let cursorLoc {
-            try? AccessibilityManager.elementAtScreenPoint(x: cursorLoc.x, y: cursorLoc.y)
-        } else {
-            nil
-        }
+        let (cursor, element) = InteractionManager.cursorReadback()
 
         let result = MoveResult(
             x: x,

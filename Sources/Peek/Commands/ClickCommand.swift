@@ -38,28 +38,15 @@ struct ClickCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    struct ClickResult: Encodable {
-        let x: Int
-        let y: Int
-        let count: Int
-        let button: String
-        let modifiers: [String]
-    }
-
     func run() async throws {
         guard let btn = InteractionManager.MouseButton(rawValue: button.lowercased()) else {
             throw PeekError.invalidArgument(name: "button", value: button, valid: ["left", "right"])
         }
 
-        let modTokens = modifiers
-            .flatMap { $0.split(separator: ",").map(String.init) }
-            .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        let modTokens = KeyMapping.modifierTokens(modifiers)
         let flags = try KeyMapping.parseModifiers(modTokens)
 
-        if let resolved = try await target.activateIfSpecified() {
-            try await InteractionManager.ensureOnTarget(points: [(x, y)], pid: resolved.pid, windowID: target.windowID)
-        }
+        try await target.activateAndGuard([(x, y)])
 
         await InteractionManager.click(x: Double(x), y: Double(y), count: count, button: btn, flags: flags)
 

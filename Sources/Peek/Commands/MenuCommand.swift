@@ -1,4 +1,3 @@
-import AppKit
 import ArgumentParser
 import Foundation
 
@@ -37,11 +36,10 @@ struct MenuCommand: AsyncParsableCommand {
     }
 
     func run() async throws {
-        let pid = try await resolvePID()
+        let pid = try await target.resolvePID()
 
         if let click {
-            _ = try? await InteractionManager.activateApp(pid: pid)
-            let clicked = try MenuBarManager.clickMenuItem(pid: pid, title: click, path: path, extras: extras)
+            let clicked = try await MenuBarManager.clickMenuItem(pid: pid, title: click, path: path, extras: extras)
             try emit(ClickResult(title: clicked.title, path: clicked.path), as: format) {
                 print("Clicked menu item: \(clicked.path)")
             }
@@ -72,22 +70,6 @@ struct MenuCommand: AsyncParsableCommand {
         try emit(tree, as: format) {
             printMenu(tree)
         }
-    }
-
-    /// Resolve just the target PID without requiring a window. Menu bar is per-app.
-    private func resolvePID() async throws -> pid_t {
-        if let pid = target.pid { return pid }
-        if let app = target.app {
-            for running in NSWorkspace.shared.runningApplications
-                where running.activationPolicy == .regular
-                && running.localizedName?.localizedCaseInsensitiveContains(app) == true {
-                return running.processIdentifier
-            }
-            throw PeekError.appNotFound(app)
-        }
-        // Fall through to window-based resolution if user passed a window ID.
-        let resolved = try await target.resolve()
-        return resolved.pid
     }
 
     private func printMenu(_ node: MenuNode) {

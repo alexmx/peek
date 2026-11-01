@@ -26,26 +26,17 @@ struct KeyCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    struct KeyResult: Encodable {
-        let key: String
-        let modifiers: [String]
-        let keyCode: Int
-    }
-
     func run() async throws {
-        let tokens = modifiers
-            .flatMap { $0.split(separator: ",").map(String.init) }
-            .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
+        let tokens = KeyMapping.modifierTokens(modifiers)
         let flags = try KeyMapping.parseModifiers(tokens)
 
         guard let code = KeyMapping.keyCode(named: key) else {
             throw PeekError.invalidArgument(name: "key", value: key, valid: KeyMapping.allKeyNames)
         }
 
-        _ = try await target.activateIfSpecified(strict: false)
+        try await target.activate(strict: false)
 
-        InteractionManager.sendKey(keyCode: code, flags: flags)
+        await InteractionManager.sendKey(keyCode: code, flags: flags)
 
         let result = KeyResult(key: key, modifiers: tokens, keyCode: Int(code))
 

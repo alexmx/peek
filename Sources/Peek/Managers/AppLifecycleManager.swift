@@ -143,22 +143,10 @@ enum AppLifecycleManager {
     /// no SCShareableContent dependency. Filters out floating layers (menu bar, dock)
     /// and tiny status windows; returns the first matching normal-layer window.
     private static func firstUserWindow(forPID pid: pid_t) -> (windowID: UInt32, title: String)? {
-        let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
-        guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
-            return nil
+        let window = WindowManager.windowRecords([.optionOnScreenOnly, .excludeDesktopElements]).first {
+            $0.pid == pid && $0.layer == 0 && $0.bounds.width >= 200 && $0.bounds.height >= 100
         }
-        for info in list {
-            guard (info[kCGWindowOwnerPID as String] as? pid_t) == pid else { continue }
-            let layer = info[kCGWindowLayer as String] as? Int ?? 0
-            if layer != 0 { continue }
-            guard let id = info[kCGWindowNumber as String] as? UInt32 else { continue }
-            if let bounds = info[kCGWindowBounds as String] as? [String: CGFloat],
-               let w = bounds["Width"], let h = bounds["Height"],
-               w < 200 || h < 100 { continue }
-            let title = (info[kCGWindowName as String] as? String) ?? ""
-            return (id, title)
-        }
-        return nil
+        return window.map { ($0.windowID, $0.title) }
     }
 
     /// Quit a running app by PID, bundle ID, or name. Graceful by default;
@@ -233,16 +221,11 @@ enum AppLifecycleManager {
             return app
         }
         if let name {
-            let lower = name.lowercased()
-            let regularApps = NSWorkspace.shared.runningApplications
-                .filter { $0.activationPolicy == .regular }
-            if let exact = regularApps.first(where: { $0.localizedName?.lowercased() == lower }) {
-                return exact
+            // Regular apps only: a name shouldn't be able to terminate system agents.
+            guard let app = AppManager.runningApp(named: name, regularOnly: true) else {
+                throw PeekError.appNotFound(name)
             }
-            if let substring = regularApps.first(where: { $0.localizedName?.lowercased().contains(lower) == true }) {
-                return substring
-            }
-            throw PeekError.appNotFound(name)
+            return app
         }
         throw PeekError.appNotFound("(no pid, bundle_id, or name)")
     }

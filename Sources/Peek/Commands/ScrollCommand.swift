@@ -54,18 +54,8 @@ struct ScrollCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    struct ScrollResult: Encodable {
-        let x: Int
-        let y: Int
-        let deltaX: Int
-        let deltaY: Int
-        let mode: InteractionManager.ScrollMode
-    }
-
     func run() async throws {
-        if let resolved = try await target.activateIfSpecified() {
-            try await InteractionManager.ensureOnTarget(points: [(x, y)], pid: resolved.pid, windowID: target.windowID)
-        }
+        try await target.activateAndGuard([(x, y)])
 
         let mode: InteractionManager.ScrollMode = drag.map { $0 ? .drag : .wheel }
             ?? InteractionManager.defaultScrollMode(x: x, y: y)

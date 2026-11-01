@@ -36,18 +36,49 @@ struct WindowManagerTests {
     }
 
     @Test
-    func windowInfoEncodesLayer() throws {
-        let info = WindowInfo(
-            windowID: 1,
-            ownerName: "App",
-            windowTitle: "Panel",
-            pid: 100,
-            frame: CGRect(x: 0, y: 0, width: 260, height: 140),
-            isOnScreen: false,
-            layer: 101
-        )
-        let data = try JSONEncoder().encode(info)
-        let json = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        #expect(json["layer"] as? Int == 101)
+    func windowRecordParsesCGWindowListEntry() throws {
+        let info: [String: Any] = [
+            kCGWindowNumber as String: CGWindowID(42),
+            kCGWindowOwnerPID as String: pid_t(7),
+            kCGWindowOwnerName as String: "App",
+            kCGWindowName as String: "Doc",
+            kCGWindowBounds as String: CGRect(x: 10, y: 20, width: 300, height: 200).dictionaryRepresentation,
+            kCGWindowLayer as String: 101,
+            kCGWindowIsOnscreen as String: true,
+            kCGWindowAlpha as String: 0.5
+        ]
+        let record = try #require(WindowRecord(info))
+        #expect(record.windowID == 42)
+        #expect(record.pid == 7)
+        #expect(record.ownerName == "App")
+        #expect(record.title == "Doc")
+        #expect(record.bounds == CGRect(x: 10, y: 20, width: 300, height: 200))
+        #expect(record.layer == 101)
+        #expect(record.isOnScreen == true)
+        #expect(record.alpha == 0.5)
+    }
+
+    @Test
+    func windowRecordDefaultsOptionalKeys() throws {
+        // CGWindowList omits kCGWindowIsOnscreen for off-screen windows, and the name/owner keys are optional.
+        let info: [String: Any] = [
+            kCGWindowNumber as String: CGWindowID(1),
+            kCGWindowOwnerPID as String: pid_t(2),
+            kCGWindowBounds as String: CGRect(x: 0, y: 0, width: 10, height: 10).dictionaryRepresentation
+        ]
+        let record = try #require(WindowRecord(info))
+        #expect(record.isOnScreen == nil)
+        #expect(record.title.isEmpty)
+        #expect(record.layer == 0)
+        #expect(record.alpha == 1)
+    }
+
+    @Test
+    func windowRecordRejectsMissingRequiredKeys() {
+        #expect(WindowRecord([kCGWindowNumber as String: CGWindowID(1)]) == nil)
+        #expect(WindowRecord([
+            kCGWindowNumber as String: CGWindowID(1),
+            kCGWindowOwnerPID as String: pid_t(2)
+        ]) == nil)
     }
 }

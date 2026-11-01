@@ -22,29 +22,70 @@ struct WindowTarget: ParsableArguments {
         try await Self.resolve(windowID: windowID, app: app, pid: pid)
     }
 
-    /// True if any targeting flag (window ID, --app, --pid) was provided.
-    var isSpecified: Bool {
-        windowID != nil || app != nil || pid != nil
+    /// Bring the target to the foreground for input commands. See the static version.
+    func activate(strict: Bool = true) async throws {
+        try await Self.activate(windowID: windowID, app: app, pid: pid, strict: strict)
     }
 
-    /// Resolve and foreground the target when a targeting flag was provided; returns nil otherwise.
+    /// Activate the target, then verify each point lands on it. See the static version.
+    func activateAndGuard(_ points: [(x: Int, y: Int)]) async throws {
+        try await Self.activateAndGuard(points, windowID: windowID, app: app, pid: pid)
+    }
+
+    /// Bring the target to the foreground before posting input; a no-op without a target
+    /// (a raw-coordinate event). A window ID activates the app and requires that window on
+    /// top. App/pid alone only activates the app, without policing which of its windows is
+    /// on top — a transient popover (search popup, autocomplete) above the main window would
+    /// otherwise falsely fail the topmost check.
     ///
-    /// `strict: false` makes a failed activation non-fatal (the resolved target is still
-    /// returned). HID keystroke events (`type`/`key`) post to the OS-frontmost app whether
-    /// or not peek could *confirm* the raise, so a strict gate would abort input that would
-    /// have worked — the exact papercut where a focused panel field rejects `type` because
-    /// activation confirmation stalled. Resolution errors (no such window/app) and permission
-    /// failures still throw; only `activationFailed` is swallowed. Coordinate gestures
-    /// (`click`/`drag`/`scroll`) stay strict — they need the window actually raised.
-    func activateIfSpecified(strict: Bool = true) async throws -> Resolved? {
-        guard isSpecified else { return nil }
-        let resolved = try await resolve()
+    /// `strict: false` makes a failed activation non-fatal. HID keystroke events
+    /// (`type`/`key`) post to the OS-frontmost app whether or not peek could *confirm* the
+    /// raise, so a strict gate would abort input that would have worked — e.g. a focused
+    /// panel field where activation confirmation stalls. Resolution and permission errors
+    /// still throw; only `activationFailed` is swallowed. Coordinate gestures stay strict.
+    static func activate(windowID: UInt32?, app: String?, pid: pid_t?, strict: Bool = true) async throws {
+        guard windowID != nil || app != nil || pid != nil else { return }
         do {
-            _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+            if windowID != nil {
+                let resolved = try await resolve(windowID: windowID, app: app, pid: pid)
+                _ = try await InteractionManager.activate(pid: resolved.pid, windowID: resolved.windowID)
+            } else {
+                _ = try await InteractionManager.activateApp(pid: resolvePID(windowID: nil, app: app, pid: pid))
+            }
         } catch PeekError.activationFailed where !strict {
             // Best-effort: proceed to post events to the frontmost app anyway.
         }
-        return resolved
+    }
+
+    /// For coordinate gestures (click/drag/scroll): activate the target, then verify each
+    /// point lands on it — raising an occluded target window, or throwing
+    /// `coordinateOffTarget` (see `InteractionManager.ensureOnTarget`). No-op without a target.
+    static func activateAndGuard(
+        _ points: [(x: Int, y: Int)],
+        windowID: UInt32?,
+        app: String?,
+        pid: pid_t?
+    ) async throws {
+        guard windowID != nil || app != nil || pid != nil else { return }
+        try await activate(windowID: windowID, app: app, pid: pid)
+        let targetPID = try await resolvePID(windowID: windowID, app: app, pid: pid)
+        try await InteractionManager.ensureOnTarget(points: points, pid: targetPID, windowID: windowID)
+    }
+
+    /// Resolve just the target PID, without requiring the app to have a window — for
+    /// per-app targets like the menu bar. An explicit window ID still goes through
+    /// `resolve`, so an invalid one gets a useful error.
+    func resolvePID() async throws -> pid_t {
+        try await Self.resolvePID(windowID: windowID, app: app, pid: pid)
+    }
+
+    static func resolvePID(windowID: UInt32?, app: String?, pid: pid_t?) async throws -> pid_t {
+        if let pid { return pid }
+        if let app {
+            guard let running = AppManager.runningApp(named: app) else { throw PeekError.appNotFound(app) }
+            return running.processIdentifier
+        }
+        return try await resolve(windowID: windowID).pid
     }
 
     /// Core resolution logic shared by CLI commands and MCP tools.
@@ -90,8 +131,8 @@ struct WindowTarget: ParsableArguments {
             if let window = frontmostMatch(matching) {
                 return Resolved(windowID: window.windowID, pid: window.pid)
             }
-            if let runningPID = findRunningPID(byName: app) {
-                return Resolved(windowID: 0, pid: runningPID)
+            if let running = AppManager.runningApp(named: app) {
+                return Resolved(windowID: 0, pid: running.processIdentifier)
             }
             throw ValidationError("No window found for app '\(app)'. Run 'peek apps' to see available apps.")
         }
@@ -121,19 +162,5 @@ struct WindowTarget: ParsableArguments {
             return byID[id]
         }
         return matching.first(where: { $0.isOnScreen }) ?? matching.first
-    }
-
-    /// Look up a running app's PID by case-insensitive name substring. Used to address
-    /// window-less apps (Dock, Control Center) by name when SC has nothing to match.
-    private static func findRunningPID(byName name: String) -> pid_t? {
-        for running in NSWorkspace.shared.runningApplications {
-            if running.localizedName?.localizedCaseInsensitiveContains(name) == true {
-                return running.processIdentifier
-            }
-            if running.bundleIdentifier?.localizedCaseInsensitiveContains(name) == true {
-                return running.processIdentifier
-            }
-        }
-        return nil
     }
 }

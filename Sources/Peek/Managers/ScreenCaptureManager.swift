@@ -14,39 +14,27 @@ enum ScreenCaptureManager {
 
     /// Capture a window to a PNG file and return the result.
     static func capture(windowID: CGWindowID, outputPath: String, crop: CGRect? = nil) async throws -> CaptureResult {
-        try requireCapturableWindowID(windowID)
-        try PermissionManager.requireScreenCapture()
-
-        guard var image = captureWindowImage(windowID) else {
-            throw await captureFailure(for: windowID)
-        }
-
-        if let crop {
-            image = try cropImage(image, to: crop, windowID: windowID)
-        }
-
+        let image = try await captureImage(windowID: windowID, crop: crop)
         try writePNG(image, to: outputPath)
         return CaptureResult(path: outputPath, width: image.width, height: image.height)
     }
 
     /// Capture a window and return the PNG data in memory (no file written).
-    static func capturePNGData(
-        windowID: CGWindowID,
-        crop: CGRect? = nil
-    ) async throws -> (data: Data, width: Int, height: Int) {
+    static func capturePNGData(windowID: CGWindowID, crop: CGRect? = nil) async throws -> Data {
+        try await encodePNG(captureImage(windowID: windowID, crop: crop))
+    }
+
+    /// Capture a window image, cropped to a window-relative rect when given. Failures map
+    /// to an actionable error (window-less target, hidden window, stale permission).
+    private static func captureImage(windowID: CGWindowID, crop: CGRect?) async throws -> CGImage {
         try requireCapturableWindowID(windowID)
         try PermissionManager.requireScreenCapture()
 
-        guard var image = captureWindowImage(windowID) else {
+        guard let image = captureWindowImage(windowID) else {
             throw await captureFailure(for: windowID)
         }
-
-        if let crop {
-            image = try cropImage(image, to: crop, windowID: windowID)
-        }
-
-        let data = try encodePNG(image)
-        return (data, image.width, image.height)
+        guard let crop else { return image }
+        return try cropImage(image, to: crop, windowID: windowID)
     }
 
     /// `--app`/`--pid` targeting of a window-less app resolves to the sentinel window ID 0
@@ -144,7 +132,7 @@ enum ScreenCaptureManager {
         return CGImageSourceCreateImageAtIndex(source, 0, nil)
     }
 
-    /// Distinguish "window is hidden" and "stale Screen Recording grant" from a generic
+    /// Distinguish "window is off-screen/hidden" and "stale Screen Recording grant" from a generic
     /// capture failure so callers get an actionable message. Hidden-window detection uses
     /// NSRunningApplication via the owning PID resolved from CGWindowList (synchronous).
     /// When the window is visible yet capture returned nil, `CGPreflightScreenCaptureAccess`
@@ -153,20 +141,15 @@ enum ScreenCaptureManager {
     private static func captureFailure(for windowID: CGWindowID) async -> PeekError {
         // .optionAll includes off-screen and minimized windows so we can find the entry
         // even when the owning app has been hidden.
-        let options: CGWindowListOption = [.optionAll, .excludeDesktopElements]
-        guard let windows = CGWindowListCopyWindowInfo(options, kCGNullWindowID) as? [[String: Any]],
-              let info = windows.first(where: { ($0[kCGWindowNumber as String] as? CGWindowID) == windowID })
-        else {
+        let records = WindowManager.windowRecords([.optionAll, .excludeDesktopElements])
+        guard let record = records.first(where: { $0.windowID == windowID }) else {
             return await screenCaptureUnavailable() ?? PeekError.captureFailed
         }
-        let onScreen = info[kCGWindowIsOnscreen as String] as? Bool ?? true
-        let alpha = info[kCGWindowAlpha as String] as? Double ?? 1.0
-        if !onScreen || alpha == 0 {
+        // CGWindowList omits kCGWindowIsOnscreen for off-screen windows, so nil means off-screen.
+        if record.isOnScreen != true || record.alpha == 0 {
             return PeekError.windowHidden(windowID)
         }
-        if let pid = info[kCGWindowOwnerPID as String] as? Int32,
-           let app = NSRunningApplication(processIdentifier: pid),
-           app.isHidden {
+        if NSRunningApplication(processIdentifier: record.pid)?.isHidden == true {
             return PeekError.windowHidden(windowID)
         }
         return await screenCaptureUnavailable() ?? PeekError.captureFailed

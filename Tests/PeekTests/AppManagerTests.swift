@@ -48,4 +48,48 @@ struct AppManagerTests {
         let entries = AppManager.listApps(windows: [], includeWindowOwners: true)
         #expect(!entries.contains { $0.pid == pid })
     }
+
+    // MARK: - bestMatch(_:in:)
+
+    private func app(_ pid: pid_t, _ name: String?, bundle: String? = nil, regular: Bool = true) -> AppManager
+        .AppCandidate {
+        AppManager.AppCandidate(pid: pid, name: name, bundleID: bundle, isRegular: regular)
+    }
+
+    @Test
+    func bestMatchPrefersExactNameOverSubstring() {
+        let apps = [app(1, "Sticky Notes"), app(2, "Notes")]
+        #expect(AppManager.bestMatch("notes", in: apps)?.pid == 2)
+    }
+
+    @Test
+    func bestMatchExactNameWinsEvenForBackgroundApps() {
+        let apps = [app(1, "Dock Helper"), app(2, "Dock", regular: false)]
+        #expect(AppManager.bestMatch("Dock", in: apps)?.pid == 2)
+    }
+
+    @Test
+    func bestMatchPrefersRegularAppsForSubstrings() {
+        let apps = [app(1, "Xcode Helper", regular: false), app(2, "Xcode Beta")]
+        #expect(AppManager.bestMatch("xcode", in: apps)?.pid == 2)
+    }
+
+    @Test
+    func bestMatchFallsBackToBackgroundSubstring() {
+        let apps = [app(1, "Safari"), app(2, "ControlCenter", regular: false)]
+        #expect(AppManager.bestMatch("control", in: apps)?.pid == 2)
+    }
+
+    @Test
+    func bestMatchUsesBundleIDLast() {
+        let apps = [app(1, "Devices", bundle: "com.apple.dt.Devices"), app(2, "Device Hub", bundle: "com.apple.dt.hub")]
+        #expect(AppManager.bestMatch("Device Hub", in: apps)?.pid == 2)
+        #expect(AppManager.bestMatch("com.apple.dt.Devices", in: apps)?.pid == 1)
+    }
+
+    @Test
+    func bestMatchReturnsNilWithoutAMatch() {
+        #expect(AppManager.bestMatch("Nope", in: [app(1, "Safari", bundle: "com.apple.Safari")]) == nil)
+        #expect(AppManager.bestMatch("x", in: []) == nil)
+    }
 }

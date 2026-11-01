@@ -2,8 +2,8 @@ import Foundation
 @testable import peek
 import Testing
 
-@Suite("MonitorManager Tests")
-struct MonitorManagerTests {
+@Suite("TreeDiff Tests")
+struct TreeDiffTests {
     // MARK: - Test Data
 
     let singleNode = AXNode(
@@ -124,11 +124,11 @@ struct MonitorManagerTests {
         }
     )
 
-    // MARK: - flattenNodes() Tests
+    // MARK: - AXNode.flattened Tests
 
     @Test
     func flattenSingleNode() {
-        let result = MonitorManager.flattenNodes(singleNode)
+        let result = singleNode.flattened
         #expect(result.count == 1)
         #expect(result[0].title == "Click")
         #expect(result[0].role == "Button")
@@ -136,21 +136,21 @@ struct MonitorManagerTests {
 
     @Test
     func flattenWithChildren() {
-        let result = MonitorManager.flattenNodes(treeWithChildren)
+        let result = treeWithChildren.flattened
         // Window + 3 children = 4 nodes
         #expect(result.count == 4)
     }
 
     @Test
     func flattenRootFirst() {
-        let result = MonitorManager.flattenNodes(treeWithChildren)
+        let result = treeWithChildren.flattened
         #expect(result[0].role == "Window")
         #expect(result[0].title == "Main")
     }
 
     @Test
     func flattenIncludesAllChildren() {
-        let result = MonitorManager.flattenNodes(treeWithChildren)
+        let result = treeWithChildren.flattened
         let titles = result.compactMap { $0.title }
         #expect(titles.contains("Main"))
         #expect(titles.contains("OK"))
@@ -160,7 +160,7 @@ struct MonitorManagerTests {
 
     @Test
     func flattenDeeplyNested() {
-        let result = MonitorManager.flattenNodes(deeplyNestedTree)
+        let result = deeplyNestedTree.flattened
         // Window + Level1 + Level2 + Level3 + Deep button = 5 nodes
         #expect(result.count == 5)
 
@@ -174,7 +174,7 @@ struct MonitorManagerTests {
 
     @Test
     func flattenWideTree() {
-        let result = MonitorManager.flattenNodes(wideTree)
+        let result = wideTree.flattened
         // Window + 10 buttons = 11 nodes
         #expect(result.count == 11)
     }
@@ -220,7 +220,7 @@ struct MonitorManagerTests {
             ]
         )
 
-        let result = MonitorManager.flattenNodes(tree)
+        let result = tree.flattened
         let titles = result.compactMap { $0.title }
 
         // Depth-first order: A, B, C, D
@@ -228,8 +228,8 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func flattenNodesHaveNoChildren() {
-        let result = MonitorManager.flattenNodes(treeWithChildren)
+    func flattenedNodesHaveNoChildren() {
+        let result = treeWithChildren.flattened
         for node in result {
             #expect(node.children.isEmpty, "Flattened nodes should have no children")
         }
@@ -237,7 +237,7 @@ struct MonitorManagerTests {
 
     @Test
     func flattenPreservesProperties() {
-        let result = MonitorManager.flattenNodes(singleNode)
+        let result = singleNode.flattened
         let flattened = result[0]
 
         #expect(flattened.role == singleNode.role)
@@ -260,7 +260,7 @@ struct MonitorManagerTests {
             children: []
         )
 
-        let result = MonitorManager.flattenNodes(nodeWithNils)
+        let result = nodeWithNils.flattened
         #expect(result.count == 1)
         #expect(result[0].title == nil)
         #expect(result[0].value == nil)
@@ -302,7 +302,7 @@ struct MonitorManagerTests {
             }
         )
 
-        let result = MonitorManager.flattenNodes(largeTree)
+        let result = largeTree.flattened
         // Root + 50 groups + (50 * 5 items) = 1 + 50 + 250 = 301
         #expect(result.count == 301)
     }
@@ -376,7 +376,7 @@ struct MonitorManagerTests {
             ]
         )
 
-        let result = MonitorManager.flattenNodes(balanced)
+        let result = balanced.flattened
         // 1 root + 2 groups + 4 items = 7
         #expect(result.count == 7)
     }
@@ -393,7 +393,7 @@ struct MonitorManagerTests {
             children: []
         )
 
-        let result = MonitorManager.flattenNodes(nodeEmptyChildren)
+        let result = nodeEmptyChildren.flattened
         #expect(result.count == 1)
         #expect(result[0].title == "Empty")
     }
@@ -449,7 +449,7 @@ struct MonitorManagerTests {
             ]
         )
 
-        let result = MonitorManager.flattenNodes(mixed)
+        let result = mixed.flattened
         // Window + Shallow + Deep + Deeper + Deepest = 5
         #expect(result.count == 5)
 
@@ -458,21 +458,21 @@ struct MonitorManagerTests {
         #expect(titles.contains("Deepest"))
     }
 
-    // MARK: - computeDiff() Tests
+    // MARK: - TreeDiff(before:after:) Tests
 
     @Test
-    func computeDiffNoChanges() {
+    func diffNoChanges() {
         let nodes = [
             AXNode(role: "Window", title: "Test", value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
-        let diff = MonitorManager.computeDiff(before: nodes, after: nodes)
+        let diff = TreeDiff(before: nodes, after: nodes)
         #expect(diff.added.isEmpty)
         #expect(diff.removed.isEmpty)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffAdded() {
+    func diffAdded() {
         let before = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
@@ -480,7 +480,7 @@ struct MonitorManagerTests {
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: []),
             AXNode(role: "Button", title: "New", value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.added.count == 1)
         #expect(diff.added[0].title == "New")
         #expect(diff.removed.isEmpty)
@@ -488,7 +488,7 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func computeDiffRemoved() {
+    func diffRemoved() {
         let before = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: []),
             AXNode(role: "Button", title: "Old", value: nil, description: nil, enabled: true, frame: nil, children: [])
@@ -496,7 +496,7 @@ struct MonitorManagerTests {
         let after = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.added.isEmpty)
         #expect(diff.removed.count == 1)
         #expect(diff.removed[0].title == "Old")
@@ -504,7 +504,7 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func computeDiffChangedTitle() {
+    func diffChangedTitle() {
         // Title conflict blocks pairing: we can't tell from before/after alone
         // whether a button was renamed or replaced with a different button at the
         // same coords. Conservative choice is to report the swap as add+remove so
@@ -531,14 +531,14 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.added.count == 1)
         #expect(diff.removed.count == 1)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffToolbarSwap() {
+    func diffToolbarSwap() {
         let before = [
             AXNode(
                 role: "Button",
@@ -561,14 +561,14 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.added.count == 1)
         #expect(diff.removed.count == 1)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffChangedValue() {
+    func diffChangedValue() {
         let before = [
             AXNode(
                 role: "TextField",
@@ -591,14 +591,14 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.changed.count == 1)
         #expect(diff.changed[0].before.value == "old text")
         #expect(diff.changed[0].after.value == "new text")
     }
 
     @Test
-    func computeDiffResizingDisplay() {
+    func diffResizingDisplay() {
         // Mirrors Calculator's StaticText display going from "9" to "95+7" — the value
         // changes and the frame width shifts, but the element is the same one.
         // Old behavior reported this as 1 removed + 1 added; new behavior pairs them.
@@ -624,7 +624,7 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.added.isEmpty)
         #expect(diff.removed.isEmpty)
         #expect(diff.changed.count == 1)
@@ -633,7 +633,7 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func computeDiffChangedFrame() {
+    func diffChangedFrame() {
         // Identity includes frame position, so moving = different identity = removed + added
         let before = [
             AXNode(
@@ -657,7 +657,7 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         // Position change = different identity
         #expect(diff.added.count == 1)
         #expect(diff.removed.count == 1)
@@ -665,7 +665,7 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func computeDiffComplex() {
+    func diffComplex() {
         let before = [
             AXNode(role: "Window", title: "W", value: nil, description: nil, enabled: true, frame: nil, children: []),
             AXNode(
@@ -726,7 +726,7 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
 
         #expect(diff.added.count == 1)
         #expect(diff.added[0].title == "NewButton")
@@ -739,37 +739,37 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func computeDiffEmptyLists() {
-        let diff = MonitorManager.computeDiff(before: [], after: [])
+    func diffEmptyLists() {
+        let diff = TreeDiff(before: [], after: [])
         #expect(diff.added.isEmpty)
         #expect(diff.removed.isEmpty)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffBeforeEmpty() {
+    func diffBeforeEmpty() {
         let after = [
             AXNode(role: "Button", title: "New", value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
-        let diff = MonitorManager.computeDiff(before: [], after: after)
+        let diff = TreeDiff(before: [], after: after)
         #expect(diff.added.count == 1)
         #expect(diff.removed.isEmpty)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffAfterEmpty() {
+    func diffAfterEmpty() {
         let before = [
             AXNode(role: "Button", title: "Old", value: nil, description: nil, enabled: true, frame: nil, children: [])
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: [])
+        let diff = TreeDiff(before: before, after: [])
         #expect(diff.added.isEmpty)
         #expect(diff.removed.count == 1)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffIdentityBased() {
+    func diffIdentityBased() {
         // Same role and title but different positions = different identities
         let before = [
             AXNode(
@@ -793,7 +793,7 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
 
         // Different positions = different identities = removed + added, not changed
         #expect(diff.added.count == 1)
@@ -802,7 +802,7 @@ struct MonitorManagerTests {
     }
 
     @Test
-    func computeDiffDescriptionChange() {
+    func diffDescriptionChange() {
         // Description conflict blocks pairing for the same reason as title: a
         // descriptionchange could be a rename or a substitution.
         let before = [
@@ -827,14 +827,14 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
         #expect(diff.added.count == 1)
         #expect(diff.removed.count == 1)
         #expect(diff.changed.isEmpty)
     }
 
     @Test
-    func computeDiffFrameSizeChange() {
+    func diffFrameSizeChange() {
         // Same identity (position unchanged) but frame size changed
         let before = [
             AXNode(
@@ -858,7 +858,7 @@ struct MonitorManagerTests {
                 children: []
             )
         ]
-        let diff = MonitorManager.computeDiff(before: before, after: after)
+        let diff = TreeDiff(before: before, after: after)
 
         #expect(diff.changed.count == 1)
         #expect(diff.changed[0].role == "Button")

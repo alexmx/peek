@@ -5,7 +5,7 @@ import Foundation
 enum PeekError: LocalizedError, CustomStringConvertible {
     case windowNotFound(CGWindowID)
     case accessibilityNotTrusted
-    case noWindows
+    case windowNotAccessible(CGWindowID)
     case failedToWrite(String)
     case elementNotFound
     case noTextContent
@@ -35,8 +35,8 @@ enum PeekError: LocalizedError, CustomStringConvertible {
             "No window found with ID \(id). Run 'peek apps' to see available windows."
         case .accessibilityNotTrusted:
             "Accessibility permission not granted. Enable it in System Settings > Privacy & Security > Accessibility."
-        case .noWindows:
-            "No accessible windows found for this application."
+        case .windowNotAccessible(let id):
+            "Window \(id) isn't reachable through accessibility — it's likely a background tab, minimized, or on another Space. Bring it to the front (select its tab, or peek_activate it), then retry."
         case .failedToWrite(let path):
             "Failed to write to \(path)"
         case .elementNotFound:
@@ -78,7 +78,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
         case .timeout(let op, let seconds):
             "Operation '\(op)' timed out after \(String(format: "%.1f", seconds))s. The target app may be unresponsive or the accessibility tree may be very large; try narrowing with role/title filters, lowering depth, or retrying."
         case .windowHidden(let id):
-            "Window \(id) cannot be captured because its app is hidden. Call peek_activate first, then retry the capture."
+            "Window \(id) cannot be captured because it's off-screen or its app is hidden. Call peek_activate first, then retry the capture."
         case .appNotFound(let identifier):
             "Could not locate an app matching '\(identifier)'. Provide a valid bundle_id (e.g. com.apple.calculator), an exact name (e.g. 'Calculator'), or an absolute .app path."
         case .launchFailed(let name, let reason):

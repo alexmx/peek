@@ -82,11 +82,7 @@ struct FindCommand: AsyncParsableCommand {
         let results = try AccessibilityManager.find(
             pid: pid,
             windowID: windowID,
-            role: role,
-            title: title,
-            value: value,
-            description: desc,
-            enabled: enabled,
+            filter: ElementFilter(role: role, title: title, value: value, description: desc, enabled: enabled),
             limit: limit
         )
 

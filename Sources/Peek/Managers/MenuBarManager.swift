@@ -22,40 +22,17 @@ enum MenuBarManager {
     /// instead of dumping the entire menu bar. Throws `menuItemNotFound` if no node
     /// along the path matches.
     static func menuSubtree(pid: pid_t, path: String, extras: Bool = false) throws -> MenuNode {
-        let segments = pathSegments(path)
-        guard !segments.isEmpty else {
-            return try menuBar(pid: pid, extras: extras)
-        }
-        let tree = try menuBar(pid: pid, extras: extras)
-        guard let node = findByPath(in: tree, segments: segments) else {
+        let menuBarEl = try root(pid: pid, extras: extras)
+        guard let element = findElementByPath(in: menuBarEl, segments: pathSegments(path), depth: 0) else {
             throw PeekError.menuItemNotFound(path)
         }
-        return node
+        return buildMenuNode(from: element)
     }
 
     /// Split a menu path ("File > Open Recent") into trimmed, non-empty segments.
     static func pathSegments(_ path: String) -> [String] {
         path.split(separator: ">").map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-    }
-
-    private static func findByPath(in node: MenuNode, segments: [String]) -> MenuNode? {
-        guard let head = segments.first else { return node }
-        let rest = Array(segments.dropFirst())
-        for child in node.children {
-            if child.title.localizedCaseInsensitiveCompare(head) == .orderedSame {
-                if let found = findByPath(in: child, segments: rest) {
-                    return found
-                }
-            }
-            // Descend through unnamed wrappers (AXMenu containers) without consuming a segment.
-            if child.title.isEmpty {
-                if let found = findByPath(in: child, segments: segments) {
-                    return found
-                }
-            }
-        }
-        return nil
     }
 
     /// Search for menu items matching a title (case-insensitive substring).
@@ -125,12 +102,21 @@ enum MenuBarManager {
     /// substring match, so "Close" doesn't press "Close All" just because it comes first.
     /// With `extras`, a top-level status item (MenuBarItem) can be the target —
     /// pressing it opens its menu, whose items become AX-visible for a follow-up call.
+    ///
+    /// Activates the app first so the opened menu renders. Best-effort: an activation
+    /// timeout doesn't block the press, which is an AX action and works regardless.
     static func clickMenuItem(
         pid: pid_t,
         title: String,
         path: String? = nil,
         extras: Bool = false
-    ) throws -> (title: String, path: String) {
+    ) async throws -> (title: String, path: String) {
+        do {
+            _ = try await InteractionManager.activateApp(pid: pid)
+        } catch PeekError.activationFailed {
+            // Proceed: the press below doesn't need the app frontmost.
+        }
+
         let menuBarEl = try root(pid: pid, extras: extras)
 
         var titleSegments = pathSegments(title)
@@ -172,8 +158,8 @@ enum MenuBarManager {
         return nil
     }
 
-    /// Live-element counterpart of `findByPath`: walk the AX menu tree along `segments`
-    /// (exact, case-insensitive labels), descending through unnamed AXMenu wrappers.
+    /// Walk the AX menu tree along `segments` (exact, case-insensitive labels), descending
+    /// through unnamed AXMenu wrappers. Empty `segments` returns `element` itself.
     private static func findElementByPath(in element: AXUIElement, segments: [String], depth: Int) -> AXUIElement? {
         guard let head = segments.first else { return element }
         guard depth < maxDepth, let children = AXBridge.children(of: element) else { return nil }
@@ -226,19 +212,6 @@ enum MenuBarManager {
         }
 
         return nil
-    }
-
-    static func searchMenuNode(_ node: MenuNode, title: String, path: [String], results: inout [MenuNode]) {
-        let currentPath = node.title.isEmpty ? path : path + [node.title]
-
-        if node.role == "MenuItem", !node.title.isEmpty,
-           node.title.localizedCaseInsensitiveContains(title) {
-            results.append(node.withPath(currentPath.joined(separator: " > ")))
-        }
-
-        for child in node.children {
-            searchMenuNode(child, title: title, path: currentPath, results: &results)
-        }
     }
 
     private static func buildMenuNode(from element: AXUIElement, depth: Int = 0) -> MenuNode {

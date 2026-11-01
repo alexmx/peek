@@ -33,6 +33,15 @@ enum KeyMapping {
         return (namedKeys.keys + chars).sorted()
     }
 
+    /// Normalize CLI `--modifiers` values: each may hold several comma-separated names
+    /// ("cmd,shift"). Returns lowercased, trimmed, non-empty tokens.
+    static func modifierTokens(_ values: [String]) -> [String] {
+        values
+            .flatMap { $0.split(separator: ",").map(String.init) }
+            .map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
     static func parseModifiers(_ tokens: [String]) throws -> CGEventFlags {
         var flags: CGEventFlags = []
         for token in tokens {

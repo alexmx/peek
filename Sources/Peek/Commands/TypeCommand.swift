@@ -21,12 +21,8 @@ struct TypeCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
-    struct TypeResult: Encodable {
-        let characters: Int
-    }
-
     func run() async throws {
-        _ = try await target.activateIfSpecified(strict: false)
+        try await target.activate(strict: false)
 
         await InteractionManager.type(text: text, delayMs: delayMs)
 

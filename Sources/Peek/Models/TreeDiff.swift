@@ -19,3 +19,106 @@ struct TreeDiff: Encodable {
         let frame: AXNode.FrameInfo?
     }
 }
+
+extension TreeDiff {
+    /// Diff two flattened node lists (see `AXNode.flattened`).
+    ///
+    /// Identity-based matching catches the common case where role+title+description+frame
+    /// all stayed the same. A second pass then pairs each leftover removed node with an
+    /// added node of the same role whose frame overlaps the removed one's frame — that's
+    /// almost always the same UI element whose value or label changed enough to shift its
+    /// bounds (e.g. a digit display resizing as the number grows). Those pairs get
+    /// reported as `changed` instead of `removed + added`.
+    init(before: [AXNode], after: [AXNode]) {
+        let beforeByID = Dictionary(grouping: before, by: { $0.identity })
+        let afterByID = Dictionary(grouping: after, by: { $0.identity })
+
+        let beforeKeys = Set(beforeByID.keys)
+        let afterKeys = Set(afterByID.keys)
+
+        let addedKeys = afterKeys.subtracting(beforeKeys)
+        let removedKeys = beforeKeys.subtracting(afterKeys)
+        let commonKeys = beforeKeys.intersection(afterKeys)
+
+        // Sort by frame top-left then identity so the second-pass pairing below is
+        // deterministic — Set-derived iteration order is otherwise unspecified.
+        var added = addedKeys.compactMap { afterByID[$0]?.first }.sorted(by: Self.nodeOrder)
+        var removed = removedKeys.compactMap { beforeByID[$0]?.first }.sorted(by: Self.nodeOrder)
+
+        var changed: [TreeDiff.NodeChange] = []
+        for key in commonKeys.sorted() {
+            guard let b = beforeByID[key]?.first, let a = afterByID[key]?.first else { continue }
+            if b != a {
+                changed.append(Self.makeChange(key: key, before: b, after: a))
+            }
+        }
+
+        // Second pass: pair removed↔added when they almost certainly refer to the
+        // same UI element whose value or frame shifted. Pairing requires (a) same
+        // role, (b) overlapping frame, and (c) no *label* conflict — title and
+        // description must each either match or be nil on at least one side. A
+        // pure value change (Calculator's display "9" → "95+7") still pairs because
+        // value is allowed to differ. Two genuinely different elements at the same
+        // coords (Save button replaced by Print button) do NOT pair because their
+        // titles conflict.
+        var pairedAddedIndices: Set<Int> = []
+        var stillRemoved: [AXNode] = []
+        for r in removed {
+            if let idx = added.indices.first(where: { i in
+                !pairedAddedIndices.contains(i)
+                    && added[i].role == r.role
+                    && Self.framesOverlap(r.frame, added[i].frame)
+                    && Self.labelsCompatible(r, added[i])
+            }) {
+                pairedAddedIndices.insert(idx)
+                changed.append(Self.makeChange(key: r.identity, before: r, after: added[idx]))
+            } else {
+                stillRemoved.append(r)
+            }
+        }
+        added = added.enumerated().filter { !pairedAddedIndices.contains($0.offset) }.map(\.element)
+        removed = stillRemoved
+
+        self.init(added: added, removed: removed, changed: changed)
+    }
+
+    /// Stable ordering on AXNode by frame top-left (y then x), then identity.
+    /// Makes the diff pairing pass deterministic across runs.
+    private static func nodeOrder(_ a: AXNode, _ b: AXNode) -> Bool {
+        let ay = a.frame?.y ?? Int.max
+        let by = b.frame?.y ?? Int.max
+        if ay != by { return ay < by }
+        let ax = a.frame?.x ?? Int.max
+        let bx = b.frame?.x ?? Int.max
+        if ax != bx { return ax < bx }
+        return a.identity < b.identity
+    }
+
+    /// True if two nodes' label dimensions (title, description) don't conflict.
+    /// A dimension is "compatible" when it's equal on both sides or nil on at least
+    /// one. Conflicting non-nil values block the pair so genuinely-different
+    /// elements at the same coords are reported as add+remove, not changed.
+    private static func labelsCompatible(_ a: AXNode, _ b: AXNode) -> Bool {
+        if let ta = a.title, let tb = b.title, ta != tb { return false }
+        if let da = a.description, let db = b.description, da != db { return false }
+        return true
+    }
+
+    private static func makeChange(key: String, before b: AXNode, after a: AXNode) -> TreeDiff.NodeChange {
+        TreeDiff.NodeChange(
+            identity: key,
+            role: a.role,
+            before: TreeDiff.ChangeValues(title: b.title, value: b.value, description: b.description, frame: b.frame),
+            after: TreeDiff.ChangeValues(title: a.title, value: a.value, description: a.description, frame: a.frame)
+        )
+    }
+
+    private static func framesOverlap(_ lhs: AXNode.FrameInfo?, _ rhs: AXNode.FrameInfo?) -> Bool {
+        guard let lhs, let rhs else { return false }
+        let lMaxX = lhs.x + lhs.width
+        let lMaxY = lhs.y + lhs.height
+        let rMaxX = rhs.x + rhs.width
+        let rMaxY = rhs.y + rhs.height
+        return lhs.x < rMaxX && rhs.x < lMaxX && lhs.y < rMaxY && rhs.y < lMaxY
+    }
+}
