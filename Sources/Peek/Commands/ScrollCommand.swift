@@ -29,8 +29,15 @@ struct ScrollCommand: AsyncParsableCommand {
     )
     var deltaX: Int = 0
 
-    @Flag(name: .long, help: "Use drag gesture instead of scroll wheel (for touch-based apps like iOS Simulator)")
-    var drag: Bool = false
+    @Flag(
+        name: .long,
+        inversion: .prefixedNo,
+        help: """
+        --drag swipes like a finger instead of using the scroll wheel; --no-drag forces the wheel. \
+        Default: drag over Xcode Device Hub / Simulator windows (they ignore wheel scrolls), wheel elsewhere.
+        """
+    )
+    var drag: Bool?
 
     @Option(
         name: .long,
@@ -52,6 +59,7 @@ struct ScrollCommand: AsyncParsableCommand {
         let y: Int
         let deltaX: Int
         let deltaY: Int
+        let mode: InteractionManager.ScrollMode
     }
 
     func run() async throws {
@@ -59,23 +67,18 @@ struct ScrollCommand: AsyncParsableCommand {
             try await InteractionManager.ensureOnTarget(points: [(x, y)], pid: resolved.pid, windowID: target.windowID)
         }
 
-        if drag {
-            // Swipe opposite the scroll delta: dragging up scrolls content down.
-            await InteractionManager.drag(
-                fromX: Double(x), fromY: Double(y),
-                toX: Double(x - deltaX), toY: Double(y - deltaY)
-            )
-        } else {
-            await InteractionManager.scroll(
-                x: Double(x), y: Double(y),
-                deltaX: Int32(deltaX), deltaY: Int32(deltaY),
-                steps: max(1, steps), durationMs: UInt32(max(0, durationMs))
-            )
-        }
+        let mode: InteractionManager.ScrollMode = drag.map { $0 ? .drag : .wheel }
+            ?? InteractionManager.defaultScrollMode(x: x, y: y)
+        await InteractionManager.scroll(
+            x: x, y: y,
+            deltaX: Int32(clamping: deltaX), deltaY: Int32(clamping: deltaY),
+            mode: mode,
+            steps: max(1, steps), durationMs: UInt32(max(0, durationMs))
+        )
 
-        let result = ScrollResult(x: x, y: y, deltaX: deltaX, deltaY: deltaY)
+        let result = ScrollResult(x: x, y: y, deltaX: deltaX, deltaY: deltaY, mode: mode)
         try emit(result, as: format) {
-            print("Scrolled at (\(x), \(y)) by dx=\(deltaX), dy=\(deltaY)")
+            print("Scrolled at (\(x), \(y)) by dx=\(deltaX), dy=\(deltaY) (\(mode.rawValue))")
         }
     }
 }

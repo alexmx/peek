@@ -343,7 +343,9 @@ enum PeekTools {
         var delta_y: Int
         @InputProperty("Horizontal scroll in pixels. Positive = RIGHT, negative = LEFT.")
         var delta_x: Int?
-        @InputProperty("Use drag gesture instead of scroll wheel (required for iOS Simulator).")
+        @InputProperty(
+            "true = finger swipe, false = scroll wheel. Omit to auto-pick: drag over Xcode Device Hub / Simulator windows (they ignore wheel scrolls), wheel elsewhere."
+        )
         var drag: Bool?
         @InputProperty(
             "Spread scroll across N events for smooth animated motion (default 1 = instant jump)."
@@ -703,9 +705,17 @@ enum PeekTools {
         let y: Int
     }
 
+    struct ScrollToolResult: Encodable {
+        let x: Int
+        let y: Int
+        let delta_x: Int
+        let delta_y: Int
+        let mode: InteractionManager.ScrollMode
+    }
+
     static let drag = MCPTool(
         name: "peek_drag",
-        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (iOS Simulator), use peek_scroll drag=true instead."
+        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (Xcode Device Hub / Simulator), use peek_scroll — it swipes there automatically."
     ) { (args: DragArgs) in
         try await withTimeout("peek_drag") {
             try await activateAndGuard(
@@ -725,26 +735,22 @@ enum PeekTools {
 
     static let scroll = MCPTool(
         name: "peek_scroll",
-        description: "Scroll at screen coordinates. delta_y: positive scrolls DOWN, negative UP. delta_x: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Set drag=true for touch-based apps (iOS Simulator) — swipe gesture. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
+        description: "Scroll at screen coordinates. delta_y: positive scrolls DOWN, negative UP. delta_x: positive scrolls RIGHT. Default is an instant jump; set steps>1 (optionally duration_ms) for smooth animated scrolling (total delta unchanged). Over Xcode Device Hub / Simulator windows it swipes like a finger instead (they ignore wheel scrolls; steps/duration_ms don't apply); set drag to override. The result's mode says which was used. For drag-reorder/drag-and-drop, use peek_drag. Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window)."
     ) { (args: ScrollArgs) in
         try await withTimeout("peek_scroll") {
             try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
             let dx = Int32(clamping: args.delta_x ?? 0)
             let dy = Int32(clamping: args.delta_y)
-            if args.drag ?? false {
-                await InteractionManager.drag(
-                    fromX: Double(args.x), fromY: Double(args.y),
-                    toX: Double(args.x - Int(dx)), toY: Double(args.y - Int(dy))
-                )
-            } else {
-                await InteractionManager.scroll(
-                    x: Double(args.x), y: Double(args.y),
-                    deltaX: dx, deltaY: dy,
-                    steps: max(1, args.steps ?? 1),
-                    durationMs: UInt32(max(0, args.duration_ms ?? 0))
-                )
-            }
-            return try json(["x": args.x, "y": args.y, "delta_x": Int(dx), "delta_y": Int(dy)])
+            let mode: InteractionManager.ScrollMode = args.drag.map { $0 ? .drag : .wheel }
+                ?? InteractionManager.defaultScrollMode(x: args.x, y: args.y)
+            await InteractionManager.scroll(
+                x: args.x, y: args.y,
+                deltaX: dx, deltaY: dy,
+                mode: mode,
+                steps: max(1, args.steps ?? 1),
+                durationMs: UInt32(max(0, args.duration_ms ?? 0))
+            )
+            return try json(ScrollToolResult(x: args.x, y: args.y, delta_x: Int(dx), delta_y: Int(dy), mode: mode))
         }
     }
 

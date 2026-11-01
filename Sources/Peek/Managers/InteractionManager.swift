@@ -380,10 +380,55 @@ enum InteractionManager {
         await pause(Double(totalSleepMs))
     }
 
-    /// Scroll at screen coordinates. Positive deltaY/deltaX scroll down/right.
+    enum ScrollMode: String, Encodable {
+        case wheel, drag
+    }
+
+    /// Hosts that show iOS devices and treat the pointer as a finger. Device Hub (Xcode 27+)
+    /// ignores wheel scrolls unless Device > "Simulate Trackpad or Mouse" is on, and then
+    /// reverses them. Simulator.app ignores them too. A finger drag works in both.
+    private static let touchHostBundleIDs: Set<String> = ["com.apple.dt.Devices", "com.apple.iphonesimulator"]
+
+    /// Scroll mode to use when the caller didn't pick one: `.drag` when the topmost
+    /// window under the point belongs to a touch host, `.wheel` otherwise.
+    static func defaultScrollMode(x: Int, y: Int) -> ScrollMode {
+        let point = CGPoint(x: Double(x), y: Double(y))
+        guard let top = onScreenWindowsFrontToBack().first(where: { $0.bounds.contains(point) }),
+              let bundleID = NSRunningApplication(processIdentifier: top.pid)?.bundleIdentifier
+        else { return .wheel }
+        return touchHostBundleIDs.contains(bundleID) ? .drag : .wheel
+    }
+
+    /// Scroll at screen coordinates with the given mode. `.drag` swipes opposite the
+    /// delta (dragging up scrolls content down) and ignores steps/duration.
+    static func scroll(
+        x: Int,
+        y: Int,
+        deltaX: Int32,
+        deltaY: Int32,
+        mode: ScrollMode,
+        steps: Int = 1,
+        durationMs: UInt32 = 0
+    ) async {
+        switch mode {
+        case .drag:
+            await drag(
+                fromX: Double(x), fromY: Double(y),
+                toX: Double(x) - Double(deltaX), toY: Double(y) - Double(deltaY)
+            )
+        case .wheel:
+            await scroll(
+                x: Double(x), y: Double(y),
+                deltaX: deltaX, deltaY: deltaY,
+                steps: steps, durationMs: durationMs
+            )
+        }
+    }
+
+    /// Scroll-wheel at screen coordinates. Positive deltaY/deltaX scroll down/right.
     /// steps == 1 posts one instant event; steps > 1 (or durationMs) spreads the delta
     /// across a phased ease-in-out stream for smooth motion, preserving the total delta.
-    static func scroll(
+    private static func scroll(
         x: Double,
         y: Double,
         deltaX: Int32,
