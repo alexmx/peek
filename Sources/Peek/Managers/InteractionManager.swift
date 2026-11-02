@@ -411,11 +411,6 @@ enum InteractionManager {
         case wheel, drag
     }
 
-    /// Hosts that show iOS devices and treat the pointer as a finger. Device Hub (Xcode 27+)
-    /// ignores wheel scrolls unless Device > "Simulate Trackpad or Mouse" is on, and then
-    /// reverses them. Simulator.app ignores them too. A finger drag works in both.
-    private static let touchHostBundleIDs: Set<String> = ["com.apple.dt.Devices", "com.apple.iphonesimulator"]
-
     /// Scroll mode to use when the caller didn't pick one: `.drag` when the topmost
     /// window under the point belongs to a touch host, `.wheel` otherwise.
     static func defaultScrollMode(x: Int, y: Int) -> ScrollMode {
@@ -426,8 +421,10 @@ enum InteractionManager {
     }
 
     /// `.drag` for touch hosts (Device Hub, Simulator), `.wheel` for any other app or none.
+    /// Device Hub ignores wheel scrolls unless Device > "Simulate Trackpad or Mouse" is on,
+    /// and then reverses them; Simulator.app ignores them too. A finger drag works in both.
     static func scrollMode(forBundleID bundleID: String?) -> ScrollMode {
-        guard let bundleID, touchHostBundleIDs.contains(bundleID) else { return .wheel }
+        guard let bundleID, TouchHost.bundleIDs.contains(bundleID) else { return .wheel }
         return .drag
     }
 

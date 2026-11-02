@@ -68,6 +68,8 @@ All commands support `--format json` for JSON output (default: text). Most comma
 
 Window-less UI (Dock, Control Center, status-menu helpers) is addressable by `--app`/`--pid` — `find`/`tree`/`action` scope to the AXApplication root. Not listed by `peek apps`.
 
+Xcode Device Hub windows bridge the simulated device's accessibility tree: `find`/`tree`/`action` reach the iOS app's elements, and `action --do Press` works on them. Device Hub reports a landscape device's frames rotated into portrait space; peek maps them back onto the screen (`TouchHost.FrameCorrection`), so frames are clickable. Upside-down portrait frames stay rotated 180° (nothing in the tree reveals that orientation). Out-of-process iOS UI (document picker, share sheet) isn't bridged — only its "dismiss popup" backdrop.
+
 Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lands on that app/window — raising an occluded target window, or erroring (`coordinateOffTarget`) when the coordinates are stale or over another window. This guards both the CLI and MCP paths.
 
 ### Discovery

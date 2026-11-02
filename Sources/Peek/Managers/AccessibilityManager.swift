@@ -81,11 +81,27 @@ enum AccessibilityManager {
 
     /// Recursively build a full AXNode tree from an element.
     static func buildTree(from element: AXUIElement, depth: Int = 0, limit: Int = maxDepth) -> AXNode {
-        let base = AXBridge.nodeFromElement(element)
+        var walk = Walk(root: element)
+        return buildTree(from: element, correction: nil, depth: depth, limit: limit, walk: &walk)
+    }
+
+    private static func buildTree(
+        from element: AXUIElement,
+        correction: TouchHost.FrameCorrection?,
+        depth: Int,
+        limit: Int,
+        walk: inout Walk
+    ) -> AXNode {
+        let base = AXBridge.nodeFromElement(element, correcting: correction)
 
         var childNodes: [AXNode] = []
-        if depth < limit, let children = AXBridge.children(of: element) {
-            childNodes = children.map { buildTree(from: $0, depth: depth + 1, limit: limit) }
+        if depth < limit {
+            let children = walk.children(of: element, correction: correction)
+            for child in children.elements where walk.enter(child) {
+                childNodes.append(buildTree(
+                    from: child, correction: children.correction, depth: depth + 1, limit: limit, walk: &walk
+                ))
+            }
         }
 
         return AXNode(
@@ -109,9 +125,12 @@ enum AccessibilityManager {
     // MARK: - Element Search
 
     /// A found element: the live AXUIElement reference plus its AXNode snapshot.
+    /// `frameCorrection` is set inside Device Hub's rotated iOS content; it maps other
+    /// rects read off `ref` (text bounds) onto the screen the way `node.frame` already is.
     struct ElementMatch {
         let ref: AXUIElement
         let node: AXNode
+        let frameCorrection: TouchHost.FrameCorrection?
     }
 
     /// Search the tree for nodes matching `filter`.
@@ -176,7 +195,7 @@ enum AccessibilityManager {
 
         if let substring {
             return try locate(
-                substring, in: match.ref, total: total, from: start, bounds: bounds, selection: sel
+                substring, in: match, total: total, from: start, bounds: bounds, selection: sel
             )
         }
 
@@ -187,7 +206,7 @@ enum AccessibilityManager {
         guard let text = AXBridge.string(of: match.ref, offset: start, length: take) else {
             throw PeekError.noTextContent
         }
-        let rect = bounds ? boundsInfo(of: match.ref, offset: start, length: take) : nil
+        let rect = bounds ? boundsInfo(of: match, offset: start, length: take) : nil
         return TextContent(
             length: total, offset: start, text: text,
             truncated: start + take < total, bounds: rect, selection: sel
@@ -198,19 +217,19 @@ enum AccessibilityManager {
     /// Uses NSString (UTF-16) indexing so offsets line up with AX character ranges.
     private static func locate(
         _ needle: String,
-        in ref: AXUIElement,
+        in match: ElementMatch,
         total: Int,
         from: Int,
         bounds: Bool,
         selection: Selection?
     ) throws -> TextContent {
         guard from < total,
-              let hay = AXBridge.string(of: ref, offset: from, length: total - from),
+              let hay = AXBridge.string(of: match.ref, offset: from, length: total - from),
               let matchOffset = firstOccurrence(of: needle, in: hay, from: from)
         else {
             throw PeekError.substringNotFound(needle)
         }
-        let rect = bounds ? boundsInfo(of: ref, offset: matchOffset, length: (needle as NSString).length) : nil
+        let rect = bounds ? boundsInfo(of: match, offset: matchOffset, length: (needle as NSString).length) : nil
         return TextContent(
             length: total, offset: matchOffset, text: needle,
             truncated: false, bounds: rect, selection: selection
@@ -227,8 +246,10 @@ enum AccessibilityManager {
         return base + range.location
     }
 
-    private static func boundsInfo(of ref: AXUIElement, offset: Int, length: Int) -> AXNode.FrameInfo? {
-        AXBridge.bounds(of: ref, offset: offset, length: length).map(AXNode.FrameInfo.init)
+    private static func boundsInfo(of match: ElementMatch, offset: Int, length: Int) -> AXNode.FrameInfo? {
+        AXBridge.bounds(of: match.ref, offset: offset, length: length).map {
+            AXNode.FrameInfo(match.frameCorrection?.apply($0) ?? $0)
+        }
     }
 
     /// Find the deepest element at the given screen coordinates.
@@ -269,7 +290,8 @@ enum AccessibilityManager {
     /// DFS for elements matching `filter`, stopping after `limit` matches.
     static func findAll(in element: AXUIElement, filter: ElementFilter, limit: Int? = nil) -> [ElementMatch] {
         var results: [ElementMatch] = []
-        searchAll(in: element, filter: filter, limit: limit, depth: 0, results: &results)
+        var walk = Walk(root: element)
+        searchAll(in: element, correction: nil, filter: filter, limit: limit, depth: 0, walk: &walk, results: &results)
         return results
     }
 
@@ -277,24 +299,77 @@ enum AccessibilityManager {
 
     private static func searchAll(
         in element: AXUIElement,
+        correction: TouchHost.FrameCorrection?,
         filter: ElementFilter,
         limit: Int?,
         depth: Int,
+        walk: inout Walk,
         results: inout [ElementMatch]
     ) {
         guard depth < maxDepth else { return }
         if let limit, results.count >= limit { return }
 
         if AXBridge.elementMatches(element, filter) {
-            results.append(ElementMatch(ref: element, node: AXBridge.nodeFromElement(element)))
+            let node = AXBridge.nodeFromElement(element, correcting: correction)
+            results.append(ElementMatch(ref: element, node: node, frameCorrection: correction))
             if let limit, results.count >= limit { return }
         }
 
-        if let children = AXBridge.children(of: element) {
-            for child in children {
-                searchAll(in: child, filter: filter, limit: limit, depth: depth + 1, results: &results)
-                if let limit, results.count >= limit { return }
-            }
+        let children = walk.children(of: element, correction: correction)
+        for child in children.elements where walk.enter(child) {
+            searchAll(
+                in: child, correction: children.correction, filter: filter, limit: limit,
+                depth: depth + 1, walk: &walk, results: &results
+            )
+            if let limit, results.count >= limit { return }
+        }
+    }
+
+    // MARK: - Walk
+
+    /// State for one depth-first walk, shared by tree building and search.
+    private struct Walk {
+        /// Elements already reached. Device Hub lists its iOS content group under two
+        /// parents; without this, everything inside it would be reported twice.
+        private var visited: Set<AXUIElement>
+        /// Only touch hosts can hold Device Hub's iOS content, so other apps skip the
+        /// subrole read per element.
+        private let detectsIOSContent: Bool
+
+        init(root: AXUIElement) {
+            self.visited = [root]
+            var pid: pid_t = 0
+            AXUIElementGetPid(root, &pid)
+            self.detectsIOSContent = TouchHost.owns(pid: pid)
+        }
+
+        /// Mark `element` reached on the way down; false if the walk reached it before.
+        /// Marking on entry (not when listing siblings) keeps a shared subtree under the
+        /// first parent the walk descends into. Otherwise that parent is left empty, and
+        /// hit-testing (which follows the first child containing the point) stops there.
+        mutating func enter(_ element: AXUIElement) -> Bool {
+            visited.insert(element).inserted
+        }
+
+        /// The children of `element`, and the frame correction for their subtrees: a new one
+        /// below Device Hub's iOS content group, else `correction`.
+        func children(
+            of element: AXUIElement,
+            correction: TouchHost.FrameCorrection?
+        ) -> (elements: [AXUIElement], correction: TouchHost.FrameCorrection?) {
+            guard let children = AXBridge.children(of: element), !children.isEmpty else { return ([], correction) }
+            guard detectsIOSContent, let iOSContent = Self.iOSContentCorrection(element, children: children)
+            else { return (children, correction) }
+            return (children, iOSContent)
+        }
+
+        private static func iOSContentCorrection(
+            _ element: AXUIElement,
+            children: [AXUIElement]
+        ) -> TouchHost.FrameCorrection? {
+            guard AXBridge.subrole(of: element) == TouchHost.iOSContentSubrole,
+                  let screen = AXBridge.frame(of: element) else { return nil }
+            return TouchHost.FrameCorrection(screen: screen, childFrames: children.compactMap(AXBridge.frame(of:)))
         }
     }
 

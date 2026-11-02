@@ -23,6 +23,10 @@ enum AXBridge {
         string(of: element, key: kAXTitleAttribute)
     }
 
+    static func subrole(of element: AXUIElement) -> String? {
+        string(of: element, key: kAXSubroleAttribute)
+    }
+
     private static func string(of element: AXUIElement, key: String) -> String? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
@@ -53,7 +57,7 @@ enum AXBridge {
         return rect
     }
 
-    private static func frame(of element: AXUIElement) -> CGRect? {
+    static func frame(of element: AXUIElement) -> CGRect? {
         var frameRef: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, "AXFrame" as CFString, &frameRef) == .success,
            let frameRef, let rect = cgRect(from: frameRef) {
@@ -75,10 +79,6 @@ enum AXBridge {
         else { return nil }
 
         return CGRect(origin: point, size: size)
-    }
-
-    private static func frameInfo(of element: AXUIElement) -> AXNode.FrameInfo? {
-        frame(of: element).map(AXNode.FrameInfo.init)
     }
 
     // MARK: - Application
@@ -153,8 +153,15 @@ enum AXBridge {
 
     /// Read all standard attributes from an element and produce an AXNode (no children).
     /// Batches the six attribute reads into a single AX IPC roundtrip when supported,
-    /// falling back per-attribute when the batched call fails.
-    static func nodeFromElement(_ element: AXUIElement) -> AXNode {
+    /// falling back per-attribute when the batched call fails. `correction` maps the frame
+    /// of an element inside Device Hub's rotated iOS content back onto the screen.
+    static func nodeFromElement(
+        _ element: AXUIElement,
+        correcting correction: TouchHost.FrameCorrection? = nil
+    ) -> AXNode {
+        func frameInfo(_ rect: CGRect?) -> AXNode.FrameInfo? {
+            rect.map { AXNode.FrameInfo(correction?.apply($0) ?? $0) }
+        }
         var valuesRef: CFArray?
         let result = AXUIElementCopyMultipleAttributeValues(
             element, nodeAttributeKeys, AXCopyMultipleAttributeOptions(rawValue: 0), &valuesRef
@@ -166,7 +173,7 @@ enum AXBridge {
                 value: stringValue(values[2]),
                 description: values[3] as? String,
                 enabled: (values[4] as? NSNumber)?.boolValue,
-                frame: frameInfoFromAXValue(values[5]),
+                frame: frameInfo(cgRect(from: values[5] as CFTypeRef)),
                 children: []
             )
         } else {
@@ -176,7 +183,7 @@ enum AXBridge {
                 value: string(of: element, key: kAXValueAttribute),
                 description: string(of: element, key: kAXDescriptionAttribute),
                 enabled: bool(of: element, key: kAXEnabledAttribute),
-                frame: frameInfo(of: element),
+                frame: frameInfo(frame(of: element)),
                 children: []
             )
         }
@@ -212,10 +219,6 @@ enum AXBridge {
         if let s = raw as? String { return s }
         if let n = raw as? NSNumber { return n.stringValue }
         return nil
-    }
-
-    private static func frameInfoFromAXValue(_ raw: Any) -> AXNode.FrameInfo? {
-        cgRect(from: raw as CFTypeRef).map(AXNode.FrameInfo.init)
     }
 
     /// Check whether an element matches `filter` without building a full AXNode — only

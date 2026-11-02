@@ -554,7 +554,7 @@ enum PeekTools {
 
     static let find = MCPTool(
         name: "peek_find",
-        description: "Search UI elements by role/title/value/description (read-only). Pass limit=1 for existence checks. title matches AXTitle OR AXDescription. Each match is a flat node (no subtree). To interact with a match, call peek_action with the same filters — do NOT peek_find then peek_click. Use to pre-read state before peek_wait/peek_click/peek_action so you target labels that actually exist."
+        description: "Search UI elements by role/title/value/description (read-only). Pass limit=1 for existence checks. title matches AXTitle OR AXDescription. Xcode Device Hub windows include the simulated iOS app's elements, with on-screen frames (except upside-down portrait). Each match is a flat node (no subtree). To interact with a match, call peek_action with the same filters — do NOT peek_find then peek_click. Use to pre-read state before peek_wait/peek_click/peek_action so you target labels that actually exist."
     ) { (args: FindArgs) in
         try await withTimeout("peek_find") {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
