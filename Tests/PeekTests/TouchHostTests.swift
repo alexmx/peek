@@ -33,6 +33,19 @@ struct TouchHostTests {
     }
 
     @Test
+    func splitViewWithoutRootDetectsAnchorFromFullHeightSidebar() {
+        // A split view exposes its sidebar and loose detail elements, no full-screen root.
+        let screen = CGRect(x: 485.10, y: 232.07, width: 669.31, height: 501.85)
+        let children = [
+            CGRect(x: 652.42, y: 232.07, width: 501.98, height: 155.61), // sidebar column
+            CGRect(x: 1123.03, y: 296.26, width: 10.21, height: 26.99), // "Fixture" heading
+            CGRect(x: 1090.93, y: 397.41, width: 19.94, height: 113.79), // "Local Changes" heading
+            CGRect(x: 852.83, y: 610.90, width: 43.53, height: 67.11) // placeholder label
+        ]
+        #expect(Correction(screen: screen, childFrames: children)?.anchor == .topRight)
+    }
+
+    @Test
     func portraitScreenNeedsNoCorrection() {
         #expect(Correction(screen: portraitScreen, childFrames: [portraitScreen]) == nil)
     }

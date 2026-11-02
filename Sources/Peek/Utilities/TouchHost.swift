@@ -20,11 +20,11 @@ enum TouchHost {
     /// Device Hub reports every element under the `iOSContentGroup` in the device's portrait
     /// space: rotated 90° and placed in a portrait-shaped rect anchored to one corner of the
     /// (correct) content group frame — top-right or bottom-left, depending on which way the
-    /// device is turned. The elements that are direct children of the content group (the
-    /// app's root view, a popover's dismiss region) are centred on that rect, which tells the
-    /// two apart. Portrait frames are correct. Upside-down portrait frames come back rotated
-    /// 180°, with nothing in the tree to detect it, so they are left alone. Verified on
-    /// Xcode 27.2.
+    /// device is turned. The direct children of the content group (the app's root view, a
+    /// split view's full-height columns, a popover's dismiss region) are centred horizontally
+    /// on that rect, which tells the two apart. Portrait frames are correct. Upside-down
+    /// portrait frames come back rotated 180°, with nothing in the tree to detect it, so they
+    /// are left alone. Verified on Xcode 27.2.
     struct FrameCorrection: Equatable {
         enum Anchor: Equatable {
             case topRight, bottomLeft
@@ -37,16 +37,19 @@ enum TouchHost {
         /// Detect the rotation from the content group's frame and the reported frames of its
         /// direct children. Nil when the screen isn't landscape or the children aren't centred
         /// where a rotated report puts them — including once Device Hub reports correct frames.
+        ///
+        /// Only the horizontal centre is compared: a rotated report lays the device's height out
+        /// horizontally, and screens fill the device's height, but not always its width (a split
+        /// view's sidebar spans the height and leaves the rest of the width to loose elements).
         init?(screen: CGRect, childFrames: [CGRect]) {
             guard screen.width > screen.height, let first = childFrames.first else { return nil }
             let union = childFrames.dropFirst().reduce(first) { $0.union($1) }
             let shift = (screen.width - screen.height) / 2
             let dx = union.midX - screen.midX
-            let dy = union.midY - screen.midY
             let tolerance: CGFloat = 2
-            if abs(dx - shift) <= tolerance, abs(dy - shift) <= tolerance {
+            if abs(dx - shift) <= tolerance {
                 self.anchor = .topRight
-            } else if abs(dx + shift) <= tolerance, abs(dy + shift) <= tolerance {
+            } else if abs(dx + shift) <= tolerance {
                 self.anchor = .bottomLeft
             } else {
                 return nil
