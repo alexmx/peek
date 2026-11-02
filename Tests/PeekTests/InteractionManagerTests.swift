@@ -68,4 +68,24 @@ struct InteractionManagerTests {
         #expect(InteractionManager.scrollMode(forBundleID: "com.apple.TextEdit") == .wheel)
         #expect(InteractionManager.scrollMode(forBundleID: nil) == .wheel)
     }
+
+    // MARK: - clampHoldMs
+
+    @Test
+    func holdWithinRangeIsUnchanged() {
+        #expect(InteractionManager.clampHoldMs(0) == 0)
+        #expect(InteractionManager.clampHoldMs(600) == 600)
+        #expect(InteractionManager.clampHoldMs(5000) == 5000)
+    }
+
+    @Test
+    func negativeHoldClampsToZero() {
+        #expect(InteractionManager.clampHoldMs(-1) == 0)
+    }
+
+    @Test
+    func holdAboveCapClampsToMax() {
+        #expect(InteractionManager.clampHoldMs(5001) == 5000)
+        #expect(InteractionManager.clampHoldMs(60000) == 5000)
+    }
 }

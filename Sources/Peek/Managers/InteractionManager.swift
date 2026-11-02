@@ -221,16 +221,30 @@ enum InteractionManager {
         case left, right
     }
 
+    /// Longest press hold `click`/`drag` accept, in ms. A long-press needs ~0.6s; the cap
+    /// keeps a gesture inside the MCP tool timeout.
+    private static let maxHoldMs = 5000
+
+    /// How long `drag` holds the press still before moving, unless the caller says otherwise.
+    static let defaultDragHoldMs = 100
+
+    /// Clamp a caller-supplied hold to 0...maxHoldMs.
+    static func clampHoldMs(_ ms: Int) -> Int {
+        max(0, min(ms, maxHoldMs))
+    }
+
     /// Click at screen coordinates. `count` posts that many consecutive click pairs
     /// with the `clickState` field set (1, 2, or 3) so AppKit treats them as a single
     /// click, double-click, or triple-click — used for word/line selection in text views.
-    /// `button` picks the mouse button (left or right).
+    /// `button` picks the mouse button (left or right). `holdMs` keeps the last press down
+    /// that long before releasing: a long-press (iOS context menus, Dock icon menus).
     static func click(
         x: Double,
         y: Double,
         count: Int = 1,
         button: MouseButton = .left,
-        flags: CGEventFlags = []
+        flags: CGEventFlags = [],
+        holdMs: Double = 0
     ) async {
         let point = CGPoint(x: x, y: y)
         let clamped = max(1, min(count, 3))
@@ -270,7 +284,7 @@ enum InteractionManager {
             up?.flags = flags
 
             down?.post(tap: .cghidEventTap)
-            await pause(30)
+            await pause(i == clamped ? max(30, holdMs) : 30)
             up?.post(tap: .cghidEventTap)
             if i < clamped {
                 await pause(50) // inter-click gap, well under macOS's ~500ms double-click threshold
@@ -281,19 +295,23 @@ enum InteractionManager {
         releaseModifiers()
     }
 
-    /// Press at the start point, move to the end point, release. `steps`/`durationMs` pace
-    /// the move (default: 10–40 moves, 10ms apart). `easeInOut` accelerates then slows to a
-    /// stop instead of moving at constant speed, and `holdMs` keeps the button down at the end
-    /// point first — both so a touch host sees the finger stop (see `scroll`'s drag mode).
+    /// Press at the start point, move to the end point, release. `pressHoldMs` keeps the
+    /// button still at the start before moving (~500ms+ is a long-press, which iOS
+    /// drag-and-drop needs to lift an item). `steps`/`durationMs` pace the move (default:
+    /// 10–40 moves, 10ms apart; `durationMs` 0 = default). `easeInOut` accelerates then
+    /// slows to a stop instead of moving at constant speed, and `endHoldMs` keeps the button
+    /// down at the end point first — both so a touch host sees the finger stop (see
+    /// `scroll`'s drag mode).
     static func drag(
         fromX: Double,
         fromY: Double,
         toX: Double,
         toY: Double,
+        pressHoldMs: Double = Double(defaultDragHoldMs),
         steps: Int? = nil,
-        durationMs: UInt32? = nil,
+        durationMs: UInt32 = 0,
         easeInOut: Bool = false,
-        holdMs: Double = 0
+        endHoldMs: Double = 0
     ) async {
         let dx = toX - fromX
         let dy = toY - fromY
@@ -301,10 +319,10 @@ enum InteractionManager {
         let end = CGPoint(x: toX, y: toY)
 
         postMouseEvent(.leftMouseDown, at: CGPoint(x: fromX, y: fromY))
-        await pause(100)
+        await pause(pressHoldMs)
 
         let moveSteps = max(1, steps ?? max(10, min(40, Int(distance / 5))))
-        let stepMs = durationMs.map { Double($0) / Double(moveSteps) } ?? 10
+        let stepMs = durationMs > 0 ? Double(durationMs) / Double(moveSteps) : 10
         let dragInitThreshold = 6.0
         for i in 1...moveSteps {
             var t = Double(i) / Double(moveSteps)
@@ -316,7 +334,7 @@ enum InteractionManager {
             await pause(stepMs)
         }
 
-        for _ in 0..<Int(holdMs / 16) {
+        for _ in 0..<Int(endHoldMs / 16) {
             postMouseEvent(.leftMouseDragged, at: end)
             await pause(16)
         }
@@ -438,7 +456,7 @@ enum InteractionManager {
                 steps: steps > 1 ? steps : max(2, Int(duration) / 16),
                 durationMs: duration,
                 easeInOut: true,
-                holdMs: swipeHoldMs
+                endHoldMs: swipeHoldMs
             )
         case .wheel:
             await scroll(

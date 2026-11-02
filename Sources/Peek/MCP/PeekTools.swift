@@ -233,6 +233,10 @@ enum PeekTools {
             "Modifier keys held during the click: any subset of cmd, shift, option, control, fn. E.g. ['shift'] for range select, ['cmd'] to toggle / open in background."
         )
         var modifiers: [String]?
+        @InputProperty(
+            "Hold the press this many ms before releasing (long-press; max 5000). ~600 opens iOS context menus and Dock icon menus; much longer puts iOS Home Screen icons into edit mode. With count, holds the last press."
+        )
+        var hold_ms: Int?
     }
 
     struct DragArgs: MCPToolInput {
@@ -250,6 +254,14 @@ enum PeekTools {
         var to_x: Int
         @InputProperty("Destination Y screen coordinate")
         var to_y: Int
+        @InputProperty(
+            "Hold the press still this many ms before moving (default 100, max 5000). ~500+ is a long-press, which iOS drag-and-drop needs to lift an item."
+        )
+        var hold_ms: Int?
+        @InputProperty("Number of intermediate moves along the path (default 10-40, by distance).")
+        var steps: Int?
+        @InputProperty("Duration in ms of the move (default 10ms per step); pairs with steps.")
+        var duration_ms: Int?
     }
 
     struct MoveArgs: MCPToolInput {
@@ -585,7 +597,7 @@ enum PeekTools {
 
     static let click = MCPTool(
         name: "peek_click",
-        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass modifiers=['shift'|'cmd'|'option'|'control'|'fn'] to hold keys during the click (shift-click = range select, cmd-click = toggle / open in background). Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window). Re-read frames after activate/ShowMenu/menu click — windows can move."
+        description: "Click at screen coordinates. For labeled elements, use peek_action (finds+clicks in one call). For drag gestures, use peek_drag (two clicks won't synthesize a drag). Pass count=2 for double-click (selects word in text views) or count=3 for triple-click (selects line). Pass button='right' for context menus on canvases / web views. Pass modifiers=['shift'|'cmd'|'option'|'control'|'fn'] to hold keys during the click (shift-click = range select, cmd-click = toggle / open in background). Pass hold_ms (~600) for a long-press: iOS context menus in Xcode Device Hub / Simulator, Dock icon menus on the Mac (much longer puts iOS Home Screen icons into edit mode). Pass app/pid/window_id to auto-activate — peek then verifies the point lands on that target (raises an occluded target window, or errors if it's over another window). Re-read frames after activate/ShowMenu/menu click — windows can move."
     ) { (args: ClickArgs) in
         try await withTimeout("peek_click") {
             try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
@@ -596,10 +608,15 @@ enum PeekTools {
             }
             let mods = KeyMapping.modifierTokens(args.modifiers ?? [])
             let flags = try KeyMapping.parseModifiers(mods)
+            let hold = InteractionManager.clampHoldMs(args.hold_ms ?? 0)
             await InteractionManager.click(
-                x: Double(args.x), y: Double(args.y), count: count, button: button, flags: flags
+                x: Double(args.x), y: Double(args.y), count: count, button: button, flags: flags,
+                holdMs: Double(hold)
             )
-            return try json(ClickResult(x: args.x, y: args.y, count: count, button: button.rawValue, modifiers: mods))
+            return try json(ClickResult(
+                x: args.x, y: args.y, count: count, button: button.rawValue, modifiers: mods,
+                holdMs: hold > 0 ? hold : nil
+            ))
         }
     }
 
@@ -631,7 +648,7 @@ enum PeekTools {
 
     static let drag = MCPTool(
         name: "peek_drag",
-        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection. Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (Xcode Device Hub / Simulator), use peek_scroll — it swipes there automatically."
+        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection, window resizing. Pass hold_ms (~500+) to long-press before moving (iOS drag-and-drop needs it to lift an item); steps/duration_ms pace the move (more steps or a longer duration = slower, smoother path). Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (Xcode Device Hub / Simulator), use peek_scroll — it swipes there automatically."
     ) { (args: DragArgs) in
         try await withTimeout("peek_drag") {
             try await activateAndGuard(
@@ -640,7 +657,12 @@ enum PeekTools {
             )
             await InteractionManager.drag(
                 fromX: Double(args.from_x), fromY: Double(args.from_y),
-                toX: Double(args.to_x), toY: Double(args.to_y)
+                toX: Double(args.to_x), toY: Double(args.to_y),
+                pressHoldMs: Double(InteractionManager.clampHoldMs(
+                    args.hold_ms ?? InteractionManager.defaultDragHoldMs
+                )),
+                steps: args.steps.map { max(1, $0) },
+                durationMs: UInt32(max(0, args.duration_ms ?? 0))
             )
             return try json(DragResult(fromX: args.from_x, fromY: args.from_y, toX: args.to_x, toY: args.to_y))
         }

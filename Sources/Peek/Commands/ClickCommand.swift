@@ -35,6 +35,12 @@ struct ClickCommand: AsyncParsableCommand {
     )
     var modifiers: [String] = []
 
+    @Option(
+        name: .long,
+        help: "Hold the press this many ms before releasing (long-press; max 5000). ~600 opens iOS context menus and Dock icon menus; much longer puts iOS Home Screen icons into edit mode. With --count, holds the last press."
+    )
+    var holdMs: Int = 0
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -46,16 +52,24 @@ struct ClickCommand: AsyncParsableCommand {
         let modTokens = KeyMapping.modifierTokens(modifiers)
         let flags = try KeyMapping.parseModifiers(modTokens)
 
+        let hold = InteractionManager.clampHoldMs(holdMs)
+
         try await target.activateAndGuard([(x, y)])
 
-        await InteractionManager.click(x: Double(x), y: Double(y), count: count, button: btn, flags: flags)
+        await InteractionManager.click(
+            x: Double(x), y: Double(y), count: count, button: btn, flags: flags, holdMs: Double(hold)
+        )
 
-        let result = ClickResult(x: x, y: y, count: max(1, min(count, 3)), button: btn.rawValue, modifiers: modTokens)
+        let result = ClickResult(
+            x: x, y: y, count: max(1, min(count, 3)), button: btn.rawValue, modifiers: modTokens,
+            holdMs: hold > 0 ? hold : nil
+        )
         try emit(result, as: format) {
             let multiplier = ["single", "double", "triple"][result.count - 1]
             let buttonLabel = btn == .right ? "right-clicked" : "clicked"
             let modText = modTokens.isEmpty ? "" : " with " + modTokens.joined(separator: "+")
-            print("\(multiplier.capitalized) \(buttonLabel) at (\(x), \(y))\(modText)")
+            let holdText = hold > 0 ? ", held \(hold)ms" : ""
+            print("\(multiplier.capitalized) \(buttonLabel) at (\(x), \(y))\(modText)\(holdText)")
         }
     }
 }

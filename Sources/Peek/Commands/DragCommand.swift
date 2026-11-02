@@ -21,6 +21,18 @@ struct DragCommand: AsyncParsableCommand {
     @Option(name: .long, parsing: .unconditional, help: "Destination Y screen coordinate")
     var toY: Int
 
+    @Option(
+        name: .long,
+        help: "Hold the press still this many ms before moving (max 5000). ~500+ is a long-press, which iOS drag-and-drop needs to lift an item."
+    )
+    var holdMs: Int = InteractionManager.defaultDragHoldMs
+
+    @Option(name: .long, help: "Number of intermediate moves along the path (default 10-40, by distance)")
+    var steps: Int?
+
+    @Option(name: .long, help: "Wall-clock duration in ms of the move (0 = 10ms per step). Pairs with --steps")
+    var durationMs: Int = 0
+
     @Option(name: .long, help: "Output format")
     var format: OutputFormat = .default
 
@@ -29,7 +41,10 @@ struct DragCommand: AsyncParsableCommand {
 
         await InteractionManager.drag(
             fromX: Double(fromX), fromY: Double(fromY),
-            toX: Double(toX), toY: Double(toY)
+            toX: Double(toX), toY: Double(toY),
+            pressHoldMs: Double(InteractionManager.clampHoldMs(holdMs)),
+            steps: steps.map { max(1, $0) },
+            durationMs: UInt32(max(0, durationMs))
         )
 
         let result = DragResult(fromX: fromX, fromY: fromY, toX: toX, toY: toY)

@@ -8,6 +8,8 @@ struct ClickResult: Encodable {
     let count: Int
     let button: String
     let modifiers: [String]
+    /// Press hold in ms; omitted for a normal click.
+    let holdMs: Int?
 }
 
 struct DragResult: Encodable {
