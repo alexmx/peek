@@ -691,7 +691,7 @@ enum PeekTools {
 
     static let type = MCPTool(
         name: "peek_type",
-        description: "Type literal text via keyboard events. Prefer one peek_type over many peek_action Press calls for character/digit sequences. For modifier chords (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys), use peek_key. Focus a specific text field first via peek_click/peek_action when needed. Pass app/pid/window_id to auto-activate."
+        description: "Type literal text via keyboard events. Prefer one peek_type over many peek_action Press calls for character/digit sequences. For modifier chords (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys), use peek_key. Focus a specific text field first via peek_click/peek_action when needed. Pass app/pid/window_id to auto-activate. In Xcode Device Hub, keys reach the iOS device only with its Capture Keyboard checkbox on (peek_action Press)."
     ) { (args: TypeArgs) in
         let delayMs = UInt32(max(0, args.delay_ms ?? 5))
         let budget = max(defaultTimeout, Double(args.text.count) * Double(delayMs + 5) / 1000.0 + 5)
@@ -704,7 +704,7 @@ enum PeekTools {
 
     static let key = MCPTool(
         name: "peek_key",
-        description: "Send a single key chord — routes by virtual key code so it triggers app shortcuts (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys). Key is a single character or named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). Modifiers: any of cmd, shift, option, control, fn. Pass app/pid/window_id to auto-activate."
+        description: "Send a single key chord — routes by virtual key code so it triggers app shortcuts (⌘S, ⇧⌘T) or non-character keys (Esc, Tab, arrows, F-keys). Key is a single character or named key (escape, tab, return, delete, up/down/left/right, home, end, pageup, pagedown, f1-f12, space). Modifiers: any of cmd, shift, option, control, fn. Pass app/pid/window_id to auto-activate. In Xcode Device Hub, keys reach the iOS device only with its Capture Keyboard checkbox on (peek_action Press)."
     ) { (args: KeyArgs) in
         try await withTimeout("peek_key") {
             let mods = KeyMapping.modifierTokens(args.modifiers ?? [])

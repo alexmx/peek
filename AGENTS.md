@@ -70,6 +70,8 @@ Window-less UI (Dock, Control Center, status-menu helpers) is addressable by `--
 
 Xcode Device Hub windows bridge the simulated device's accessibility tree: `find`/`tree`/`action` reach the iOS app's elements, and `action --do Press` works on them. Device Hub reports a landscape device's frames rotated into portrait space; peek maps them back onto the screen (`TouchHost.FrameCorrection`), so frames are clickable. Upside-down portrait frames stay rotated 180° (nothing in the tree reveals that orientation). Out-of-process iOS UI (document picker, share sheet) isn't bridged — only its "dismiss popup" backdrop.
 
+Device Hub input: keys reach the device only with Device Hub's **Capture Keyboard** toggle on (an AX checkbox — `action --do Press --title "Capture Keyboard"`). `key`/`type`/`click` press modifier keys as separate key events, like a real keyboard, because Device Hub drops ⌘/⇧ sent only as event flags (with Simulate Trackpad on, ⌘-click and shift-click then multi-select on the device). Hover (`move`) reaches the device only with Device > Simulate Trackpad or Mouse on. Back-swipes: start `drag` mid-content, not at a pane's edge.
+
 Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lands on that app/window — raising an occluded target window, or erroring (`coordinateOffTarget`) when the coordinates are stale or over another window. This guards both the CLI and MCP paths.
 
 ### Discovery

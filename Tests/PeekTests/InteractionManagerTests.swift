@@ -83,6 +83,44 @@ struct InteractionManagerTests {
         #expect(InteractionManager.clampHoldMs(-1) == 0)
     }
 
+    // MARK: - Modifier keys
+
+    typealias KeyEvent = InteractionManager.KeyEvent
+
+    @Test
+    func modifierPressesFollowHandOrderAndAccumulateFlags() {
+        #expect(InteractionManager.modifierPresses(for: [.maskCommand, .maskShift]) == [
+            KeyEvent(keyCode: 56, isDown: true, flags: .maskShift),
+            KeyEvent(keyCode: 55, isDown: true, flags: [.maskShift, .maskCommand])
+        ])
+    }
+
+    @Test
+    func modifierReleasesReverseThePressesAndEndWithNoFlags() {
+        #expect(InteractionManager.modifierReleases(for: [.maskCommand, .maskShift]) == [
+            KeyEvent(keyCode: 55, isDown: false, flags: .maskShift),
+            KeyEvent(keyCode: 56, isDown: false, flags: [])
+        ])
+    }
+
+    @Test
+    func noModifiersPostNoModifierEvents() {
+        #expect(InteractionManager.modifierPresses(for: []).isEmpty)
+        #expect(InteractionManager.modifierReleases(for: []).isEmpty)
+    }
+
+    @Test
+    func shiftRunsGroupConsecutiveCapitals() {
+        let runs = InteractionManager.shiftRuns("Hello WORLD")
+        #expect(runs.map(\.shift) == [true, false, true])
+        #expect(runs.map { String($0.characters) } == ["H", "ello ", "WORLD"])
+    }
+
+    @Test
+    func emptyTextHasNoShiftRuns() {
+        #expect(InteractionManager.shiftRuns("").isEmpty)
+    }
+
     @Test
     func holdAboveCapClampsToMax() {
         #expect(InteractionManager.clampHoldMs(5001) == 5000)

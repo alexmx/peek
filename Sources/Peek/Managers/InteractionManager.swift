@@ -260,39 +260,50 @@ enum InteractionManager {
         postMouseEvent(.mouseMoved, at: point)
         await pause(15)
 
-        for i in 1...clamped {
-            let down = CGEvent(
-                mouseEventSource: eventSource,
-                mouseType: downType,
-                mouseCursorPosition: point,
-                mouseButton: btn
-            )
-            let up = CGEvent(
-                mouseEventSource: eventSource,
-                mouseType: upType,
-                mouseCursorPosition: point,
-                mouseButton: btn
-            )
-            down?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
-            up?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
+        // Modifier keys are held around the click (Device Hub forwards only those to the
+        // device) and also set on the mouse events, which is where Mac apps read them.
+        await withModifiers(flags) {
+            for i in 1...clamped {
+                let down = CGEvent(
+                    mouseEventSource: eventSource,
+                    mouseType: downType,
+                    mouseCursorPosition: point,
+                    mouseButton: btn
+                )
+                let up = CGEvent(
+                    mouseEventSource: eventSource,
+                    mouseType: upType,
+                    mouseCursorPosition: point,
+                    mouseButton: btn
+                )
+                down?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
+                up?.setIntegerValueField(.mouseEventClickState, value: Int64(i))
 
-            // Hold the modifier flags (shift/cmd/option/control) for the duration of the
-            // click so gestures like shift-click (range select) and cmd-click (toggle /
-            // open-in-background) register. Set explicitly even when empty, so a plain
-            // click never inherits modifiers the session believes are held.
-            down?.flags = flags
-            up?.flags = flags
+                // Set explicitly even when empty, so a plain click never inherits modifiers
+                // the session believes are held.
+                down?.flags = flags
+                up?.flags = flags
 
-            down?.post(tap: .cghidEventTap)
-            await pause(i == clamped ? max(30, holdMs) : 30)
-            up?.post(tap: .cghidEventTap)
-            if i < clamped {
-                await pause(50) // inter-click gap, well under macOS's ~500ms double-click threshold
+                down?.post(tap: .cghidEventTap)
+                await pause(i == clamped ? max(30, holdMs) : 30)
+                up?.post(tap: .cghidEventTap)
+                if i < clamped {
+                    await pause(50) // inter-click gap, well under macOS's ~500ms double-click threshold
+                }
             }
         }
         guard !flags.isEmpty else { return }
-        await pause(15) // let the mouse-up land before releasing (see sendKey)
-        releaseModifiers()
+        // A flag-free mouse event resets the session's modifier state. The modifier key-ups
+        // normally do, but Device Hub's Capture Keyboard swallows keyboard events, which left
+        // the Shift a shift-click's mouse events carried held on the Mac.
+        let reset = CGEvent(
+            mouseEventSource: eventSource,
+            mouseType: .mouseMoved,
+            mouseCursorPosition: point,
+            mouseButton: btn
+        )
+        reset?.flags = []
+        reset?.post(tap: .cghidEventTap)
     }
 
     /// Press at the start point, move to the end point, release. `pressHoldMs` keeps the
@@ -548,55 +559,110 @@ enum InteractionManager {
         return out
     }
 
+    /// Type `text` key by key. Shift is held once across each run of characters that need
+    /// it, like a typist, rather than pressed per capital (each press costs two modifier gaps).
     static func type(text: String, delayMs: UInt32 = 5) async {
-        var usedShift = false
-        for char in text {
-            let (keyCode, shift) = KeyMapping.lookup(char)
-            let utf16 = Array(String(char).utf16)
-
-            let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
-            let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
-
-            keyDown?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
-            keyUp?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
-
-            // Explicit flags on every keystroke: inheriting a held cmd/option/control from
-            // the session would turn text into shortcuts.
-            let flags: CGEventFlags = shift ? .maskShift : []
-            keyDown?.flags = flags
-            keyUp?.flags = flags
-            usedShift = usedShift || shift
-
-            keyDown?.post(tap: .cghidEventTap)
-            keyUp?.post(tap: .cghidEventTap)
-            await pause(Double(delayMs))
+        for run in shiftRuns(text) {
+            let flags: CGEventFlags = run.shift ? .maskShift : []
+            await withModifiers(flags) {
+                for char in run.characters {
+                    postKeyPress(KeyMapping.lookup(char).keyCode, flags: flags, text: String(char))
+                    await pause(Double(delayMs))
+                }
+            }
         }
-        if usedShift { releaseModifiers() }
     }
 
     static func sendKey(keyCode: CGKeyCode, flags: CGEventFlags) async {
-        let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true)
-        let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
-        keyDown?.flags = flags
-        keyUp?.flags = flags
-        keyDown?.post(tap: .cghidEventTap)
-        keyUp?.post(tap: .cghidEventTap)
-        guard !flags.isEmpty else { return }
-        // Let the key-up land first; a release posted in the same instant can be applied
-        // before it, leaving the modifiers held.
-        await pause(15)
-        releaseModifiers()
+        await withModifiers(flags) {
+            postKeyPress(keyCode, flags: flags)
+        }
     }
 
-    /// Post a modifiers-released `flagsChanged` event, as a real keyboard does when the last
-    /// modifier key comes up. A posted event that carries modifier flags leaves the session
-    /// believing those keys are held until a real modifier is pressed, so later synthetic
-    /// keys and clicks would inherit them — shortcuts instead of text, cmd-clicks instead of
-    /// clicks. Call after posting any event that carried modifiers.
-    private static func releaseModifiers() {
-        let event = CGEvent(source: nil)
-        event?.type = .flagsChanged
-        event?.flags = []
+    /// `text` split into consecutive runs of characters that all need Shift or all don't.
+    static func shiftRuns(_ text: String) -> [(shift: Bool, characters: [Character])] {
+        var runs: [(shift: Bool, characters: [Character])] = []
+        for char in text {
+            let shift = KeyMapping.lookup(char).shift
+            if runs.last?.shift == shift {
+                runs[runs.count - 1].characters.append(char)
+            } else {
+                runs.append((shift, [char]))
+            }
+        }
+        return runs
+    }
+
+    /// One synthesized key event.
+    struct KeyEvent: Equatable {
+        let keyCode: CGKeyCode
+        let isDown: Bool
+        let flags: CGEventFlags
+    }
+
+    /// Modifier keys and their virtual key codes, in the order a hand presses them.
+    private static let modifierKeys: [(flag: CGEventFlags, keyCode: CGKeyCode)] = [
+        (.maskControl, 59), (.maskAlternate, 58), (.maskShift, 56), (.maskCommand, 55), (.maskSecondaryFn, 63)
+    ]
+
+    /// Key-downs for the modifier keys in `flags`, in press order, each carrying the
+    /// modifiers held so far.
+    static func modifierPresses(for flags: CGEventFlags) -> [KeyEvent] {
+        var held: CGEventFlags = []
+        return modifierKeys.filter { flags.contains($0.flag) }.map {
+            held.insert($0.flag)
+            return KeyEvent(keyCode: $0.keyCode, isDown: true, flags: held)
+        }
+    }
+
+    /// Key-ups for the modifier keys in `flags`, in reverse press order. The last carries no
+    /// flags, which releases the session's modifier state: a posted event that carries
+    /// modifiers leaves the session believing they're held, so later synthetic keys and
+    /// clicks would inherit them (shortcuts instead of text, cmd-clicks instead of clicks).
+    static func modifierReleases(for flags: CGEventFlags) -> [KeyEvent] {
+        var held = flags
+        return modifierKeys.filter { flags.contains($0.flag) }.reversed().map {
+            held.remove($0.flag)
+            return KeyEvent(keyCode: $0.keyCode, isDown: false, flags: held)
+        }
+    }
+
+    /// Hold the modifier keys in `flags` down around `body`, the way a real keyboard does.
+    /// Flags on the key events alone aren't enough: Xcode's Device Hub forwards modifiers to
+    /// the iOS device only from the modifier keys' own events, so ⌘A arrived as a plain "a".
+    private static func withModifiers(_ flags: CGEventFlags, _ body: () async -> Void) async {
+        for event in modifierPresses(for: flags) {
+            post(event)
+            await pause(modifierKeyGapMs)
+        }
+        await body()
+        for event in modifierReleases(for: flags) {
+            await pause(modifierKeyGapMs)
+            post(event)
+        }
+    }
+
+    /// Pause between a modifier key's event and the key's. Device Hub misses a modifier
+    /// release posted in the same instant as the key-up, leaving ⌘ held on the iOS device
+    /// (the next "x" became ⌘X).
+    private static let modifierKeyGapMs: Double = 15
+
+    /// Post a key's down and up. `text` is the character it types, independent of the
+    /// keyboard layout.
+    private static func postKeyPress(_ keyCode: CGKeyCode, flags: CGEventFlags, text: String? = nil) {
+        post(KeyEvent(keyCode: keyCode, isDown: true, flags: flags), text: text)
+        post(KeyEvent(keyCode: keyCode, isDown: false, flags: flags), text: text)
+    }
+
+    /// Post a single key event. Flags are set explicitly even when empty: inheriting a held
+    /// cmd/option/control from the session would turn text into shortcuts.
+    private static func post(_ key: KeyEvent, text: String? = nil) {
+        let event = CGEvent(keyboardEventSource: nil, virtualKey: key.keyCode, keyDown: key.isDown)
+        if let text {
+            let utf16 = Array(text.utf16)
+            event?.keyboardSetUnicodeString(stringLength: utf16.count, unicodeString: utf16)
+        }
+        event?.flags = key.flags
         event?.post(tap: .cghidEventTap)
     }
 
