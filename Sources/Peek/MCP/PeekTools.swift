@@ -652,12 +652,15 @@ enum PeekTools {
 
     static let drag = MCPTool(
         name: "peek_drag",
-        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection, window resizing. Pass hold_ms (~500+) to long-press before moving (iOS drag-and-drop needs it to lift an item); steps/duration_ms pace the move (more steps or a longer duration = slower, smoother path). Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies both points land on that target, raising an occluded target window or erroring if a point is over another window (so a background app no longer gets the drag). For touch-style scroll swipes (Xcode Device Hub / Simulator), use peek_scroll — it swipes there automatically."
+        description: "Drag from one screen point to another. Use for drag-reorder, drag-and-drop, marquee selection, window resizing. Pass hold_ms (~500+) to long-press before moving (iOS drag-and-drop needs it to lift an item); steps/duration_ms pace the move (more steps or a longer duration = slower, smoother path). Both points are absolute screen coordinates (read from peek_find frames). Pass app/pid/window_id to auto-activate — peek then verifies the start point lands on that target, raising an occluded target window or erroring if it's over another window (so a background app no longer gets the drag). The end point may be anywhere: a window moved or resized outward, or dropped onto another app. For touch-style scroll swipes (Xcode Device Hub / Simulator), use peek_scroll — it swipes there automatically."
     ) { (args: DragArgs) in
         try await withTimeout("peek_drag") {
+            // Only the press point decides what gets dragged; the drop point can be anywhere.
             try await activateAndGuard(
-                [(args.from_x, args.from_y), (args.to_x, args.to_y)],
-                windowID: args.window_id, app: args.app, pid: args.pid
+                [(args.from_x, args.from_y)],
+                windowID: args.window_id,
+                app: args.app,
+                pid: args.pid
             )
             await InteractionManager.drag(
                 fromX: Double(args.from_x), fromY: Double(args.from_y),

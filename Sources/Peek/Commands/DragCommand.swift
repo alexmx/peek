@@ -37,7 +37,8 @@ struct DragCommand: AsyncParsableCommand {
     var format: OutputFormat = .default
 
     func run() async throws {
-        try await target.activateAndGuard([(fromX, fromY), (toX, toY)])
+        // Only the press point decides what gets dragged; the drop point can be anywhere.
+        try await target.activateAndGuard([(fromX, fromY)])
 
         await InteractionManager.drag(
             fromX: Double(fromX), fromY: Double(fromY),

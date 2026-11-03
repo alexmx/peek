@@ -72,7 +72,7 @@ Xcode Device Hub windows bridge the simulated device's accessibility tree: `find
 
 Device Hub input: keys reach the device only with Device Hub's **Capture Keyboard** toggle on (an AX checkbox — `action --do Press --title "Capture Keyboard"`). `key`/`type`/`click` press modifier keys as separate key events, like a real keyboard, because Device Hub drops ⌘/⇧ sent only as event flags (with Simulate Trackpad on, ⌘-click and shift-click then multi-select on the device). Hover (`move`) reaches the device only with Device > Simulate Trackpad or Mouse on. Back-swipes: start `drag` mid-content, not at a pane's edge.
 
-Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lands on that app/window — raising an occluded target window, or erroring (`coordinateOffTarget`) when the coordinates are stale or over another window. This guards both the CLI and MCP paths.
+Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lands on that app/window — raising an occluded target window, or erroring (`coordinateOffTarget`) when the coordinates are stale or over another window. For `drag` only the start point is checked: the press decides what's dragged, and the drop may land anywhere (a window moved or resized outward, a drop onto another app). This guards both the CLI and MCP paths.
 
 ### Discovery
 - **apps** — List running apps and windows. `--app` to filter by name. `--include-panels` adds non-standard windows (menu-bar panels, status items, small utility windows) and the accessory apps owning them, with a per-window `layer` (0 = normal, 25 = status item, 101 = menu/panel).
