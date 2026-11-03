@@ -45,6 +45,97 @@ struct TouchHostTests {
         #expect(Correction(screen: screen, childFrames: children)?.anchor == .topRight)
     }
 
+    /// The same split view with its sidebar hidden: only a button, the title and a label,
+    /// none spanning the device's height. On-screen frames, checked against a screenshot.
+    private let hiddenSidebarScreen = CGRect(x: 485.10, y: 232.07, width: 669.31, height: 501.85)
+    private let showSidebarButton = CGRect(x: 491, y: 249, width: 17, height: 17)
+    private let localChangesTitle = CGRect(x: 494, y: 275, width: 113, height: 19)
+    private let placeholderLabel = CGRect(x: 786, y: 490, width: 67, height: 43)
+    private var hiddenSidebarOnScreen: [CGRect] {
+        [showSidebarButton, localChangesTitle, placeholderLabel]
+    }
+
+    /// The text among them (a heading and static text); the button isn't.
+    private var hiddenSidebarTextOnScreen: [CGRect] {
+        [localChangesTitle, placeholderLabel]
+    }
+
+    /// What Device Hub reports for an on-screen frame when rotated to `anchor`: the inverse
+    /// of `FrameCorrection.apply`.
+    private func reported(_ onScreen: CGRect, anchor: Correction.Anchor, in s: CGRect) -> CGRect {
+        let size = CGSize(width: onScreen.height, height: onScreen.width)
+        let origin = switch anchor {
+        case .topRight:
+            CGPoint(x: s.minY + s.maxX - onScreen.minY - size.width, y: onScreen.minX - s.minX + s.minY)
+        case .bottomLeft:
+            CGPoint(x: onScreen.minY - s.minY + s.minX, y: s.minX + s.maxY - onScreen.minX - size.height)
+        }
+        return CGRect(origin: origin, size: size)
+    }
+
+    @Test(arguments: Correction.Anchor.allCases)
+    func screenWithoutFullHeightElementDetectsAnchorFromContainment(anchor: Correction.Anchor) throws {
+        let children = hiddenSidebarOnScreen.map { reported($0, anchor: anchor, in: hiddenSidebarScreen) }
+        let text = hiddenSidebarTextOnScreen.map { reported($0, anchor: anchor, in: hiddenSidebarScreen) }
+        let correction = try #require(Correction(screen: hiddenSidebarScreen, childFrames: children, textFrames: text))
+        #expect(correction.anchor == anchor)
+        for (child, onScreen) in zip(children, hiddenSidebarOnScreen) {
+            let mapped = correction.apply(child)
+            #expect(abs(mapped.minX - onScreen.minX) < 0.01 && abs(mapped.minY - onScreen.minY) < 0.01)
+            #expect(mapped.size == onScreen.size)
+        }
+    }
+
+    @Test
+    func sameScreenWithCorrectFramesNeedsNoCorrection() {
+        // These fit the bottom-left portrait rect, like a rotated report would; the flat text
+        // is what shows they're already on screen.
+        let correction = Correction(
+            screen: hiddenSidebarScreen,
+            childFrames: hiddenSidebarOnScreen,
+            textFrames: hiddenSidebarTextOnScreen
+        )
+        #expect(correction == nil)
+    }
+
+    @Test
+    func offScreenChildDoesNotBlockDetection() {
+        // A dismissed keyboard's keys sit off screen, outside the portrait rect.
+        var children = hiddenSidebarOnScreen.map { reported($0, anchor: .topRight, in: hiddenSidebarScreen) }
+        children.append(CGRect(x: 636.37, y: 233.05, width: 42.80, height: 65.16))
+        let text = hiddenSidebarTextOnScreen.map { reported($0, anchor: .topRight, in: hiddenSidebarScreen) }
+        #expect(Correction(screen: hiddenSidebarScreen, childFrames: children, textFrames: text)?.anchor == .topRight)
+    }
+
+    @Test
+    func textStandsOnEndWhenMostLinesAreTallerThanWide() {
+        let standing = CGRect(x: 0, y: 0, width: 19, height: 113)
+        let flat = CGRect(x: 0, y: 0, width: 113, height: 19)
+        #expect(Correction.textStandsOnEnd([standing, standing, flat]))
+        #expect(!Correction.textStandsOnEnd([standing, flat]))
+        #expect(!Correction.textStandsOnEnd([]))
+    }
+
+    @Test
+    func iconCellsDoNotCountAsText() {
+        // An icon with its label under it is taller than wide on screen, but isn't a line.
+        let iconCell = CGRect(x: 0, y: 0, width: 64, height: 92)
+        let flatLine = CGRect(x: 0, y: 0, width: 113, height: 19)
+        #expect(!Correction.textStandsOnEnd([iconCell, iconCell, flatLine]))
+    }
+
+    @Test
+    func containmentWithoutTextNeedsNoCorrection() {
+        let children = hiddenSidebarOnScreen.map { reported($0, anchor: .topRight, in: hiddenSidebarScreen) }
+        #expect(Correction(screen: hiddenSidebarScreen, childFrames: children) == nil)
+    }
+
+    @Test
+    func childrenInsideBothPortraitRectsAreAmbiguous() {
+        // A lone centred label fits either rotation, so the frames are left alone.
+        #expect(Correction(screen: hiddenSidebarScreen, childFrames: [placeholderLabel]) == nil)
+    }
+
     @Test
     func portraitScreenNeedsNoCorrection() {
         #expect(Correction(screen: portraitScreen, childFrames: [portraitScreen]) == nil)

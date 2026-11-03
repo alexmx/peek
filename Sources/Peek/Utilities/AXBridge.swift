@@ -27,6 +27,11 @@ enum AXBridge {
         string(of: element, key: kAXSubroleAttribute)
     }
 
+    /// The element's role without the "AX" prefix ("Button", "StaticText").
+    static func role(of element: AXUIElement) -> String? {
+        string(of: element, key: kAXRoleAttribute).map(stripAXPrefix)
+    }
+
     private static func string(of element: AXUIElement, key: String) -> String? {
         var ref: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, key as CFString, &ref) == .success,
@@ -178,7 +183,7 @@ enum AXBridge {
             )
         } else {
             AXNode(
-                role: stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown"),
+                role: role(of: element) ?? "unknown",
                 title: string(of: element, key: kAXTitleAttribute),
                 value: string(of: element, key: kAXValueAttribute),
                 description: string(of: element, key: kAXDescriptionAttribute),
@@ -225,7 +230,7 @@ enum AXBridge {
     /// the attributes the active filters need are read (see `ElementFilter.matches`).
     static func elementMatches(_ element: AXUIElement, _ filter: ElementFilter) -> Bool {
         filter.matches(
-            role: { stripAXPrefix(string(of: element, key: kAXRoleAttribute) ?? "unknown") },
+            role: { role(of: element) ?? "unknown" },
             title: { string(of: element, key: kAXTitleAttribute) },
             value: { string(of: element, key: kAXValueAttribute) },
             description: { string(of: element, key: kAXDescriptionAttribute) },

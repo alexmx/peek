@@ -358,18 +358,10 @@ enum AccessibilityManager {
             correction: TouchHost.FrameCorrection?
         ) -> (elements: [AXUIElement], correction: TouchHost.FrameCorrection?) {
             guard let children = AXBridge.children(of: element), !children.isEmpty else { return ([], correction) }
-            guard detectsIOSContent, let iOSContent = Self.iOSContentCorrection(element, children: children)
+            guard detectsIOSContent,
+                  let iOSContent = TouchHost.FrameCorrection.detect(contentGroup: element, children: children)
             else { return (children, correction) }
             return (children, iOSContent)
-        }
-
-        private static func iOSContentCorrection(
-            _ element: AXUIElement,
-            children: [AXUIElement]
-        ) -> TouchHost.FrameCorrection? {
-            guard AXBridge.subrole(of: element) == TouchHost.iOSContentSubrole,
-                  let screen = AXBridge.frame(of: element) else { return nil }
-            return TouchHost.FrameCorrection(screen: screen, childFrames: children.compactMap(AXBridge.frame(of:)))
         }
     }
 
