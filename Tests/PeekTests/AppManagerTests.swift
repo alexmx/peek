@@ -18,8 +18,12 @@ struct AppManagerTests {
         )
     }
 
-    private let regularApp = AppManager.RunningApp(pid: 10, name: "Notes", bundleID: nil, isRegular: true)
-    private let accessoryApp = AppManager.RunningApp(pid: 20, name: "Agent", bundleID: nil, isRegular: false)
+    private let regularApp = AppManager.RunningApp(
+        pid: 10, name: "Notes", bundleID: nil, isRegular: true, isActive: false, isHidden: false
+    )
+    private let accessoryApp = AppManager.RunningApp(
+        pid: 20, name: "Agent", bundleID: nil, isRegular: false, isActive: false, isHidden: false
+    )
 
     @Test
     func listAppsExcludesAccessoryAppsByDefault() {
@@ -47,9 +51,14 @@ struct AppManagerTests {
 
     @Test
     func listAppsCarriesActiveAndHiddenState() throws {
-        var app = regularApp
-        app.isActive = true
-        app.isHidden = true
+        let app = AppManager.RunningApp(
+            pid: 10,
+            name: "Notes",
+            bundleID: nil,
+            isRegular: true,
+            isActive: true,
+            isHidden: true
+        )
         let entry = try #require(AppManager.listApps([app], windows: []).first)
         #expect(entry.isActive && entry.isHidden)
     }
@@ -65,7 +74,14 @@ struct AppManagerTests {
 
     private func app(_ pid: pid_t, _ name: String?, bundle: String? = nil, regular: Bool = true) -> AppManager
         .RunningApp {
-        AppManager.RunningApp(pid: pid, name: name, bundleID: bundle, isRegular: regular)
+        AppManager.RunningApp(
+            pid: pid,
+            name: name,
+            bundleID: bundle,
+            isRegular: regular,
+            isActive: false,
+            isHidden: false
+        )
     }
 
     @Test

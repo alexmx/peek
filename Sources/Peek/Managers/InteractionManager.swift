@@ -496,7 +496,7 @@ enum InteractionManager {
         if !smooth {
             // Single-shot: positive wheel1 = scroll up, so negate for our convention
             // (positive = down). Marked continuous (trackpad-style) for broad compatibility.
-            postScrollEvent(deltaX: deltaX, deltaY: deltaY, phase: nil)
+            postScrollEvent(deltaX: deltaX, deltaY: deltaY)
             return
         }
 
@@ -514,23 +514,36 @@ enum InteractionManager {
         let dxs = distributeDelta(deltaX, across: weights)
 
         for i in 0..<resolvedSteps {
-            let phase: Int64 = i == 0 ? 1 : 2 // kCGScrollPhaseBegan : kCGScrollPhaseChanged
-            postScrollEvent(deltaX: dxs[i], deltaY: dys[i], phase: phase)
+            postScrollEvent(deltaX: dxs[i], deltaY: dys[i], phase: i == 0 ? .began : .changed)
             await pause(sleepPerStepMs)
         }
-        // Terminate the gesture so the view settles (kCGScrollPhaseEnded, zero delta).
-        postScrollEvent(deltaX: 0, deltaY: 0, phase: 4)
-        // Then end the momentum a real trackpad sends after lifting (kCGMomentumScrollPhaseEnd).
-        // Without it AppKit keeps waiting for momentum and swallows the next scroll event, so
-        // an instant scroll right after a smooth one did nothing.
+        // Terminate the gesture so the view settles (zero delta).
+        postScrollEvent(deltaX: 0, deltaY: 0, phase: .ended)
+        // Then end the momentum a real trackpad sends after lifting. Without it AppKit keeps
+        // waiting for momentum and swallows the next scroll event, so an instant scroll right
+        // after a smooth one did nothing.
         await pause(16)
-        postScrollEvent(deltaX: 0, deltaY: 0, phase: 0, momentumPhase: 3)
+        postScrollEvent(deltaX: 0, deltaY: 0, momentumPhase: .ended)
     }
 
-    /// Post one continuous (pixel-unit) scroll-wheel event. `phase`, when non-nil, sets
-    /// `kCGScrollWheelEventScrollPhase` so apps render the gesture as a smooth stream;
-    /// `momentumPhase` sets `kCGScrollWheelEventMomentumPhase`.
-    private static func postScrollEvent(deltaX: Int32, deltaY: Int32, phase: Int64?, momentumPhase: Int64? = nil) {
+    /// `kCGScrollWheelEventScrollPhase` values: the stages of a trackpad scroll gesture.
+    private enum ScrollPhase: Int64 {
+        case began = 1, changed = 2, ended = 4
+    }
+
+    /// `kCGScrollWheelEventMomentumPhase` values: the coasting a trackpad adds after lifting.
+    private enum MomentumPhase: Int64 {
+        case ended = 3
+    }
+
+    /// Post one continuous (pixel-unit) scroll-wheel event. A `phase` makes it part of a
+    /// gesture, so apps render the scroll as a smooth stream; without one it's a lone event.
+    private static func postScrollEvent(
+        deltaX: Int32,
+        deltaY: Int32,
+        phase: ScrollPhase? = nil,
+        momentumPhase: MomentumPhase? = nil
+    ) {
         let event = CGEvent(
             scrollWheelEvent2Source: eventSource,
             units: .pixel,
@@ -541,10 +554,10 @@ enum InteractionManager {
         )
         event?.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
         if let phase {
-            event?.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+            event?.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase.rawValue)
         }
         if let momentumPhase {
-            event?.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentumPhase)
+            event?.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentumPhase.rawValue)
         }
         event?.post(tap: .cghidEventTap)
     }

@@ -11,8 +11,8 @@ enum AppManager {
         let bundleID: String?
         /// A regular (Dock) app rather than an agent or background process.
         let isRegular: Bool
-        var isActive = false
-        var isHidden = false
+        let isActive: Bool
+        let isHidden: Bool
     }
 
     /// The running apps, read on the main actor. NSWorkspace's list and each
@@ -52,6 +52,15 @@ enum AppManager {
             ?? apps.first { $0.isRegular && nameContains($0) }
             ?? apps.first(where: nameContains)
             ?? apps.first { $0.bundleID?.localizedCaseInsensitiveContains(query) == true }
+    }
+
+    /// The running apps and their windows, as `peek apps` and peek_apps list them: names
+    /// containing `name` when given, plus window-owning accessory apps with `includePanels`.
+    static func listApps(named name: String? = nil, includePanels: Bool) async throws -> [AppEntry] {
+        let windows = try await WindowManager.listWindows(includePanels: includePanels)
+        let entries = await listApps(runningApps(), windows: windows, includeWindowOwners: includePanels)
+        guard let name else { return entries }
+        return entries.filter { $0.name.localizedCaseInsensitiveContains(name) }
     }
 
     /// The regular apps among `apps`, each with its windows from `windows`, sorted by name.

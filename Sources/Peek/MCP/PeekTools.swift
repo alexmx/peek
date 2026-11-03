@@ -514,17 +514,7 @@ enum PeekTools {
         description: "List running apps and their windows with IDs and frames. Pass `app=X` when known — no-arg form lists every running app and is for discovery only. If peek_launch with wait_for_window=true was just called, the windowID/title are in its result — skip this call. Off-screen windows (minimized, on another Space) are listed too, with isOnScreen=false; peek_activate brings them forward. Menu-bar panels / status items are invisible by default; include_panels=true to list them (e.g. to capture a MenuBarExtra panel by window ID)."
     ) { (args: AppsArgs) in
         try await withTimeout("peek_apps") {
-            let includePanels = args.include_panels ?? false
-            let windows = try await WindowManager.listWindows(includePanels: includePanels)
-            var entries = await AppManager.listApps(
-                AppManager.runningApps(),
-                windows: windows,
-                includeWindowOwners: includePanels
-            )
-            if let app = args.app {
-                entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
-            }
-            return try json(entries)
+            try await json(AppManager.listApps(named: args.app, includePanels: args.include_panels ?? false))
         }
     }
 
