@@ -307,21 +307,4 @@ struct PeekErrorTests {
         #expect(description.contains("Ghostty"))
         #expect(description.contains("window_id"))
     }
-
-    @Test
-    func descriptionMatchesErrorDescription() throws {
-        // The MCP server renders errors via String(describing:); CustomStringConvertible
-        // must route that to errorDescription instead of the bare case name.
-        let cases: [PeekError] = [
-            .noTextContent, .substringNotFound("x"), .screenCaptureNotGranted, .elementNotFound, .windowNotFound(7),
-            .coordinateOffTarget(x: 1, y: 2, target: "A", actual: "B")
-        ]
-        for error in cases {
-            let expected = try #require(error.errorDescription)
-            #expect(String(describing: error) == expected)
-            #expect(error.description == expected)
-        }
-        // Specifically not the raw enum case label.
-        #expect(String(describing: PeekError.screenCaptureNotGranted) != "screenCaptureNotGranted")
-    }
 }

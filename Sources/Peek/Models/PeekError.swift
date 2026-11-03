@@ -2,7 +2,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 
-enum PeekError: LocalizedError, CustomStringConvertible {
+enum PeekError: LocalizedError {
     case windowNotFound(CGWindowID)
     case accessibilityNotTrusted
     case windowNotAccessible(CGWindowID)
@@ -86,11 +86,5 @@ enum PeekError: LocalizedError, CustomStringConvertible {
         case .invalidArgument(let name, let value, let valid):
             "Invalid \(name) '\(value)'. Valid values: \(valid.joined(separator: ", "))."
         }
-    }
-
-    /// MCP renders errors with String(describing:); route it through errorDescription
-    /// so clients get the full message instead of the bare case name.
-    var description: String {
-        errorDescription ?? "An unknown error occurred."
     }
 }

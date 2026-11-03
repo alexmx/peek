@@ -217,7 +217,7 @@ enum InteractionManager {
         throw PeekError.coordinateOffTarget(x: x, y: y, target: appName(of: pid), actual: actual)
     }
 
-    enum MouseButton: String {
+    enum MouseButton: String, LenientStringEnum {
         case left, right
     }
 

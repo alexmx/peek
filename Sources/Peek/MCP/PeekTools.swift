@@ -113,7 +113,7 @@ enum PeekTools {
 
     // MARK: - Argument Types
 
-    struct WindowArgs: MCPToolInput {
+    struct WindowArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -122,7 +122,7 @@ enum PeekTools {
         var pid: Int?
     }
 
-    struct AppsArgs: MCPToolInput {
+    struct AppsArgs: MCPInput {
         @InputProperty("App name (case-insensitive substring)")
         var app: String?
         @InputProperty(
@@ -131,7 +131,7 @@ enum PeekTools {
         var include_panels: Bool?
     }
 
-    struct TreeArgs: MCPToolInput {
+    struct TreeArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -142,7 +142,7 @@ enum PeekTools {
         var depth: Int?
     }
 
-    struct FindArgs: MCPToolInput {
+    struct FindArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -173,7 +173,7 @@ enum PeekTools {
         var limit: Int?
     }
 
-    struct TextArgs: MCPToolInput {
+    struct TextArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -206,7 +206,7 @@ enum PeekTools {
         var substring: String?
     }
 
-    struct ClickArgs: MCPToolInput {
+    struct ClickArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -222,9 +222,9 @@ enum PeekTools {
         )
         var count: Int?
         @InputProperty(
-            "Mouse button: 'left' (default) or 'right'. Right-click opens context menus on canvases / web views."
+            "Mouse button (default left). Right-click opens context menus on canvases / web views."
         )
-        var button: String?
+        var button: InteractionManager.MouseButton?
         @InputProperty(
             "Modifier keys held during the click: any subset of cmd, shift, option, control, fn. E.g. ['shift'] for range select, ['cmd'] to toggle / open in background."
         )
@@ -235,7 +235,7 @@ enum PeekTools {
         var hold_ms: Int?
     }
 
-    struct DragArgs: MCPToolInput {
+    struct DragArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -260,7 +260,7 @@ enum PeekTools {
         var duration_ms: Int?
     }
 
-    struct MoveArgs: MCPToolInput {
+    struct MoveArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -283,7 +283,7 @@ enum PeekTools {
         var dwell_ms: Int?
     }
 
-    struct ScrollArgs: MCPToolInput {
+    struct ScrollArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -314,7 +314,7 @@ enum PeekTools {
         var duration_ms: Int?
     }
 
-    struct TypeArgs: MCPToolInput {
+    struct TypeArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -329,7 +329,7 @@ enum PeekTools {
         var delay_ms: Int?
     }
 
-    struct KeyArgs: MCPToolInput {
+    struct KeyArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -344,7 +344,7 @@ enum PeekTools {
         var modifiers: [String]?
     }
 
-    struct ActionArgs: MCPToolInput {
+    struct ActionArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -371,9 +371,9 @@ enum PeekTools {
         @InputProperty("Perform on all matches (default: first only)")
         var all: Bool?
         @InputProperty(
-            "Verification: 'none' (default), 'tree' (post-action tree), 'diff' (before+after delta — prefer for 'did this update?')."
+            "Verification (default none): tree = post-action tree, diff = before+after delta — prefer diff for 'did this update?'."
         )
-        var verify: String?
+        var verify: ActionVerifyMode?
         @InputProperty("Depth for verify=tree/diff (default: full). Shallow depth can hide deep changes.")
         var depth: Int?
         @InputProperty(
@@ -382,7 +382,7 @@ enum PeekTools {
         var delay: Double?
     }
 
-    struct CaptureArgs: MCPToolInput {
+    struct CaptureArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -401,7 +401,7 @@ enum PeekTools {
         var height: Int?
     }
 
-    struct MenuArgs: MCPToolInput {
+    struct MenuArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -424,7 +424,7 @@ enum PeekTools {
         var extras: Bool?
     }
 
-    struct LaunchArgs: MCPToolInput {
+    struct LaunchArgs: MCPInput {
         @InputProperty("Bundle identifier (com.apple.calculator). Most reliable resolver — prefer when known.")
         var bundle_id: String?
         @InputProperty(
@@ -443,7 +443,7 @@ enum PeekTools {
         var documents: [String]?
     }
 
-    struct QuitArgs: MCPToolInput {
+    struct QuitArgs: MCPInput {
         @InputProperty("Process ID")
         var pid: Int?
         @InputProperty("Bundle identifier (e.g. com.apple.calculator)")
@@ -454,7 +454,7 @@ enum PeekTools {
         var force: Bool?
     }
 
-    struct WaitArgs: MCPToolInput {
+    struct WaitArgs: MCPInput {
         @InputProperty("Window ID (from peek_apps)")
         var window_id: Int?
         @InputProperty("App name (case-insensitive substring)")
@@ -479,7 +479,7 @@ enum PeekTools {
         var poll: Double?
     }
 
-    struct DoctorArgs: MCPToolInput {
+    struct DoctorArgs: MCPInput {
         @InputProperty("Prompt for missing permissions via System Settings")
         var prompt: Bool?
     }
@@ -580,10 +580,7 @@ enum PeekTools {
         try await withTimeout("peek_click") {
             try await activateAndGuard([(args.x, args.y)], windowID: args.window_id, app: args.app, pid: args.pid)
             let count = max(1, min(args.count ?? 1, 3))
-            let buttonRaw = (args.button ?? "left").lowercased()
-            guard let button = InteractionManager.MouseButton(rawValue: buttonRaw) else {
-                throw PeekError.invalidArgument(name: "button", value: buttonRaw, valid: ["left", "right"])
-            }
+            let button = args.button ?? .left
             let mods = KeyMapping.modifierTokens(args.modifiers ?? [])
             let flags = try KeyMapping.parseModifiers(mods)
             let hold = InteractionManager.clampHoldMs(args.hold_ms ?? 0)
@@ -706,14 +703,11 @@ enum PeekTools {
         let settleDelay = args.delay ?? 0.15
         return try await withTimeout("peek_action", seconds: defaultTimeout + settleDelay) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
-            let verifyRaw = args.verify?.lowercased() ?? "none"
-            guard let verify = ActionVerifyMode(rawValue: verifyRaw) else {
-                throw PeekError.invalidArgument(name: "verify", value: verifyRaw, valid: ["none", "tree", "diff"])
-            }
             let outcome = try await InteractionManager.performAndVerify(
                 pid: pid, windowID: windowID, action: args.action,
                 filter: ElementFilter(role: args.role, title: args.title, value: args.value, description: args.desc),
-                all: args.all ?? false, verify: verify, depth: args.depth, settleDelay: settleDelay
+                all: args.all ?? false, verify: args.verify ?? ActionVerifyMode.none, depth: args.depth,
+                settleDelay: settleDelay
             )
             return try json(outcome)
         }
@@ -816,17 +810,26 @@ enum PeekTools {
     static let wait = MCPTool(
         name: "peek_wait",
         description: "Poll for a UI element to appear (returns at first match). Use for changes you DON'T trigger (Done after save, dialog opens, spinner vanishes). For changes you DO trigger, peek_action verify='diff' is more direct. Same filters as peek_find. Pre-read with peek_find to confirm the label exists — waiting on a missing label burns the full timeout."
-    ) { (args: WaitArgs) in
+    ) { (args: WaitArgs, context: MCPContext) in
         let timeout = args.timeout ?? 30.0
         let poll = max(args.poll ?? 0.2, 0.05)
         return try await withTimeout("peek_wait", seconds: timeout + defaultTimeout) {
             let (windowID, pid) = try await resolveWindow(windowID: args.window_id, app: args.app, pid: args.pid)
             let filter = ElementFilter(role: args.role, title: args.title, value: args.value, description: args.desc)
-            let deadline = Date().addingTimeInterval(timeout)
+            let start = Date()
+            let deadline = start.addingTimeInterval(timeout)
+            // Progress is elapsed seconds out of the timeout, sent once per whole
+            // second rather than every poll. A no-op unless the client asked for it.
+            var reportedSeconds = 0
             while Date() < deadline {
                 let results = try AccessibilityManager.find(pid: pid, windowID: windowID, filter: filter, limit: 1)
                 if let first = results.first {
                     return try json(first)
+                }
+                let elapsedSeconds = Int(Date().timeIntervalSince(start))
+                if elapsedSeconds > reportedSeconds {
+                    reportedSeconds = elapsedSeconds
+                    await context.reportProgress(Double(elapsedSeconds), total: timeout)
                 }
                 try await Delay.seconds(poll)
             }

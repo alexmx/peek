@@ -1,7 +1,7 @@
 import Foundation
 
 /// What `action` captures after performing: nothing, the post-action tree, or a before/after diff.
-enum ActionVerifyMode: String {
+enum ActionVerifyMode: String, LenientStringEnum {
     case none, tree, diff
 }
 
