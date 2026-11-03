@@ -520,11 +520,17 @@ enum InteractionManager {
         }
         // Terminate the gesture so the view settles (kCGScrollPhaseEnded, zero delta).
         postScrollEvent(deltaX: 0, deltaY: 0, phase: 4)
+        // Then end the momentum a real trackpad sends after lifting (kCGMomentumScrollPhaseEnd).
+        // Without it AppKit keeps waiting for momentum and swallows the next scroll event, so
+        // an instant scroll right after a smooth one did nothing.
+        await pause(16)
+        postScrollEvent(deltaX: 0, deltaY: 0, phase: 0, momentumPhase: 3)
     }
 
     /// Post one continuous (pixel-unit) scroll-wheel event. `phase`, when non-nil, sets
-    /// `kCGScrollWheelEventScrollPhase` so apps render the gesture as a smooth stream.
-    private static func postScrollEvent(deltaX: Int32, deltaY: Int32, phase: Int64?) {
+    /// `kCGScrollWheelEventScrollPhase` so apps render the gesture as a smooth stream;
+    /// `momentumPhase` sets `kCGScrollWheelEventMomentumPhase`.
+    private static func postScrollEvent(deltaX: Int32, deltaY: Int32, phase: Int64?, momentumPhase: Int64? = nil) {
         let event = CGEvent(
             scrollWheelEvent2Source: eventSource,
             units: .pixel,
@@ -536,6 +542,9 @@ enum InteractionManager {
         event?.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)
         if let phase {
             event?.setIntegerValueField(.scrollWheelEventScrollPhase, value: phase)
+        }
+        if let momentumPhase {
+            event?.setIntegerValueField(.scrollWheelEventMomentumPhase, value: momentumPhase)
         }
         event?.post(tap: .cghidEventTap)
     }
