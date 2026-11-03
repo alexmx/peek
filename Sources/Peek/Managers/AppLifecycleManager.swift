@@ -151,8 +151,8 @@ enum AppLifecycleManager {
 
     /// Quit a running app by PID, bundle ID, or name. Graceful by default;
     /// `force=true` uses SIGKILL-equivalent forceTerminate().
-    static func quit(pid: pid_t?, bundleID: String?, name: String?, force: Bool) throws -> QuitResult {
-        let app = try resolveRunningApp(pid: pid, bundleID: bundleID, name: name)
+    static func quit(pid: pid_t?, bundleID: String?, name: String?, force: Bool) async throws -> QuitResult {
+        let app = try await resolveRunningApp(pid: pid, bundleID: bundleID, name: name)
         let appName = app.localizedName ?? "Unknown"
         let appPid = app.processIdentifier
 
@@ -207,7 +207,7 @@ enum AppLifecycleManager {
         pid: pid_t?,
         bundleID: String?,
         name: String?
-    ) throws -> NSRunningApplication {
+    ) async throws -> NSRunningApplication {
         if let pid {
             guard let app = NSRunningApplication(processIdentifier: pid) else {
                 throw PeekError.appNotFound("pid \(pid)")
@@ -222,7 +222,8 @@ enum AppLifecycleManager {
         }
         if let name {
             // Regular apps only: a name shouldn't be able to terminate system agents.
-            guard let app = AppManager.runningApp(named: name, regularOnly: true) else {
+            guard let match = await AppManager.runningApp(named: name, regularOnly: true),
+                  let app = NSRunningApplication(processIdentifier: match.pid) else {
                 throw PeekError.appNotFound(name)
             }
             return app

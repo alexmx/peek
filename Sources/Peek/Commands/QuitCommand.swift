@@ -23,7 +23,7 @@ struct QuitCommand: AsyncParsableCommand {
     var format: OutputFormat = .default
 
     func run() async throws {
-        let result = try AppLifecycleManager.quit(pid: pid, bundleID: bundleID, name: name, force: force)
+        let result = try await AppLifecycleManager.quit(pid: pid, bundleID: bundleID, name: name, force: force)
         try emit(result, as: format) {
             print("\(force ? "Force-quit" : "Quit") \(result.name) (pid \(result.pid))")
         }

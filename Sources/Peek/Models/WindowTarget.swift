@@ -82,8 +82,8 @@ struct WindowTarget: ParsableArguments {
     static func resolvePID(windowID: UInt32?, app: String?, pid: pid_t?) async throws -> pid_t {
         if let pid { return pid }
         if let app {
-            guard let running = AppManager.runningApp(named: app) else { throw PeekError.appNotFound(app) }
-            return running.processIdentifier
+            guard let running = await AppManager.runningApp(named: app) else { throw PeekError.appNotFound(app) }
+            return running.pid
         }
         return try await resolve(windowID: windowID).pid
     }
@@ -91,8 +91,9 @@ struct WindowTarget: ParsableArguments {
     /// Core resolution logic shared by CLI commands and MCP tools.
     static func resolve(windowID: UInt32? = nil, app: String? = nil, pid: pid_t? = nil) async throws -> Resolved {
         let windows = try await WindowManager.listWindows()
+        let runningApps = app == nil ? [] : await AppManager.runningApps()
         do {
-            return try findWindow(in: windows, windowID: windowID, app: app, pid: pid)
+            return try findWindow(in: windows, runningApps: runningApps, windowID: windowID, app: app, pid: pid)
         } catch let error as ValidationError {
             // The listing drops non-standard windows (menu-bar panels, status items, small
             // utility windows), but an explicit ID is the caller saying "this window exists" —
@@ -113,9 +114,11 @@ struct WindowTarget: ParsableArguments {
     /// root — see `AccessibilityManager.resolveWindow` for the read side of this
     /// contract. Explicit `windowID` lookups never fall back to that sentinel; only
     /// `--app`/`--pid`. (`resolve` gives explicit IDs a different fallback: a direct
-    /// CGWindowList lookup for windows the filtered listing drops.)
+    /// CGWindowList lookup for windows the filtered listing drops.) `runningApps` is what an
+    /// `--app` name falls back to when no window matches.
     static func findWindow(
         in windows: [WindowInfo],
+        runningApps: [AppManager.RunningApp] = [],
         windowID: UInt32? = nil,
         app: String? = nil,
         pid: pid_t? = nil
@@ -131,8 +134,8 @@ struct WindowTarget: ParsableArguments {
             if let window = frontmostMatch(matching) {
                 return Resolved(windowID: window.windowID, pid: window.pid)
             }
-            if let running = AppManager.runningApp(named: app) {
-                return Resolved(windowID: 0, pid: running.processIdentifier)
+            if let running = AppManager.bestMatch(app, in: runningApps) {
+                return Resolved(windowID: 0, pid: running.pid)
             }
             throw ValidationError("No window found for app '\(app)'. Run 'peek apps' to see available apps.")
         }

@@ -128,6 +128,14 @@ struct WindowTargetTests {
     }
 
     @Test
+    func findWindowByAppFallsBackToWindowlessRunningApp() throws {
+        // An app with no window (Dock, a menu-bar agent) resolves to the sentinel window 0.
+        let dock = AppManager.RunningApp(pid: 7, name: "Dock", bundleID: "com.apple.dock", isRegular: false)
+        let result = try WindowTarget.findWindow(in: testWindows, runningApps: [dock], app: "Dock")
+        #expect(result.windowID == 0 && result.pid == 7)
+    }
+
+    @Test
     func findWindowByAppNotFound() {
         #expect(throws: ValidationError.self) {
             try WindowTarget.findWindow(in: testWindows, app: "NonExistent")

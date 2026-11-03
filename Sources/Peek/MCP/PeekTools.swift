@@ -520,7 +520,11 @@ enum PeekTools {
         try await withTimeout("peek_apps") {
             let includePanels = args.include_panels ?? false
             let windows = try await WindowManager.listWindows(includePanels: includePanels)
-            var entries = AppManager.listApps(windows: windows, includeWindowOwners: includePanels)
+            var entries = await AppManager.listApps(
+                AppManager.runningApps(),
+                windows: windows,
+                includeWindowOwners: includePanels
+            )
             if let app = args.app {
                 entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
             }
@@ -822,7 +826,7 @@ enum PeekTools {
         description: "Terminate an app (force=true uses forceTerminate). Resolve by pid (preferred), bundle_id, or name. Returns immediately; shutdown may continue async."
     ) { (args: QuitArgs) in
         try await withTimeout("peek_quit") {
-            let result = try AppLifecycleManager.quit(
+            let result = try await AppLifecycleManager.quit(
                 pid: args.pid.map { pid_t($0) },
                 bundleID: args.bundle_id,
                 name: args.name,

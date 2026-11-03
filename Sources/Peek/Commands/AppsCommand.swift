@@ -22,7 +22,11 @@ struct AppsCommand: AsyncParsableCommand {
 
     func run() async throws {
         let windows = try await WindowManager.listWindows(includePanels: includePanels)
-        var apps = AppManager.listApps(windows: windows, includeWindowOwners: includePanels)
+        var apps = await AppManager.listApps(
+            AppManager.runningApps(),
+            windows: windows,
+            includeWindowOwners: includePanels
+        )
 
         if let app {
             apps = apps.filter { $0.name.localizedCaseInsensitiveContains(app) }

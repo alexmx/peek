@@ -18,42 +18,54 @@ struct AppManagerTests {
         )
     }
 
-    /// A live non-regular (accessory/prohibited) app to anchor the window-owner tests —
-    /// there is always at least one in a login session (Dock, Control Centre, …).
-    private var accessoryPID: pid_t? {
-        NSWorkspace.shared.runningApplications
-            .first { $0.activationPolicy != .regular }?
-            .processIdentifier
-    }
+    private let regularApp = AppManager.RunningApp(pid: 10, name: "Notes", bundleID: nil, isRegular: true)
+    private let accessoryApp = AppManager.RunningApp(pid: 20, name: "Agent", bundleID: nil, isRegular: false)
 
     @Test
-    func listAppsExcludesAccessoryAppsByDefault() throws {
-        let pid = try #require(accessoryPID)
-        let entries = AppManager.listApps(windows: [window(pid: pid)])
-        #expect(!entries.contains { $0.pid == pid })
+    func listAppsExcludesAccessoryAppsByDefault() {
+        let entries = AppManager.listApps([regularApp, accessoryApp], windows: [window(pid: 20)])
+        #expect(entries.map(\.pid) == [10])
     }
 
     @Test
     func listAppsIncludesAccessoryWindowOwnersWhenAsked() throws {
-        let pid = try #require(accessoryPID)
-        let entries = AppManager.listApps(windows: [window(pid: pid, layer: 101)], includeWindowOwners: true)
-        let entry = try #require(entries.first { $0.pid == pid })
+        let entries = AppManager.listApps(
+            [regularApp, accessoryApp],
+            windows: [window(pid: 20, layer: 101)],
+            includeWindowOwners: true
+        )
+        let entry = try #require(entries.first { $0.pid == 20 })
         #expect(entry.windows.count == 1)
         #expect(entry.windows[0].layer == 101)
     }
 
     @Test
-    func listAppsExcludesWindowlessAccessoryAppsEvenWhenAsked() throws {
-        let pid = try #require(accessoryPID)
-        let entries = AppManager.listApps(windows: [], includeWindowOwners: true)
-        #expect(!entries.contains { $0.pid == pid })
+    func listAppsExcludesWindowlessAccessoryAppsEvenWhenAsked() {
+        let entries = AppManager.listApps([regularApp, accessoryApp], windows: [], includeWindowOwners: true)
+        #expect(entries.map(\.pid) == [10])
+    }
+
+    @Test
+    func listAppsCarriesActiveAndHiddenState() throws {
+        var app = regularApp
+        app.isActive = true
+        app.isHidden = true
+        let entry = try #require(AppManager.listApps([app], windows: []).first)
+        #expect(entry.isActive && entry.isHidden)
+    }
+
+    @Test
+    func runningAppsSeesTheLiveSession() async {
+        // Read on the main actor; a login session always has Finder and the Dock.
+        let names = await AppManager.runningApps().compactMap(\.name)
+        #expect(names.contains("Finder") && names.contains("Dock"))
     }
 
     // MARK: - bestMatch(_:in:)
 
     private func app(_ pid: pid_t, _ name: String?, bundle: String? = nil, regular: Bool = true) -> AppManager
-        .AppCandidate {
-        AppManager.AppCandidate(pid: pid, name: name, bundleID: bundle, isRegular: regular)
+        .RunningApp {
+        AppManager.RunningApp(pid: pid, name: name, bundleID: bundle, isRegular: regular)
     }
 
     @Test
