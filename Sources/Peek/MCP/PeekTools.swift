@@ -126,11 +126,7 @@ enum PeekTools {
         @InputProperty("App name (case-insensitive substring)")
         var app: String?
         @InputProperty(
-            "Include off-screen / minimized / other-Space windows (default: false; off-screen windows aren't interactable without peek_activate)."
-        )
-        var include_offscreen: Bool?
-        @InputProperty(
-            "Include non-standard windows — menu-bar panels (MenuBarExtra), status items, small utility windows — and the accessory apps that own them; each window reports its layer (0 = normal, 25 = status item, 101 = menu/panel). Implies include_offscreen (a dismissed panel is off-screen yet still capturable by window ID). Noisy without an app filter."
+            "Include non-standard windows — menu-bar panels (MenuBarExtra), status items, small utility windows — and the accessory apps that own them; each window reports its layer (0 = normal, 25 = status item, 101 = menu/panel). A dismissed panel is off-screen yet still capturable by window ID. Noisy without an app filter."
         )
         var include_panels: Bool?
     }
@@ -515,7 +511,7 @@ enum PeekTools {
 
     static let apps = MCPTool(
         name: "peek_apps",
-        description: "List running apps and their windows with IDs and frames. Pass `app=X` when known — no-arg form lists every running app and is for discovery only. If peek_launch with wait_for_window=true was just called, the windowID/title are in its result — skip this call. Off-screen windows trimmed by default; include_offscreen=true to see them. Menu-bar panels / status items are invisible by default; include_panels=true to list them (e.g. to capture a MenuBarExtra panel by window ID)."
+        description: "List running apps and their windows with IDs and frames. Pass `app=X` when known — no-arg form lists every running app and is for discovery only. If peek_launch with wait_for_window=true was just called, the windowID/title are in its result — skip this call. Off-screen windows (minimized, on another Space) are listed too, with isOnScreen=false; peek_activate brings them forward. Menu-bar panels / status items are invisible by default; include_panels=true to list them (e.g. to capture a MenuBarExtra panel by window ID)."
     ) { (args: AppsArgs) in
         try await withTimeout("peek_apps") {
             let includePanels = args.include_panels ?? false
@@ -527,18 +523,6 @@ enum PeekTools {
             )
             if let app = args.app {
                 entries = entries.filter { $0.name.localizedCaseInsensitiveContains(app) }
-            }
-            if !(args.include_offscreen ?? includePanels) {
-                entries = entries.map { entry in
-                    AppEntry(
-                        name: entry.name,
-                        bundleID: entry.bundleID,
-                        pid: entry.pid,
-                        isActive: entry.isActive,
-                        isHidden: entry.isHidden,
-                        windows: entry.windows.filter { $0.isOnScreen }
-                    )
-                }
             }
             return try json(entries)
         }

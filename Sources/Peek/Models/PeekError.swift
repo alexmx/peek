@@ -62,7 +62,7 @@ enum PeekError: LocalizedError, CustomStringConvertible {
         case .invalidCropRegion:
             "Crop region is outside the window bounds."
         case .captureFailed:
-            "Could not capture the window. It may have moved off-screen or to another Space, been minimized, or closed since it was last listed — re-check with 'peek apps' (include_offscreen=true), then peek_activate and retry."
+            "Could not capture the window. It may have moved off-screen or to another Space, been minimized, or closed since it was last listed — re-check with 'peek apps' (off-screen windows show isOnScreen=false), then peek_activate and retry."
         case .noCapturableWindow:
             "The app has no standard windows to capture. If it's a menu-bar app, open its panel once, list it with 'peek apps --include-panels' (MCP: include_panels=true), and capture by explicit window ID — panels stay capturable by ID even after they dismiss."
         case .encodingFailed:
