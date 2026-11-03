@@ -2,7 +2,6 @@ import AppKit
 import CoreGraphics
 import Foundation
 import ImageIO
-import ScreenCaptureKit
 import UniformTypeIdentifiers
 
 enum ScreenCaptureManager {
@@ -30,7 +29,7 @@ enum ScreenCaptureManager {
         try requireCapturableWindowID(windowID)
         try PermissionManager.requireScreenCapture()
 
-        guard let image = captureWindowImage(windowID) else {
+        guard let image = await captureWindowImage(windowID) else {
             throw await captureFailure(for: windowID)
         }
         guard let crop else { return image }
@@ -49,8 +48,7 @@ enum ScreenCaptureManager {
 
     /// Crop a captured window image to a window-relative rect, scaling the rect by the
     /// image's Retina factor (actual pixels vs the window's point size). The point size comes
-    /// from CGWindowList — the same source as the capture itself, and synchronous, so it can't
-    /// hang on a wedged `replayd` the way `SCShareableContent` can.
+    /// from CGWindowList, which is synchronous and never goes through `replayd`.
     private static func cropImage(_ image: CGImage, to crop: CGRect, windowID: CGWindowID) throws -> CGImage {
         guard let frame = windowFrame(windowID) else {
             throw PeekError.windowNotFound(windowID)
@@ -77,56 +75,29 @@ enum ScreenCaptureManager {
         WindowManager.windowInfo(byID: windowID)?.frame
     }
 
-    /// CGWindowListCreateImage is deprecated in macOS 15 but still works at runtime —
-    /// for on-screen windows only (see `screencaptureFallback` for the off-screen case).
-    /// ScreenCaptureKit (SCScreenshotManager/SCStream) requires a RunLoop and hangs in CLI tools.
-    @_silgen_name("CGWindowListCreateImage")
-    private static func _CGWindowListCreateImage(
-        _ screenBounds: CGRect,
-        _ listOption: CGWindowListOption,
-        _ windowID: CGWindowID,
-        _ imageOption: CGWindowImageOption
-    ) -> CGImage?
+    /// Longest a single window capture may take before the helper is killed.
+    private static let captureTimeout: TimeInterval = 8
 
-    private static func captureWindowImage(_ windowID: CGWindowID) -> CGImage? {
-        if let image = _CGWindowListCreateImage(
-            .null,
-            .optionIncludingWindow,
-            windowID,
-            [.boundsIgnoreFraming, .bestResolution]
-        ) {
-            return image
-        }
-        return screencaptureFallback(windowID)
-    }
-
-    /// On macOS 15 the CG capture path returns nil for off-screen windows, but their
-    /// backing stores persist and stay capturable — a dismissed MenuBarExtra panel being
-    /// the canonical case. `screencapture -l` (ScreenCaptureKit-based) reaches them, so
-    /// shell out to it rather than SCScreenshotManager: building an SCContentFilter needs
-    /// SCShareableContent, whose `replayd` wedges peek deliberately moved away from.
-    /// `-x` mutes the shutter sound, `-o` omits the window shadow to match the CG path's
-    /// `boundsIgnoreFraming`. Uses the same Screen Recording grant; steals no focus.
-    private static func screencaptureFallback(_ windowID: CGWindowID) -> CGImage? {
-        guard windowID != kCGNullWindowID,
-              WindowManager.windowInfo(byID: windowID) != nil else { return nil }
+    /// Capture a window with the `screencapture` tool in a child process — never in peek's own
+    /// process, see `ChildProcess`. It also reaches off-screen windows whose backing store
+    /// persists, a dismissed MenuBarExtra panel being the canonical case. `-x` mutes the
+    /// shutter sound, `-o` omits the window shadow. Uses the same Screen Recording grant and
+    /// steals no focus.
+    private static func captureWindowImage(_ windowID: CGWindowID) async -> CGImage? {
+        guard WindowManager.windowInfo(byID: windowID) != nil else { return nil }
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("peek-capture-\(windowID)-\(UUID().uuidString).png")
         defer { try? FileManager.default.removeItem(at: tempURL) }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
-        process.arguments = ["-x", "-o", "-l", String(windowID), tempURL.path]
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return nil
-        }
+        let status = await ChildProcess.run(
+            URL(fileURLWithPath: "/usr/sbin/screencapture"),
+            arguments: ["-x", "-o", "-l", String(windowID), tempURL.path],
+            timeout: captureTimeout
+        )
         // Decode from in-memory data, not the file: CGImageSource images decode lazily,
         // and the temp file is deleted on return.
-        guard process.terminationStatus == 0,
+        guard status == 0,
               let data = try? Data(contentsOf: tempURL),
               let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
         return CGImageSourceCreateImageAtIndex(source, 0, nil)

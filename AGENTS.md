@@ -114,6 +114,10 @@ Coordinate commands (`click`/`drag`/`scroll`) with a target verify the point lan
 4. Add the corresponding MCP tool in `MCP/PeekTools.swift`
 5. Add any new model types under `Models/`
 
+## Screen Capture
+
+Never call ScreenCaptureKit or `CGWindowListCreateImage` from peek's own process. Both go through the system's `replayd`, which identifies clients by executable path: two long-running peek processes from the same binary (MCP servers for two Claude sessions) knock each other's connection out in a loop, pinning `replayd` at ~90% CPU and hanging every capture from that binary. Run such work in a short-lived child via `ChildProcess` — window capture uses `/usr/sbin/screencapture`, the Screen Recording probe the hidden `peek screen-capture-probe` subcommand.
+
 ## Formatting
 
 ```bash
